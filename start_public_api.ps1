@@ -4,21 +4,21 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "启动 FastAPI（监听 0.0.0.0:$Port）..."
+Write-Host "Starting FastAPI on 0.0.0.0:$Port ..."
 
 $publicIp = ""
 try {
     $publicIp = (Invoke-RestMethod -Uri "https://api.ipify.org" -TimeoutSec 8).ToString().Trim()
 } catch {
-    Write-Warning "无法自动获取公网 IP，请手动查看。"
+    Write-Warning "Cannot fetch public IP automatically."
 }
 
 if ($publicIp) {
     Write-Host ""
-    Write-Host "=== 外网访问地址（需放行端口并做端口映射） ==="
-    Write-Host "http://$publicIp`:$Port/health"
-    Write-Host "http://$publicIp`:$Port/api/v1/qa"
+    Write-Host "=== Public endpoints (port open + NAT required) ==="
+    Write-Host ("http://{0}:{1}/health" -f $publicIp, $Port)
+    Write-Host ("http://{0}:{1}/api/v1/qa" -f $publicIp, $Port)
     Write-Host ""
 }
 
-python -m uvicorn fastapi_service:app --host 0.0.0.0 --port $Port
+py -3.12 -m uvicorn fastapi_service:app --host 0.0.0.0 --port $Port

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文档问答</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header class="header">
+            <h1>文档问答</h1>
+            <p class="subtitle">基于 RAG 的智能文档理解与分析</p>
+        </header>
+
+        <!-- 上传区域 -->
+        <section class="upload-section">
+            <div class="upload-zone" id="uploadZone">
+                <div class="upload-content">
+                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                    </svg>
+                    <p>拖拽文件到此处，或 <span class="link">点击上传</span></p>
+                    <span class="hint">支持 PDF, DOCX, TXT, MD, HTML, XLSX, PPTX 等格式</span>
+                </div>
+                <input type="file" id="fileInput" multiple hidden>
+            </div>
+
+            <!-- 已上传文件列表 -->
+            <div class="file-list" id="fileList"></div>
+        </section>
+
+        <!-- 问答区域 -->
+        <section class="qa-section">
+            <div class="question-wrapper">
+                <textarea 
+                    id="questionInput" 
+                    placeholder="输入你的问题..."
+                    rows="3"
+                ></textarea>
+                <div class="controls">
+                    <div class="options">
+                        <label>
+                            <span>检索片段数</span>
+                            <select id="topKSelect">
+                                <option value="1">1</option>
+                                <option value="3" selected>3</option>
+                                <option value="5">5</option>
+                                <option value="10">10</option>
+                            </select>
+                        </label>
+                    </div>
+                    <button id="submitBtn" class="submit-btn" disabled>
+                        <span class="btn-text">提问</span>
+                        <span class="btn-loading">
+                            <svg class="spinner" viewBox="0 0 24 24">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="60" stroke-linecap="round"/>
+                            </svg>
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 结果区域 -->
+        <section class="result-section" id="resultSection">
+            <!-- 答案展示 -->
+            <div class="answer-card" id="answerCard">
+                <div class="card-header">
+                    <h3>答案</h3>
+                </div>
+                <div class="card-body">
+                    <div class="answer-content" id="answerContent"></div>
+                </div>
+            </div>
+
+            <!-- 相关文档片段 -->
+            <div class="sources-card" id="sourcesCard">
+                <div class="card-header" id="sourcesHeader">
+                    <h3>相关文档片段 <span class="count" id="sourcesCount"></span></h3>
+                    <button class="toggle-btn" id="toggleSources">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M6 9l6 6 6-6"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="card-body" id="sourcesBody">
+                    <div class="sources-list" id="sourcesList"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 错误提示 -->
+        <div class="toast" id="toast">
+            <span class="toast-message"></span>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
