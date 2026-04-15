@@ -1,0 +1,12 @@
+{
+  "version": "rag_cache_v1",
+  "embed_model_id": "BAAI/bge-small-zh-v1.5",
+  "bundle_key": "75557041c88d91bb20926af4828713494eab8b6e",
+  "files": [
+    {
+      "path": "E:\\For_RAG\\.uploads\\7bbf543ff9ae4840843ed6d9deda478d\\Ch-3.pptx",
+      "fingerprint": "9134c096cc620167944cc6c89014f65591f8ff32"
+    }
+  ],
+  "chunk_count": 69
+}

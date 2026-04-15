@@ -1,0 +1,12 @@
+{
+  "version": "rag_cache_v1",
+  "embed_model_id": "BAAI/bge-small-zh-v1.5",
+  "bundle_key": "c497ea47915566c4f4d98fee6e396e7fe2df0af7",
+  "files": [
+    {
+      "path": "E:\\For_RAG\\.uploads\\8d2288e32db84343809bbb53b542d293\\README.md",
+      "fingerprint": "6f029282e94861b8db78ee90b2997919dbf7f0bf"
+    }
+  ],
+  "chunk_count": 1
+}

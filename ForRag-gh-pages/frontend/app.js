@@ -11,13 +11,22 @@
 // 配置
 // ========================================
 
-const runtimeApiBase = window.__API_BASE__ || localStorage.getItem('RAG_API_BASE') || 'http://35.77.38.184:8000';
+const DEFAULT_API_BASE = 'https://kitty-collapse-ivory-vol.trycloudflare.com';
+const storedApiBase = localStorage.getItem('RAG_API_BASE');
+const staleApiBases = new Set([
+    'http://35.77.38.184:8000',
+    'http://35.77.38.184:8001'
+]);
+const runtimeApiBase =
+    window.__API_BASE__ ||
+    (storedApiBase && !staleApiBases.has(storedApiBase) ? storedApiBase : DEFAULT_API_BASE);
 const normalizedApiBase = String(runtimeApiBase).replace(/\/+$/, '');
 
 const CONFIG = {
     API_BASE: normalizedApiBase,
     API_HEALTH: '/health',
     API_QA: '/api/v1/qa',
+    TOKEN_STORAGE_KEY: 'RAG_ACCESS_TOKEN',
     ALLOWED_TYPES: [
         'application/pdf',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -39,7 +48,8 @@ const CONFIG = {
 
 const state = {
     files: new DataTransfer().files, // 当前已上传文件列表
-    isLoading: false
+    isLoading: false,
+    accessToken: localStorage.getItem(CONFIG.TOKEN_STORAGE_KEY) || ''
 };
 
 // ========================================
@@ -50,6 +60,8 @@ const elements = {
     uploadZone: document.getElementById('uploadZone'),
     fileInput: document.getElementById('fileInput'),
     fileList: document.getElementById('fileList'),
+    accessTokenInput: document.getElementById('accessTokenInput'),
+    clearTokenBtn: document.getElementById('clearTokenBtn'),
     questionInput: document.getElementById('questionInput'),
     topKSelect: document.getElementById('topKSelect'),
     submitBtn: document.getElementById('submitBtn'),
@@ -79,6 +91,41 @@ function showToast(message, isError = false) {
     setTimeout(() => {
         elements.toast.classList.remove('show');
     }, 3000);
+}
+
+function getAccessToken() {
+    return (state.accessToken || '').trim();
+}
+
+function saveAccessToken(token) {
+    state.accessToken = token.trim();
+    if (state.accessToken) {
+        localStorage.setItem(CONFIG.TOKEN_STORAGE_KEY, state.accessToken);
+    } else {
+        localStorage.removeItem(CONFIG.TOKEN_STORAGE_KEY);
+    }
+}
+
+async function getErrorMessage(response) {
+    try {
+        const data = await response.json();
+        if (data && typeof data.detail === 'string' && data.detail.trim()) {
+            return data.detail;
+        }
+    } catch (error) {
+        // ignore JSON parsing errors and fall back to text
+    }
+
+    try {
+        const text = await response.text();
+        if (text.trim()) {
+            return text;
+        }
+    } catch (error) {
+        // ignore text parsing errors
+    }
+
+    return `请求失败 (${response.status})`;
 }
 
 /**
@@ -191,8 +238,9 @@ function removeFile(index) {
  */
 function updateSubmitButton() {
     const hasFiles = state.files.length > 0;
+    const hasToken = getAccessToken().length > 0;
     const hasQuestion = elements.questionInput.value.trim().length > 0;
-    elements.submitBtn.disabled = !hasFiles || !hasQuestion || state.isLoading;
+    elements.submitBtn.disabled = !hasFiles || !hasQuestion || !hasToken || state.isLoading;
 }
 
 // ========================================
@@ -242,6 +290,18 @@ function initEventListeners() {
     // 问题输入
     elements.questionInput.addEventListener('input', updateSubmitButton);
 
+    elements.accessTokenInput.addEventListener('input', (e) => {
+        saveAccessToken(e.target.value);
+        updateSubmitButton();
+    });
+
+    elements.clearTokenBtn.addEventListener('click', () => {
+        saveAccessToken('');
+        elements.accessTokenInput.value = '';
+        updateSubmitButton();
+        showToast('访问令牌已清除');
+    });
+
     // 提交问答
     elements.submitBtn.addEventListener('click', submitQuestion);
 
@@ -260,6 +320,7 @@ function initEventListeners() {
  */
 async function submitQuestion() {
     const question = elements.questionInput.value.trim();
+    const accessToken = getAccessToken();
     
     if (!question) {
         showToast('请输入问题', true);
@@ -268,6 +329,11 @@ async function submitQuestion() {
 
     if (state.files.length === 0) {
         showToast('请上传文件', true);
+        return;
+    }
+
+    if (!accessToken) {
+        showToast('请输入访问令牌', true);
         return;
     }
 
@@ -281,6 +347,7 @@ async function submitQuestion() {
     elements.answerContent.textContent = '';
     elements.sourcesList.innerHTML = '';
     elements.sourcesCount.textContent = '';
+    elements.sourcesCard.style.display = '';
     
     // 滚动到结果区域
     elements.resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -299,12 +366,14 @@ async function submitQuestion() {
         // 发送请求
         const response = await fetch(`${CONFIG.API_BASE}${CONFIG.API_QA}`, {
             method: 'POST',
+            headers: {
+                Authorization: `Bearer ${accessToken}`
+            },
             body: formData
         });
 
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(errorText || `请求失败 (${response.status})`);
+            throw new Error(await getErrorMessage(response));
         }
 
         const data = await response.json();
@@ -357,6 +426,7 @@ async function submitQuestion() {
  * 应用初始化
  */
 function init() {
+    elements.accessTokenInput.value = state.accessToken;
     initEventListeners();
     updateSubmitButton();
     console.log('当前后端地址:', CONFIG.API_BASE);

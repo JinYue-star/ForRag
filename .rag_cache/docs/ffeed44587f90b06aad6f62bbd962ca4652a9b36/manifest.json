@@ -1,0 +1,7 @@
+{
+  "version": "rag_cache_v1",
+  "embed_model_id": "BAAI/bge-small-zh-v1.5",
+  "file_path": "E:\\For_RAG\\.uploads\\8d2288e32db84343809bbb53b542d293\\README.md",
+  "file_fingerprint": "6f029282e94861b8db78ee90b2997919dbf7f0bf",
+  "chunk_count": 1
+}

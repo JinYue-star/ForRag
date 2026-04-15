@@ -34,6 +34,19 @@
         <!-- 问答区域 -->
         <section class="qa-section">
             <div class="question-wrapper">
+                <div class="security-panel">
+                    <label for="accessTokenInput">访问令牌</label>
+                    <div class="security-row">
+                        <input
+                            type="password"
+                            id="accessTokenInput"
+                            placeholder="输入后端启动时显示的访问令牌"
+                            autocomplete="off"
+                        >
+                        <button type="button" id="clearTokenBtn" class="secondary-btn">清除</button>
+                    </div>
+                    <p class="security-hint">令牌只保存在当前浏览器，用于保护你的本地后端。</p>
+                </div>
                 <textarea 
                     id="questionInput" 
                     placeholder="输入你的问题..."
