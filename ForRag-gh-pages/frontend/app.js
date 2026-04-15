@@ -11,11 +11,15 @@
 // 配置
 // ========================================
 
-const DEFAULT_API_BASE = 'https://kitty-collapse-ivory-vol.trycloudflare.com';
+const isLocalPage = ['127.0.0.1', 'localhost'].includes(window.location.hostname);
+const DEFAULT_API_BASE = isLocalPage
+    ? 'http://127.0.0.1:8000'
+    : 'https://kitty-collapse-ivory-vol.trycloudflare.com';
 const storedApiBase = localStorage.getItem('RAG_API_BASE');
 const staleApiBases = new Set([
     'http://35.77.38.184:8000',
-    'http://35.77.38.184:8001'
+    'http://35.77.38.184:8001',
+    'https://kitty-collapse-ivory-vol.trycloudflare.com'
 ]);
 const runtimeApiBase =
     window.__API_BASE__ ||
