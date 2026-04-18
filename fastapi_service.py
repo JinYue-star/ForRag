@@ -67,6 +67,7 @@ MAX_TOP_K = max(1, int(os.environ.get("RAG_MAX_TOP_K", "5")))
 MAX_QUESTION_CHARS = max(50, int(os.environ.get("RAG_MAX_QUESTION_CHARS", "1000")))
 RATE_LIMIT_WINDOW_SECONDS = max(10, int(os.environ.get("RAG_RATE_LIMIT_WINDOW_SECONDS", "60")))
 RATE_LIMIT_MAX_REQUESTS = max(1, int(os.environ.get("RAG_RATE_LIMIT_MAX_REQUESTS", "10")))
+PROMPT_CHUNK_CHAR_LIMIT = max(160, int(os.environ.get("RAG_PROMPT_CHUNK_CHAR_LIMIT", "700")))
 
 app = FastAPI(
     title="Document QA API",
@@ -176,6 +177,92 @@ def _build_fallback_answer(question: str, hits: list[tuple[float, object]]) -> s
     return "\n".join(lines)
 
 
+def _build_strategy_prompt(question: str, hits: list[tuple[float, object]]) -> str:
+    if not hits:
+        return (
+            "你是文档问答助手。\n"
+            "当前没有检索到任何有效文档片段。请明确告诉用户证据不足，"
+            "并建议重新上传更相关的文档或换个问法。\n\n"
+            f"用户问题：{question}"
+        )
+
+    evidence_blocks = []
+    for idx, (score, chunk) in enumerate(hits, start=1):
+        evidence_blocks.append(
+            "\n".join(
+                [
+                    f"[证据{idx}]",
+                    f"文件: {chunk.source}",
+                    f"位置: {chunk.page_label}",
+                    f"说明: {chunk.meta}",
+                    f"相关度: {score:.4f}",
+                    f"内容: {_compact_text(chunk.text, limit=PROMPT_CHUNK_CHAR_LIMIT)}",
+                ]
+            )
+        )
+
+    evidence_text = "\n\n".join(evidence_blocks)
+    return (
+        "你是一个严谨的文档问答助手。"
+        "请只依据下面给出的检索证据回答，不要引入证据外事实。\n"
+        "回答策略：\n"
+        "1. 先给出简洁直接的结论。\n"
+        "2. 再补充 2-4 条关键依据，必须引用具体文件名和位置。\n"
+        "3. 若证据不充分，明确指出“不确定”并说明缺什么信息。\n"
+        "4. 不要复述整段原文，不要编造页码或结论。\n\n"
+        f"用户问题：{question}\n\n"
+        f"检索证据：\n{evidence_text}"
+    )
+
+
+def _generate_strategy_answer(
+    question: str,
+    hits: list[tuple[float, object]],
+    max_new_tokens: Optional[int],
+) -> tuple[str, str]:
+    prompt = _build_strategy_prompt(question, hits)
+    route = route_generation(has_api_key=bool(SERVER_API_KEY))
+
+    if route == "api":
+        try:
+            answer = generate_answer_via_api(
+                api_key=SERVER_API_KEY,
+                api_model=SERVER_API_MODEL,
+                api_base=SERVER_API_BASE,
+                user_msg=prompt,
+                max_new_tokens=max_new_tokens,
+                stream=False,
+            )
+            return answer, "api"
+        except Exception:
+            traceback.print_exc()
+            return _build_fallback_answer(question, hits), "api_fallback"
+
+    if ENABLE_LOCAL_LLM:
+        try:
+            cache_key = f"{SERVER_MODEL_ID}::{SERVER_LLM_HUB}::{int(SERVER_LOW_MEMORY)}"
+            if cache_key not in _local_llm_cache:
+                _local_llm_cache[cache_key] = load_llm(
+                    model_id=SERVER_MODEL_ID,
+                    hub=SERVER_LLM_HUB,
+                    cpu_half=SERVER_LOW_MEMORY,
+                )
+            local_model, tokenizer = _local_llm_cache[cache_key]
+            answer = generate_answer(
+                model=local_model,
+                tokenizer=tokenizer,
+                user_msg=prompt,
+                max_new_tokens=max_new_tokens,
+                stream=False,
+            )
+            return answer, "local"
+        except Exception:
+            traceback.print_exc()
+            return _build_fallback_answer(question, hits), "local_fallback"
+
+    return _build_fallback_answer(question, hits), "fallback"
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -232,38 +319,11 @@ async def ask_doc_qa(
         limited_top_k = max(1, min(int(top_k), MAX_TOP_K))
         chunks, _embeddings, index, st = build_or_load_index(saved_paths, SERVER_EMBED_MODEL)
         hits = search(question, chunks, index, st, top_k=limited_top_k)
-        prompt = build_prompt(question, hits)
-
-        route = route_generation(has_api_key=bool(SERVER_API_KEY))
-        if route == "api":
-            answer = generate_answer_via_api(
-                api_key=SERVER_API_KEY,
-                api_model=SERVER_API_MODEL,
-                api_base=SERVER_API_BASE,
-                user_msg=prompt,
-                max_new_tokens=max_new_tokens,
-                stream=False,
-            )
-        elif ENABLE_LOCAL_LLM:
-            cache_key = f"{SERVER_MODEL_ID}::{SERVER_LLM_HUB}::{int(SERVER_LOW_MEMORY)}"
-            if cache_key not in _local_llm_cache:
-                _local_llm_cache[cache_key] = load_llm(
-                    model_id=SERVER_MODEL_ID,
-                    hub=SERVER_LLM_HUB,
-                    cpu_half=SERVER_LOW_MEMORY,
-                )
-            local_model, tokenizer = _local_llm_cache[cache_key]
-            answer = generate_answer(
-                model=local_model,
-                tokenizer=tokenizer,
-                user_msg=prompt,
-                max_new_tokens=max_new_tokens,
-                stream=False,
-            )
-            route = "local"
-        else:
-            answer = _build_fallback_answer(question, hits)
-            route = "fallback"
+        answer, route = _generate_strategy_answer(
+            question=question,
+            hits=hits,
+            max_new_tokens=max_new_tokens,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except HTTPException:
