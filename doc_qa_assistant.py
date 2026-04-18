@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 基于本地 Qwen / 千问 API 的文档问答脚本。
-支持常见办公格式：PDF / Word(docx) / Excel(xlsx) / PowerPoint(pptx) / CSV / TXT / MD。
+支持常见办公格式：PDF / Word(docx) / Excel(xlsx) / PowerPoint(pptx) / CSV / TXT / MD；
+以及图片 PNG / JPG / WebP / GIF 等（RapidOCR 识别图中文字后参与检索）。
 
 流程：解析文件 → 分块并记录页码或等价位置 → 向量检索 → 用大模型根据检索片段作答并引用位置。
 
@@ -14,6 +15,7 @@
   DASHSCOPE_API_KEY  可选，若提供则直接走千问兼容 API，不加载本地大模型
   QWEN_API_MODEL     可选，API 模型名，默认 qwen-plus
   QWEN_API_BASE      可选，默认 https://dashscope.aliyuncs.com/compatible-mode/v1
+  RAG_STRICT_IMAGE_OCR  设为 1/true 时，若未安装 RapidOCR 则上传图片直接报错；默认关闭（无 OCR 时仍入库占位文本，避免崩溃）
 
 用法示例：
   python doc_qa_assistant.py --files ./a.pdf ./b.docx --question "合同金额是多少？"
@@ -27,12 +29,49 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence
+from typing import Any, List, Optional, Sequence
 
 import numpy as np
+
+
+def _faiss_write_index(index, dest: Path) -> None:
+    """
+    将 FAISS 索引写入目标路径。
+    Windows 下原生 faiss 对含非 ASCII 的路径可能 fopen 失败，先写入系统临时文件再移动。
+    """
+    import faiss
+
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(suffix=".faissindex")
+    os.close(fd)
+    tmp_path = Path(tmp)
+    try:
+        faiss.write_index(index, str(tmp_path))
+        shutil.move(str(tmp_path), dest)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
+def _faiss_read_index(src: Path):
+    import faiss
+
+    src = Path(src)
+    fd, tmp = tempfile.mkstemp(suffix=".faissindex")
+    os.close(fd)
+    tmp_path = Path(tmp)
+    try:
+        shutil.copy2(src, tmp_path)
+        return faiss.read_index(str(tmp_path))
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
 
 # ------------- 数据结构与分块 -------------
 
@@ -87,6 +126,14 @@ CHUNK_CONFIG = {
     ".csv": {"max_chars": 1200, "overlap": 150},
     ".txt": {"max_chars": 900, "overlap": 80},
     ".md": {"max_chars": 900, "overlap": 80},
+    ".png": {"max_chars": 900, "overlap": 80},
+    ".jpg": {"max_chars": 900, "overlap": 80},
+    ".jpeg": {"max_chars": 900, "overlap": 80},
+    ".webp": {"max_chars": 900, "overlap": 80},
+    ".bmp": {"max_chars": 900, "overlap": 80},
+    ".gif": {"max_chars": 900, "overlap": 80},
+    ".tif": {"max_chars": 900, "overlap": 80},
+    ".tiff": {"max_chars": 900, "overlap": 80},
 }
 CACHE_VERSION = "rag_cache_v1"
 
@@ -374,6 +421,143 @@ def parse_txt(path: Path) -> List[TextChunk]:
     return out
 
 
+_rapid_ocr_engine: Any = None
+
+
+def _get_rapid_ocr() -> Any:
+    global _rapid_ocr_engine
+    if _rapid_ocr_engine is None:
+        py = sys.executable
+        try:
+            import onnxruntime  # noqa: F401  # RapidOCR 依赖；缺省时常表现为 rapidocr 导入失败
+        except ImportError as e:
+            raise ValueError(
+                f"图像 OCR 依赖 onnxruntime。请在运行服务的同一 Python 环境中执行："
+                f'"{py}" -m pip install onnxruntime rapidocr-onnxruntime pillow'
+                f"\n（若使用 conda：先 conda activate forrag 再安装。）\n原始错误: {e!r}"
+            ) from e
+        try:
+            from rapidocr_onnxruntime import RapidOCR
+        except ImportError as e:
+            raise ValueError(
+                f"无法导入 rapidocr_onnxruntime。当前解释器: {py}\n"
+                f'请执行: "{py}" -m pip install rapidocr-onnxruntime pillow\n'
+                f"原始错误: {e!r}"
+            ) from e
+        try:
+            _rapid_ocr_engine = RapidOCR()
+        except Exception as e:
+            raise RuntimeError(
+                f"RapidOCR 初始化失败（解释器: {py}）。可尝试重装: "
+                f'"{py}" -m pip install --force-reinstall onnxruntime rapidocr-onnxruntime\n'
+                f"详情: {e!r}"
+            ) from e
+    return _rapid_ocr_engine
+
+
+def _text_lines_from_rapidocr_output(ocr_out: object) -> list[str]:
+    """从 RapidOCR 返回值中取出文本行（兼容 (result, 耗时) 等结构）。"""
+    if ocr_out is None:
+        return []
+    payload: object = ocr_out
+    if isinstance(ocr_out, (list, tuple)) and len(ocr_out) == 2:
+        a, b = ocr_out[0], ocr_out[1]
+        if isinstance(b, (int, float)):
+            payload = a
+    rows = payload
+    if not isinstance(rows, (list, tuple)):
+        return []
+    texts: list[str] = []
+    for item in rows:
+        if item is None:
+            continue
+        if isinstance(item, (list, tuple)) and len(item) >= 2:
+            seg = item[1]
+            if isinstance(seg, (list, tuple)) and len(seg) >= 1:
+                texts.append(str(seg[0]).strip())
+            elif isinstance(seg, str):
+                texts.append(seg.strip())
+        elif isinstance(item, str):
+            texts.append(item.strip())
+    return [t for t in texts if t]
+
+
+def _strict_image_ocr() -> bool:
+    """为真时：缺少 OCR 依赖直接报错；否则写入占位文本，避免整次问答失败。"""
+    return os.environ.get("RAG_STRICT_IMAGE_OCR", "").strip().lower() in {"1", "true", "yes"}
+
+
+def _parse_image_placeholder_chunks(name: str, detail: str) -> List[TextChunk]:
+    """无 RapidOCR 时仍生成可检索占位块（提示安装依赖）。"""
+    text = (
+        f"【图片文件】{name}\n"
+        f"（未能进行 OCR：{detail}\n"
+        f"当前 Python：{sys.executable}\n"
+        "请在本环境执行：python -m pip install -r requirements.txt\n"
+        "若使用 conda：先 conda activate <你的环境名> 再安装并启动服务。）"
+    )
+    return chunk_by_chars(
+        text,
+        source=name,
+        page_label="图片",
+        meta="图像(无OCR)",
+        max_chars=900,
+        overlap=80,
+    )
+
+
+def parse_image(path: Path) -> List[TextChunk]:
+    """使用 RapidOCR 将图片中的文字识别为文本后分块；依赖缺失时可降级为占位文本。"""
+    try:
+        from PIL import Image
+    except ImportError as e:
+        raise ValueError("图像解析需要 pillow：pip install pillow") from e
+
+    p = path.expanduser().resolve()
+    name = p.name
+    img = Image.open(p)
+    if getattr(img, "n_frames", 1) > 1:
+        img.seek(0)
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+
+    strict = _strict_image_ocr()
+    try:
+        ocr = _get_rapid_ocr()
+    except (ValueError, RuntimeError) as e:
+        if strict:
+            raise
+        return _parse_image_placeholder_chunks(name, str(e))
+
+    tmp_path: Optional[str] = None
+    try:
+        fd, tmp_path = tempfile.mkstemp(suffix=".png")
+        os.close(fd)
+        img.save(tmp_path, format="PNG")
+        ocr_raw = ocr(tmp_path)
+    except Exception as e:
+        if strict:
+            raise
+        return _parse_image_placeholder_chunks(name, repr(e))
+    finally:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
+
+    lines = _text_lines_from_rapidocr_output(ocr_raw)
+    text = "\n".join(lines).strip()
+    if not text:
+        text = "（图片中未识别到文字内容）"
+
+    return chunk_by_chars(
+        text,
+        source=name,
+        page_label="图片",
+        meta="图像 OCR",
+        max_chars=900,
+        overlap=80,
+    )
+
+
 PARSERS = {
     ".pdf": parse_pdf,
     ".docx": parse_docx,
@@ -383,6 +567,10 @@ PARSERS = {
     ".txt": parse_txt,
     ".md": parse_txt,
 }
+
+_IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff")
+for _ext in _IMAGE_EXTS:
+    PARSERS[_ext] = parse_image
 
 
 def parse_document(path: Path) -> List[TextChunk]:
@@ -418,7 +606,43 @@ def _log_step(msg: str) -> None:
 
 
 def _cache_root() -> Path:
+    env = os.environ.get("RAG_CACHE_ROOT", "").strip()
+    if env:
+        root = Path(env).expanduser().resolve()
+        root.mkdir(parents=True, exist_ok=True)
+        return root
     return Path(__file__).resolve().parent / ".rag_cache"
+
+
+def invalidate_caches_for_file(path: Path, embed_model_id: str) -> None:
+    """
+    删除指定文件对应的单文档向量缓存，并移除引用该文件路径的整库 bundle 缓存。
+    必须在物理文件仍存在时调用（单文档缓存 key 依赖文件指纹）。
+    """
+    p = Path(path).expanduser().resolve()
+    if not p.is_file():
+        return
+    norm = _normalized_path(p)
+    doc = _doc_cache_paths(p, embed_model_id)
+    shutil.rmtree(doc["root"], ignore_errors=True)
+
+    bundles_dir = _cache_root() / "bundles"
+    if not bundles_dir.is_dir():
+        return
+    for child in list(bundles_dir.iterdir()):
+        if not child.is_dir():
+            continue
+        man = child / "manifest.json"
+        if not man.is_file():
+            continue
+        try:
+            data = json.loads(man.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        for item in data.get("files") or []:
+            if item.get("path") == norm:
+                shutil.rmtree(child, ignore_errors=True)
+                break
 
 
 def _bundle_key(paths: Sequence[Path], embed_model_id: str) -> str:
@@ -546,7 +770,7 @@ def _save_bundle_cache(
     files["root"].mkdir(parents=True, exist_ok=True)
     _write_chunks(files["chunks"], chunks)
     np.save(files["embeddings"], embeddings)
-    faiss.write_index(index, str(files["index"]))
+    _faiss_write_index(index, files["index"])
     manifest = {
         "version": CACHE_VERSION,
         "embed_model_id": embed_model_id,
@@ -568,7 +792,7 @@ def _load_bundle_cache(paths: Sequence[Path], embed_model_id: str):
         return None
     chunks = _read_chunks(files["chunks"])
     embeddings = np.load(files["embeddings"])
-    index = faiss.read_index(str(files["index"]))
+    index = _faiss_read_index(files["index"])
     return chunks, np.asarray(embeddings, dtype=np.float32), index
 
 

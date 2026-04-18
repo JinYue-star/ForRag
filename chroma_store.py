@@ -1,0 +1,312 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""ChromaDB 持久化：会话、上传文件元数据、聊天消息、测验批次。"""
+
+from __future__ import annotations
+
+import json
+import logging
+import shutil
+from pathlib import Path
+from typing import Any, Callable, Optional, TypeVar
+
+import chromadb
+
+_chroma_client: Optional[chromadb.ClientAPI] = None
+_chroma_path: Optional[Path] = None
+_base_dir: Optional[Path] = None
+
+T = TypeVar("T")
+
+
+def init_chroma(base_dir: Path) -> None:
+    global _chroma_client, _chroma_path, _base_dir
+    _base_dir = base_dir.resolve()
+    _chroma_path = _base_dir / "chroma"
+    _chroma_path.mkdir(parents=True, exist_ok=True)
+    _chroma_client = chromadb.PersistentClient(path=str(_chroma_path))
+
+
+def reset_chroma(base_dir: Path) -> None:
+    """清空 Chroma 数据并重新初始化（仅测试或维护用）。"""
+    global _chroma_client, _chroma_path
+    _chroma_client = None
+    _chroma_path = None
+    p = base_dir / "chroma"
+    if p.exists():
+        shutil.rmtree(p, ignore_errors=True)
+    init_chroma(base_dir)
+
+
+def _is_chroma_storage_corruption(exc: BaseException) -> bool:
+    s = str(exc).lower()
+    return "hnsw" in s or "segment reader" in s
+
+
+def _chroma_op(fn: Callable[[], T]) -> T:
+    """HNSW 索引损坏等持久化错误时清空 chroma/ 并重试一次。"""
+    try:
+        return fn()
+    except Exception as e:
+        if _base_dir is None or not _is_chroma_storage_corruption(e):
+            raise
+        logging.warning(
+            "Chroma 持久化异常（%s），将删除 %s 并重建后重试一次。",
+            e,
+            _base_dir / "chroma",
+        )
+        reset_chroma(_base_dir)
+        return fn()
+
+
+def _client() -> chromadb.ClientAPI:
+    if _chroma_client is None:
+        raise RuntimeError("chroma not initialized")
+    return _chroma_client
+
+
+def _col(name: str):
+    return _client().get_or_create_collection(name, metadata={"hnsw:space": "cosine"})
+
+
+# ---------- sessions ----------
+def session_insert(sid: str, secret_hash: str, created_at: float, last_seen: float) -> None:
+    def op() -> None:
+        c = _col("sessions")
+        doc = json.dumps({"secret_hash": secret_hash, "created_at": created_at, "last_seen": last_seen}, ensure_ascii=False)
+        c.upsert(ids=[sid], documents=[doc], metadatas=[{"kind": "session"}])
+
+    _chroma_op(op)
+
+
+def session_get(sid: str) -> Optional[dict]:
+    def op() -> Optional[dict]:
+        c = _col("sessions")
+        r = c.get(ids=[sid])
+        if not r["ids"]:
+            return None
+        return json.loads(r["documents"][0])
+
+    return _chroma_op(op)
+
+
+def session_update_last_seen(sid: str, last_seen: float) -> None:
+    row = session_get(sid)
+    if not row:
+        return
+    row["last_seen"] = last_seen
+
+    def op() -> None:
+        c = _col("sessions")
+        c.update(
+            ids=[sid],
+            documents=[json.dumps(row, ensure_ascii=False)],
+            metadatas=[{"kind": "session"}],
+        )
+
+    _chroma_op(op)
+
+
+# ---------- session files ----------
+def file_insert(
+    fid: str,
+    session_id: str,
+    original_name: str,
+    stored_rel: str,
+    size_bytes: int,
+    created_at: float,
+) -> None:
+    def op() -> None:
+        c = _col("session_files")
+        doc = json.dumps(
+            {
+                "session_id": session_id,
+                "original_name": original_name,
+                "stored_rel": stored_rel,
+                "size_bytes": size_bytes,
+                "created_at": created_at,
+            },
+            ensure_ascii=False,
+        )
+        c.upsert(
+            ids=[fid],
+            documents=[doc],
+            metadatas=[{"session_id": session_id, "created_at": created_at}],
+        )
+
+    _chroma_op(op)
+
+
+def file_list(session_id: str) -> list[dict]:
+    def op() -> list[dict]:
+        c = _col("session_files")
+        r = c.get(where={"session_id": session_id}, include=["documents", "metadatas"])
+        out: list[dict] = []
+        for i, doc_id in enumerate(r["ids"]):
+            d = json.loads(r["documents"][i])
+            d["id"] = doc_id
+            out.append(d)
+        out.sort(key=lambda x: x.get("created_at", 0))
+        return out
+
+    return _chroma_op(op)
+
+
+def file_get(session_id: str, fid: str) -> Optional[dict]:
+    def op() -> Optional[dict]:
+        c = _col("session_files")
+        r = c.get(ids=[fid])
+        if not r["ids"]:
+            return None
+        d = json.loads(r["documents"][0])
+        if d.get("session_id") != session_id:
+            return None
+        d["id"] = fid
+        return d
+
+    return _chroma_op(op)
+
+
+def file_delete(fid: str) -> None:
+    try:
+
+        def op() -> None:
+            c = _col("session_files")
+            c.delete(ids=[fid])
+
+        _chroma_op(op)
+    except Exception:
+        pass
+
+
+# ---------- chat messages ----------
+def message_add(
+    mid: str,
+    session_id: str,
+    role: str,
+    content: str,
+    created_at: float,
+    extra: Optional[dict[str, Any]] = None,
+) -> None:
+    def op() -> None:
+        c = _col("messages")
+        payload = {"role": role, "content": content, "created_at": created_at, "session_id": session_id}
+        if extra:
+            payload["extra"] = extra
+        doc = json.dumps(payload, ensure_ascii=False)
+        c.upsert(
+            ids=[mid],
+            documents=[doc],
+            metadatas=[{"session_id": session_id, "role": role, "created_at": created_at}],
+        )
+
+    _chroma_op(op)
+
+
+def messages_list(session_id: str) -> list[dict]:
+    def op() -> list[dict]:
+        c = _col("messages")
+        r = c.get(where={"session_id": session_id}, include=["documents", "metadatas"])
+        out: list[dict] = []
+        for i, mid in enumerate(r["ids"]):
+            d = json.loads(r["documents"][i])
+            d["id"] = mid
+            out.append(d)
+        out.sort(key=lambda x: x.get("created_at", 0))
+        return out
+
+    return _chroma_op(op)
+
+
+def message_get(session_id: str, mid: str) -> Optional[dict]:
+    def op() -> Optional[dict]:
+        c = _col("messages")
+        r = c.get(ids=[mid])
+        if not r["ids"]:
+            return None
+        d = json.loads(r["documents"][0])
+        if d.get("session_id") != session_id:
+            return None
+        d["id"] = mid
+        return d
+
+    return _chroma_op(op)
+
+
+def message_delete(session_id: str, mid: str) -> bool:
+    if not message_get(session_id, mid):
+        return False
+    try:
+
+        def op() -> None:
+            c = _col("messages")
+            c.delete(ids=[mid])
+
+        _chroma_op(op)
+        return True
+    except Exception:
+        return False
+
+
+def messages_delete_all(session_id: str) -> int:
+    def op() -> int:
+        c = _col("messages")
+        r = c.get(where={"session_id": session_id}, include=[])
+        ids = list(r.get("ids") or [])
+        if not ids:
+            return 0
+        c.delete(ids=ids)
+        return len(ids)
+
+    try:
+        return _chroma_op(op)
+    except Exception:
+        return 0
+
+
+# ---------- quizzes ----------
+def quiz_insert(quiz_id: str, session_id: Optional[str], payload: dict, created_at: float) -> None:
+    def op() -> None:
+        c = _col("quiz_batches")
+        doc = json.dumps(payload, ensure_ascii=False)
+        meta: dict[str, Any] = {"created_at": created_at}
+        if session_id:
+            meta["session_id"] = session_id
+        c.upsert(ids=[quiz_id], documents=[doc], metadatas=[meta])
+
+    _chroma_op(op)
+
+
+def quiz_get(quiz_id: str) -> Optional[tuple[Optional[str], dict]]:
+    def op() -> Optional[tuple[Optional[str], dict]]:
+        c = _col("quiz_batches")
+        r = c.get(ids=[quiz_id])
+        if not r["ids"]:
+            return None
+        payload = json.loads(r["documents"][0])
+        meta = r["metadatas"][0] if r["metadatas"] else {}
+        sid = meta.get("session_id")
+        return sid, payload
+
+    return _chroma_op(op)
+
+
+def quiz_list_question_texts(session_id: str) -> list[str]:
+    """已生成过的题目题干，用于去重。"""
+
+    def op() -> list[str]:
+        c = _col("quiz_batches")
+        r = c.get(where={"session_id": session_id}, include=["documents"])
+        texts: list[str] = []
+        for doc in r["documents"]:
+            try:
+                p = json.loads(doc)
+                for it in p.get("items") or []:
+                    q = str(it.get("question", "")).strip()
+                    if q:
+                        texts.append(q)
+            except (json.JSONDecodeError, TypeError):
+                continue
+        return texts
+
+    return _chroma_op(op)

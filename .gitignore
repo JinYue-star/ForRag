@@ -1,0 +1,9 @@
+# 服务运行数据（上传文件、SQLite、向量缓存）
+.data/
+.uploads/
+tests/.pytest_rag_data/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/

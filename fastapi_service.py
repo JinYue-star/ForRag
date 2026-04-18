@@ -3,61 +3,135 @@
 """
 将 doc_qa_assistant.py 封装成更安全的 FastAPI 服务。
 
-启动：
-  py -3.12 -m uvicorn fastapi_service:app --host 127.0.0.1 --port 8000
+支持会话持久化上传（含图片 OCR 入库）、ChromaDB 元数据（会话/文件/聊天/测验）、服务端向量缓存（RAG_CACHE_ROOT）与按文件删除时同步清理缓存。
+
+启动（允许局域网其它机器访问，需放行防火墙端口）：
+  set RAG_ACCESS_TOKEN=你的强随机令牌
+  py -3.12 -m uvicorn fastapi_service:app --host 0.0.0.0 --port 8000
+  若不想用访问令牌：set RAG_REQUIRE_ACCESS_TOKEN=0（公网切勿使用）
+
+环境变量：
+  RAG_ALLOWED_ORIGINS  逗号分隔的 CORS 白名单（仅当 RAG_CORS_STRICT=1 时生效）
+  RAG_CORS_STRICT      设为 1/true 时启用白名单+私网正则；默认关闭（允许任意 Origin，避免跨域被拦）
+  RAG_CACHE_ROOT       向量缓存目录（默认项目下 .data/vector_cache）
+  RAG_CLEAR_CACHE_ON_SHUTDOWN  默认 1：进程退出（Ctrl+C / 停止 uvicorn）时清空 RAG_CACHE_ROOT 下全部向量缓存；设为 0 可关闭
+  RAG_DATA_DIR         持久化数据根目录（默认项目下 .data，其下 chroma/ 为 Chroma 库）
+  RAG_RESET_CHROMA     设为 1/true/yes 时启动前清空并重建 chroma/（修复 HNSW 损坏；会丢失会话与 Chroma 内元数据，上传文件仍在 .uploads）
+  RAG_FRONTEND_DIR     可选，静态前端目录绝对路径；不设时优先使用与 ForRag 同级的 ForRag-frontend，否则用仓库内 ForRag-gh-pages
+  RAG_RATE_LIMIT_MAX_REQUESTS  单 IP 在时间窗口内最大请求数，默认 120；设为 0 关闭限流
+  RAG_DEBUG_ERRORS           设为 1/true 时，500 错误返回异常类型与信息（仅排障用）
+  RAG_REQUIRE_ACCESS_TOKEN   默认 1；设为 0/false/no/off 时不校验 Bearer 令牌（无需 RAG_ACCESS_TOKEN）
+  RAG_STRICT_IMAGE_OCR       默认关闭；设为 1 时若未安装图像 OCR 依赖则直接报错（不写入占位文本）
 """
 
 from __future__ import annotations
 
+import hashlib
 import hmac
+import json
 import os
 import re
 import secrets
 import shutil
+import threading
 import time
 import traceback
 import uuid
 from collections import defaultdict, deque
+from contextlib import asynccontextmanager
 from pathlib import Path
-from threading import Lock
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field, model_validator
+from starlette.middleware.base import BaseHTTPMiddleware
+
+import chroma_store
 
 from doc_qa_assistant import (
     _normalize_llm_hub,
     build_or_load_index,
-    build_prompt,
     generate_answer,
     generate_answer_via_api,
+    invalidate_caches_for_file,
     load_llm,
     route_generation,
     search,
 )
 
+# ---------- 默认数据目录与向量缓存根目录 ----------
+_REPO_ROOT = Path(__file__).resolve().parent
+_DATA_DIR = Path(os.environ.get("RAG_DATA_DIR", str(_REPO_ROOT / ".data"))).resolve()
+if not os.environ.get("RAG_CACHE_ROOT"):
+    os.environ["RAG_CACHE_ROOT"] = str(_DATA_DIR / "vector_cache")
+Path(os.environ["RAG_CACHE_ROOT"]).mkdir(parents=True, exist_ok=True)
+_DATA_DIR.mkdir(parents=True, exist_ok=True)
+if os.environ.get("RAG_RESET_CHROMA", "").strip().lower() in {"1", "true", "yes"}:
+    chroma_store.reset_chroma(_DATA_DIR)
+else:
+    chroma_store.init_chroma(_DATA_DIR)
+
 
 def _parse_allowed_origins() -> list[str]:
     raw = os.environ.get(
         "RAG_ALLOWED_ORIGINS",
-        "http://127.0.0.1:3000,http://localhost:3000,https://jinyue-star.github.io",
+        "http://127.0.0.1:3000,http://localhost:3000,http://127.0.0.1:5500,http://localhost:5500,"
+        "http://127.0.0.1:8000,http://localhost:8000,"
+        "https://jinyue-star.github.io",
     )
     return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+# 与 allow_origins 并列：匹配私网 IP 任意端口，避免手机/同事用 http://172.x/192.168.x 访问时被 CORS 拦
+_CORS_LAN_ORIGIN_REGEX = (
+    r"https?://(localhost|127\.0\.0\.1"
+    r"|192\.168\.\d{1,3}\.\d{1,3}"
+    r"|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+    r"|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?"
+)
 
 
 UPLOAD_DIR = Path("./.uploads").resolve()
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-ALLOWED_SUFFIXES = {".pdf", ".docx", ".doc", ".xlsx", ".xls", ".pptx", ".ppt", ".csv", ".txt", ".md"}
+ALLOWED_SUFFIXES = {
+    ".pdf",
+    ".docx",
+    ".doc",
+    ".xlsx",
+    ".xls",
+    ".pptx",
+    ".ppt",
+    ".csv",
+    ".txt",
+    ".md",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".bmp",
+    ".gif",
+    ".tif",
+    ".tiff",
+}
 ALLOWED_ORIGINS = _parse_allowed_origins()
 ACCESS_TOKEN = os.environ.get("RAG_ACCESS_TOKEN", "").strip()
+REQUIRE_ACCESS_TOKEN = os.environ.get("RAG_REQUIRE_ACCESS_TOKEN", "1").strip().lower() not in {
+    "0",
+    "false",
+    "no",
+    "off",
+}
 SERVER_EMBED_MODEL = os.environ.get("MS_EMBED_ID", "BAAI/bge-small-zh-v1.5")
 SERVER_MODEL_ID = os.environ.get("MS_MODEL_ID", "Qwen/Qwen2.5-3B-Instruct")
 SERVER_LLM_HUB = _normalize_llm_hub(os.environ.get("LLM_HUB", "auto"))
 SERVER_LOW_MEMORY = os.environ.get("RAG_LOW_MEMORY", "").strip().lower() in {"1", "true", "yes"}
 ENABLE_LOCAL_LLM = os.environ.get("RAG_ENABLE_LOCAL_LLM", "").strip().lower() in {"1", "true", "yes"}
-SERVER_API_KEY = os.environ.get("DASHSCOPE_API_KEY", "").strip()
+# 未设置环境变量时使用内置 Key；生产环境建议仅使用 DASHSCOPE_API_KEY，勿将真实 Key 提交到公开仓库
+_DEFAULT_DASHSCOPE_API_KEY = "sk-a9039ea944cb4de792c876d6f731f5d6"
+SERVER_API_KEY = (os.environ.get("DASHSCOPE_API_KEY") or _DEFAULT_DASHSCOPE_API_KEY).strip()
 SERVER_API_MODEL = os.environ.get("QWEN_API_MODEL", "qwen-plus")
 SERVER_API_BASE = os.environ.get("QWEN_API_BASE", "https://dashscope.aliyuncs.com/compatible-mode/v1")
 MAX_FILES = max(1, int(os.environ.get("RAG_MAX_FILES", "5")))
@@ -66,28 +140,157 @@ MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
 MAX_TOP_K = max(1, int(os.environ.get("RAG_MAX_TOP_K", "5")))
 MAX_QUESTION_CHARS = max(50, int(os.environ.get("RAG_MAX_QUESTION_CHARS", "1000")))
 RATE_LIMIT_WINDOW_SECONDS = max(10, int(os.environ.get("RAG_RATE_LIMIT_WINDOW_SECONDS", "60")))
-RATE_LIMIT_MAX_REQUESTS = max(1, int(os.environ.get("RAG_RATE_LIMIT_MAX_REQUESTS", "10")))
+# 单 IP 在时间窗口内最多请求次数；默认放宽（会话/列表/问答/测验易连点触发）。设为 0 表示关闭限流。
+RATE_LIMIT_MAX_REQUESTS = max(0, int(os.environ.get("RAG_RATE_LIMIT_MAX_REQUESTS", "120")))
 PROMPT_CHUNK_CHAR_LIMIT = max(160, int(os.environ.get("RAG_PROMPT_CHUNK_CHAR_LIMIT", "700")))
+KB_MIN_SCORE = float(os.environ.get("RAG_KB_MIN_SCORE", "0.28"))
+QUIZ_GEN_MAX_TOKENS = max(256, int(os.environ.get("RAG_QUIZ_GEN_MAX_TOKENS", "1200")))
+GRADE_MAX_TOKENS = max(256, int(os.environ.get("RAG_QUIZ_GRADE_MAX_TOKENS", "2000")))
+# 单次测验总题量上限（各段 count 之和）
+MAX_QUIZ_QUESTIONS_TOTAL = max(1, min(50, int(os.environ.get("RAG_MAX_QUIZ_QUESTIONS", "40"))))
+
+
+def _clear_rag_disk_cache_on_shutdown() -> None:
+    """进程退出时删除 RAG_CACHE_ROOT 下全部磁盘向量缓存（文档块 / bundle 索引），不删 Chroma 与上传文件。"""
+    raw = os.environ.get("RAG_CLEAR_CACHE_ON_SHUTDOWN", "1").strip().lower()
+    if raw in {"0", "false", "no", "off"}:
+        return
+    root = Path(os.environ.get("RAG_CACHE_ROOT") or str(_DATA_DIR / "vector_cache")).resolve()
+    if not root.exists():
+        return
+    try:
+        shutil.rmtree(root, ignore_errors=True)
+    except Exception:
+        traceback.print_exc()
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        traceback.print_exc()
+
+
+@asynccontextmanager
+async def _app_lifespan(app: FastAPI):
+    yield
+    _clear_rag_disk_cache_on_shutdown()
+
 
 app = FastAPI(
     title="Document QA API",
-    version="1.1.0",
+    version="2.0.0",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,
+    lifespan=_app_lifespan,
 )
+
+def _cors_strict_mode() -> bool:
+    """设为 1/true 时仅允许 RAG_ALLOWED_ORIGINS + 私网正则，否则默认允许任意 Origin（*）。"""
+    return os.environ.get("RAG_CORS_STRICT", "").strip().lower() in {"1", "true", "yes"}
+
+
+def _cors_allow_origins() -> list[str]:
+    if _cors_strict_mode():
+        return ALLOWED_ORIGINS
+    # 默认 *：避免局域网 / 多端口 / 手机访问时漏配 Origin 导致 net::ERR_BLOCKED_BY_RESPONSE
+    return ["*"]
+
+
+def _cors_allow_origin_regex() -> Optional[str]:
+    if _cors_strict_mode():
+        return _CORS_LAN_ORIGIN_REGEX
+    return None
+
+
+class _PrivateNetworkAccessMiddleware(BaseHTTPMiddleware):
+    """Chrome：从公网页或 HTTPS 访问局域网 http API 时，预检需带 Access-Control-Allow-Private-Network。"""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if request.headers.get("access-control-request-private-network", "").lower() == "true":
+            response.headers["Access-Control-Allow-Private-Network"] = "true"
+        return response
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=_cors_allow_origins(),
+    allow_origin_regex=_cors_allow_origin_regex(),
     allow_credentials=False,
-    allow_methods=["POST", "GET", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_methods=["POST", "GET", "OPTIONS", "DELETE", "HEAD"],
+    allow_headers=["Authorization", "Content-Type", "X-Session-Secret", "Accept", "Origin"],
 )
+app.add_middleware(_PrivateNetworkAccessMiddleware)
 
 _local_llm_cache: dict[str, tuple[object, object]] = {}
 _rate_limit_records: dict[str, deque[float]] = defaultdict(deque)
-_rate_limit_lock = Lock()
+_rate_limit_lock = threading.Lock()
+_session_qa_locks: dict[str, threading.Lock] = {}
+_session_qa_guard = threading.Lock()
+
+
+def _session_qa_lock(session_id: str) -> threading.Lock:
+    with _session_qa_guard:
+        if session_id not in _session_qa_locks:
+            _session_qa_locks[session_id] = threading.Lock()
+        return _session_qa_locks[session_id]
+
+
+_qa_jobs: dict[str, dict[str, Any]] = {}
+_jobs_lock = threading.Lock()
+
+
+def _session_qa_worker(
+    job_id: str,
+    sid: str,
+    secret: str,
+    question: str,
+    top_k: int,
+    max_new_tokens: Optional[int],
+) -> None:
+    try:
+        _verify_session(sid, secret)
+        rows = chroma_store.file_list(sid)
+        if not rows:
+            with _jobs_lock:
+                _qa_jobs[job_id] = {"status": "error", "detail": "会话中还没有文件，请先上传"}
+            return
+        saved_paths = [(UPLOAD_DIR / r["stored_rel"]).resolve() for r in rows]
+        for p in saved_paths:
+            if not p.is_file():
+                with _jobs_lock:
+                    _qa_jobs[job_id] = {"status": "error", "detail": "服务器上文件缺失，请重新上传"}
+                return
+        limited_top_k = max(1, min(int(top_k), MAX_TOP_K))
+        with _session_qa_lock(sid):
+            chunks, _embeddings, index, st = build_or_load_index(saved_paths, SERVER_EMBED_MODEL)
+            hits = search(question, chunks, index, st, top_k=limited_top_k)
+            resp = _run_qa_pipeline(question=question, hits=hits, max_new_tokens=max_new_tokens)
+        now = time.time()
+        uid = uuid.uuid4().hex
+        aid = uuid.uuid4().hex
+        chroma_store.message_add(uid, sid, "user", question.strip(), now)
+        extra: dict[str, Any] = {"route": resp.route, "kb_relevant": resp.kb_relevant}
+        if resp.no_kb_notice:
+            extra["no_kb_notice"] = resp.no_kb_notice
+        chroma_store.message_add(aid, sid, "assistant", resp.answer, now + 0.001, extra=extra)
+        with _jobs_lock:
+            _qa_jobs[job_id] = {
+                "status": "done",
+                "assistant_message_id": aid,
+                "user_message_id": uid,
+                "result": (
+                    resp.model_dump()
+                    if hasattr(resp, "model_dump")
+                    else resp.dict()  # type: ignore[no-untyped-call]
+                ),
+            }
+    except HTTPException as he:
+        with _jobs_lock:
+            _qa_jobs[job_id] = {"status": "error", "detail": str(he.detail)}
+    except Exception as e:
+        traceback.print_exc()
+        with _jobs_lock:
+            _qa_jobs[job_id] = {"status": "error", "detail": _server_error_detail(e)}
 
 
 class HitItem(BaseModel):
@@ -98,10 +301,104 @@ class HitItem(BaseModel):
     content: str
 
 
+class QuizItemPublic(BaseModel):
+    index: int
+    type: str
+    question: str
+    options: Optional[list[str]] = None
+
+
+class QuizBundlePublic(BaseModel):
+    quiz_id: str
+    items: list[QuizItemPublic]
+
+
 class QAResponse(BaseModel):
     answer: str
     route: str
     hits: list[HitItem]
+    kb_relevant: bool = True
+    no_kb_notice: Optional[str] = None
+    quiz: Optional[QuizBundlePublic] = None
+
+
+class QuizGradeRequest(BaseModel):
+    answers: list[str]
+
+
+class QuizGradeItemResult(BaseModel):
+    index: int
+    question_type: str
+    score: float
+    max_score: float
+    user_answer: str
+    correct_answer: str
+    comment: str
+
+
+class QuizGradeResponse(BaseModel):
+    total_score: float
+    max_total_score: float
+    items: list[QuizGradeItemResult]
+    analysis: str
+
+
+class SessionCreateResponse(BaseModel):
+    session_id: str
+    session_secret: str
+
+
+class SessionFileItem(BaseModel):
+    id: str
+    original_name: str
+    size_bytes: int
+
+
+class ChatMessageItem(BaseModel):
+    id: str
+    role: str
+    content: str
+    created_at: float
+    extra: Optional[dict[str, Any]] = None
+
+
+class QAJobStartResponse(BaseModel):
+    job_id: str
+
+
+class QAJobStatusResponse(BaseModel):
+    status: str
+    detail: Optional[str] = None
+    assistant_message_id: Optional[str] = None
+    user_message_id: Optional[str] = None
+    result: Optional[dict[str, Any]] = None
+
+
+class QuizSegmentSpec(BaseModel):
+    """一段对话（通常选助手消息）上要生成的题量。"""
+
+    message_id: str
+    count: int = Field(1, ge=1, le=20)
+
+
+class QuizGenerateRequest(BaseModel):
+    """优先使用 segments；仅传 message_ids 时为兼容旧前端（每条按 1 题）。"""
+
+    segments: Optional[list[QuizSegmentSpec]] = None
+    message_ids: Optional[list[str]] = None
+
+    @model_validator(mode="after")
+    def _coalesce_segments(self):
+        if self.segments:
+            return self
+        if self.message_ids:
+            self.segments = [QuizSegmentSpec(message_id=m, count=1) for m in self.message_ids]
+            return self
+        raise ValueError("请提供 segments 或 message_ids")
+
+
+def _hash_session_secret(secret: str) -> str:
+    return hashlib.sha256(secret.encode("utf-8")).hexdigest()
 
 
 def _client_ip(request: Request) -> str:
@@ -115,6 +412,8 @@ def _client_ip(request: Request) -> str:
 
 
 def _check_rate_limit(client_ip: str) -> None:
+    if RATE_LIMIT_MAX_REQUESTS <= 0:
+        return
     now = time.time()
     with _rate_limit_lock:
         window = _rate_limit_records[client_ip]
@@ -125,7 +424,45 @@ def _check_rate_limit(client_ip: str) -> None:
         window.append(now)
 
 
+def _server_error_detail(exc: BaseException) -> str:
+    """将内部异常转换为用户可见文案；开发排障可设 RAG_DEBUG_ERRORS=1。"""
+    if os.environ.get("RAG_DEBUG_ERRORS", "").strip().lower() in {"1", "true", "yes"}:
+        return f"{type(exc).__name__}: {exc}"[:1200]
+    if isinstance(exc, ModuleNotFoundError):
+        mod = getattr(exc, "name", "") or ""
+        hint = ""
+        if mod == "pptx":
+            hint = "（包名：pip install python-pptx）"
+        elif mod == "docx":
+            hint = "（包名：pip install python-docx）"
+        elif mod in ("fitz", "pymupdf"):
+            hint = "（包名：pip install pymupdf）"
+        return (
+            f"缺少依赖模块「{mod or '?'}」{hint}。请在运行 uvicorn 的同一 Python 环境中执行："
+            "pip install -r requirements.txt"
+        )
+    msg_l = str(exc).lower()
+    if "numpy" in msg_l and (
+        "multiarray" in msg_l
+        or "compiled using numpy 1.x" in msg_l
+        or "cannot run" in msg_l
+        or "numpy 2" in msg_l
+    ):
+        return (
+            "NumPy 与 SciPy/scikit-learn 等版本不兼容。"
+            "请在服务环境中执行：pip install \"numpy>=1.26,<2\" --force-reinstall，"
+            "然后重新安装：pip install scipy scikit-learn --force-reinstall。"
+        )
+    return (
+        "服务处理失败（常见于：未安装 faiss-cpu / sentence-transformers，或 numpy 与 scipy 版本冲突）。"
+        "请在运行服务的终端执行 pip install -r requirements.txt；仍失败时在启动前设置环境变量 "
+        "RAG_DEBUG_ERRORS=1 查看具体错误。"
+    )
+
+
 def _require_access_token(authorization: Optional[str]) -> None:
+    if not REQUIRE_ACCESS_TOKEN:
+        return
     if not ACCESS_TOKEN:
         raise HTTPException(status_code=503, detail="服务未完成安全初始化")
     if not authorization or not authorization.startswith("Bearer "):
@@ -133,6 +470,23 @@ def _require_access_token(authorization: Optional[str]) -> None:
     token = authorization[7:].strip()
     if not token or not hmac.compare_digest(token, ACCESS_TOKEN):
         raise HTTPException(status_code=401, detail="访问令牌无效")
+
+
+def _parse_uuid_param(name: str, value: str) -> str:
+    try:
+        u = uuid.UUID(value)
+        return str(u)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"无效的{name}") from e
+
+
+def _verify_session(session_id: str, session_secret: str) -> None:
+    row = chroma_store.session_get(session_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    if not hmac.compare_digest(row["secret_hash"], _hash_session_secret(session_secret)):
+        raise HTTPException(status_code=403, detail="会话密钥无效")
+    chroma_store.session_update_last_seen(session_id, time.time())
 
 
 def _safe_filename(name: str, used_names: set[str]) -> str:
@@ -156,7 +510,7 @@ def _compact_text(text: str, limit: int = 220) -> str:
     cleaned = " ".join(text.split()).strip()
     if len(cleaned) <= limit:
         return cleaned
-    return cleaned[:limit].rstrip() + "..."
+    return cleaned[: limit - 3].rstrip() + "..."
 
 
 def _build_fallback_answer(question: str, hits: list[tuple[float, object]]) -> str:
@@ -215,28 +569,22 @@ def _build_strategy_prompt(question: str, hits: list[tuple[float, object]]) -> s
     )
 
 
-def _generate_strategy_answer(
-    question: str,
-    hits: list[tuple[float, object]],
-    max_new_tokens: Optional[int],
-) -> tuple[str, str]:
-    prompt = _build_strategy_prompt(question, hits)
+def _invoke_llm(user_msg: str, max_new_tokens: Optional[int]) -> tuple[str, str]:
     route = route_generation(has_api_key=bool(SERVER_API_KEY))
-
     if route == "api":
         try:
             answer = generate_answer_via_api(
                 api_key=SERVER_API_KEY,
                 api_model=SERVER_API_MODEL,
                 api_base=SERVER_API_BASE,
-                user_msg=prompt,
+                user_msg=user_msg,
                 max_new_tokens=max_new_tokens,
                 stream=False,
             )
-            return answer, "api"
+            return (answer or "").strip(), "api"
         except Exception:
             traceback.print_exc()
-            return _build_fallback_answer(question, hits), "api_fallback"
+            return "", "api_error"
 
     if ENABLE_LOCAL_LLM:
         try:
@@ -251,21 +599,810 @@ def _generate_strategy_answer(
             answer = generate_answer(
                 model=local_model,
                 tokenizer=tokenizer,
-                user_msg=prompt,
+                user_msg=user_msg,
                 max_new_tokens=max_new_tokens,
                 stream=False,
             )
-            return answer, "local"
+            return (answer or "").strip(), "local"
         except Exception:
             traceback.print_exc()
-            return _build_fallback_answer(question, hits), "local_fallback"
+            return "", "local_error"
 
-    return _build_fallback_answer(question, hits), "fallback"
+    return "", "fallback"
+
+
+def _generate_strategy_answer(
+    question: str,
+    hits: list[tuple[float, object]],
+    max_new_tokens: Optional[int],
+) -> tuple[str, str]:
+    prompt = _build_strategy_prompt(question, hits)
+    text, route = _invoke_llm(prompt, max_new_tokens)
+    if text:
+        return text, route
+    fb = _build_fallback_answer(question, hits)
+    if route.startswith("api"):
+        return fb, "api_fallback"
+    if route.startswith("local"):
+        return fb, "local_fallback"
+    return fb, "fallback"
+
+
+def _hits_are_relevant(hits: list[tuple[float, object]]) -> bool:
+    if not hits:
+        return False
+    return float(hits[0][0]) >= KB_MIN_SCORE
+
+
+def _build_no_kb_prompt(question: str) -> str:
+    return (
+        "你是可靠的助手。用户已上传文档作为知识库，但检索结果表明：当前知识库中未找到与问题直接相关、"
+        "或相关度足够高的片段。\n"
+        "请先简要说明这一情况（一至两段话）。然后基于你的通用知识回答用户问题；若问题强依赖未提供的专有材料，"
+        "请明确说明无法从通用知识确认。请勿编造文档引用。\n\n"
+        f"用户问题：{question}"
+    )
+
+
+def _generate_general_knowledge_answer(
+    question: str,
+    max_new_tokens: Optional[int],
+) -> tuple[str, str]:
+    prompt = _build_no_kb_prompt(question)
+    text, route = _invoke_llm(prompt, max_new_tokens)
+    if text:
+        return text, route
+    return (
+        "【说明】知识库中未检索到与问题足够相关的内容，且当前未配置可用的语言模型（请设置 DASHSCOPE_API_KEY "
+        "或启用本地模型 RAG_ENABLE_LOCAL_LLM），无法生成基于通用知识的回答。"
+    ), "fallback"
+
+
+def _llm_available() -> bool:
+    return bool(SERVER_API_KEY) or ENABLE_LOCAL_LLM
+
+
+def _extract_json_object(text: str) -> Optional[dict]:
+    raw = (text or "").strip()
+    if not raw:
+        return None
+    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw)
+    if fence:
+        raw = fence.group(1).strip()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start >= 0 and end > start:
+        try:
+            return json.loads(raw[start : end + 1])
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
+def _type_targets(n: int) -> tuple[int, int, int]:
+    """整卷约 85% 选择题 / 10% 填空 / 5% 简答，合计 n 题。"""
+    if n <= 0:
+        return 0, 0, 0
+    mcq = int(round(n * 0.85))
+    fill = int(round(n * 0.10))
+    short = n - mcq - fill
+    if short < 0:
+        short = 0
+        fill = max(0, n - mcq)
+    if fill < 0:
+        fill = 0
+    while mcq + fill + short > n:
+        if mcq > 0:
+            mcq -= 1
+        elif fill > 0:
+            fill -= 1
+        else:
+            short -= 1
+    while mcq + fill + short < n:
+        mcq += 1
+    return mcq, fill, short
+
+
+def _normalize_quiz_items_flexible(data: dict, n: int, forbidden_questions: set[str]) -> Optional[list[dict]]:
+    """共 n 题；题干去重、与历史 forbidden 不重复；结构校验同前。"""
+    items = data.get("items")
+    if not isinstance(items, list) or len(items) != n:
+        return None
+    mcq_t, fill_t, short_t = _type_targets(n)
+    out: list[dict] = []
+    seen_q: set[str] = set()
+    mcq_n = fill_n = short_n = 0
+    for it in items:
+        if not isinstance(it, dict):
+            return None
+        t = str(it.get("type", "")).lower().strip()
+        if t not in ("mcq", "fill", "short"):
+            return None
+        q = str(it.get("question", "")).strip()
+        if not q:
+            return None
+        q_key = q.casefold()
+        if q_key in seen_q:
+            return None
+        seen_q.add(q_key)
+        if q_key in forbidden_questions:
+            return None
+        row: dict = {"type": t, "question": q}
+        if t == "mcq":
+            mcq_n += 1
+            opts = it.get("options")
+            if not isinstance(opts, list) or len(opts) < 2:
+                return None
+            row["options"] = [str(x).strip() for x in opts[:6]]
+            ci = it.get("correct_index")
+            if not isinstance(ci, int) or ci < 0 or ci >= len(row["options"]):
+                return None
+            row["correct_index"] = ci
+        elif t == "fill":
+            fill_n += 1
+            ans = str(it.get("answer", "")).strip()
+            if not ans:
+                return None
+            row["answer"] = ans
+        else:
+            short_n += 1
+            ref = str(it.get("reference_answer", it.get("answer", ""))).strip()
+            if not ref:
+                return None
+            row["reference_answer"] = ref
+        out.append(row)
+    if mcq_n != mcq_t or fill_n != fill_t or short_n != short_t:
+        # 允许模型在 ±1 题范围内微调题型分布（小卷时）
+        if n >= 3 and (abs(mcq_n - mcq_t) > 2 or abs(fill_n - fill_t) > 2):
+            return None
+    return out
+
+
+def _build_quiz_generation_prompt_v3(
+    total_n: int,
+    segment_blocks: str,
+    hits: list[tuple[float, object]],
+    forbidden_lines: list[str],
+) -> str:
+    mcq_t, fill_t, short_t = _type_targets(total_n)
+    evidence_blocks = []
+    for idx, (score, chunk) in enumerate(hits[:5], start=1):
+        evidence_blocks.append(
+            f"[{idx}] 文件:{chunk.source} 位置:{chunk.page_label} 相关度:{score:.4f}\n"
+            f"{_compact_text(chunk.text, limit=500)}"
+        )
+    evidence_text = "\n\n".join(evidence_blocks)
+    forbid = "\n".join(f"- {line[:200]}" for line in forbidden_lines[:80]) if forbidden_lines else "（无）"
+    return (
+        f"你是出题老师。用户按「对话片段」分别指定了每段要出的题量，你必须**总共**恰好生成 {total_n} 道测验题，"
+        f"且各片段题量与用户要求一致（见下方分段说明）。\n"
+        f"全卷题型数量必须严格为：选择题(mcq) {mcq_t} 道、填空(fill) {fill_t} 道、简答(short) {short_t} 道。\n"
+        "选择题：须有 4 个选项 options 与 correct_index（0 起）。填空题：answer。简答题：reference_answer。\n"
+        "每段题目须紧扣该段对话语义；全卷题干不得重复或仅改一两个词；不得与下列已出现过题干雷同：\n"
+        f"{forbid}\n"
+        "只输出一个 JSON 对象，不要其它文字。\n"
+        '{"items":[... 共 '
+        f"{total_n} "
+        '道题 ...]}\n\n'
+        "【分段出题要求】\n"
+        f"{segment_blocks}\n\n"
+        f"检索证据：\n{evidence_text}"
+    )
+
+
+def _merge_quiz_segments(segments: list[QuizSegmentSpec]) -> list[QuizSegmentSpec]:
+    acc: dict[str, int] = {}
+    for s in segments:
+        k = s.message_id.strip()
+        acc[k] = acc.get(k, 0) + s.count
+    return [QuizSegmentSpec(message_id=k, count=v) for k, v in acc.items()]
+
+
+def _generate_quiz_bundle_for_segments(
+    hits: list[tuple[float, object]],
+    resolved_segments: list[tuple[str, str, int]],
+    forbidden_lower: set[str],
+    total_n: int,
+) -> Optional[dict]:
+    """resolved_segments: (message_id, excerpt, count)"""
+    if not _llm_available() or total_n <= 0:
+        return None
+    prev_texts = [t for t in forbidden_lower if t]
+    lines: list[str] = []
+    for i, (mid, excerpt, cnt) in enumerate(resolved_segments, start=1):
+        lines.append(
+            f"片段{i}（message_id={mid}）：本段须恰好 {cnt} 道题，内容须围绕：\n"
+            f"{_compact_text(excerpt, limit=900)}"
+        )
+    segment_blocks = "\n\n".join(lines)
+    prompt = _build_quiz_generation_prompt_v3(total_n, segment_blocks, hits, prev_texts)
+    max_tok = min(8000, max(512, QUIZ_GEN_MAX_TOKENS, 300 + total_n * 280))
+    text, _route = _invoke_llm(prompt, max_tok)
+    data = _extract_json_object(text)
+    if not isinstance(data, dict):
+        return None
+    items = _normalize_quiz_items_flexible(data, total_n, forbidden_lower)
+    if not items:
+        return None
+    return {"items": items}
+
+
+def _build_quiz_public(quiz_id: str, items: list[dict]) -> QuizBundlePublic:
+    pub_items: list[QuizItemPublic] = []
+    for i, it in enumerate(items):
+        t = str(it.get("type", "short")).lower()
+        opts = [str(x) for x in it.get("options", [])] if t == "mcq" else None
+        pub_items.append(
+            QuizItemPublic(
+                index=i,
+                type=t,
+                question=str(it.get("question", "")).strip(),
+                options=opts,
+            )
+        )
+    return QuizBundlePublic(quiz_id=quiz_id, items=pub_items)
+
+
+def _run_qa_pipeline(
+    question: str,
+    hits: list[tuple[float, object]],
+    max_new_tokens: Optional[int],
+) -> QAResponse:
+    kb_rel = _hits_are_relevant(hits)
+    no_kb_notice: Optional[str] = None
+
+    if not kb_rel:
+        answer, route = _generate_general_knowledge_answer(question, max_new_tokens)
+        no_kb_notice = "当前知识库中未检索到与问题足够相关的片段，以下为基于模型通用知识的回答（仅供参考，非文档结论）。"
+    else:
+        answer, route = _generate_strategy_answer(question, hits, max_new_tokens)
+
+    hit_items = [
+        HitItem(
+            score=score,
+            source=chunk.source,
+            page_label=chunk.page_label,
+            meta=chunk.meta,
+            content=_compact_text(chunk.text, limit=360),
+        )
+        for score, chunk in hits
+    ]
+
+    return QAResponse(
+        answer=answer,
+        route=route,
+        hits=hit_items,
+        kb_relevant=kb_rel,
+        no_kb_notice=no_kb_notice,
+        quiz=None,
+    )
+
+
+def _format_correct_for_item(it: dict) -> str:
+    t = it.get("type", "")
+    if t == "mcq":
+        opts = it.get("options") or []
+        ci = int(it.get("correct_index", 0))
+        if 0 <= ci < len(opts):
+            return f"{chr(65 + ci)}. {opts[ci]}"
+        return str(ci)
+    if t == "fill":
+        return str(it.get("answer", ""))
+    return str(it.get("reference_answer", ""))
+
+
+def _grade_quiz_with_llm(payload: dict, user_answers: list[str]) -> QuizGradeResponse:
+    items = payload.get("items") or []
+    n = len(items)
+    if n == 0:
+        return QuizGradeResponse(
+            total_score=0.0,
+            max_total_score=100.0,
+            items=[],
+            analysis="测验题目为空，无法判分。",
+        )
+    per_hint = round(100.0 / n, 2)
+    grading_input = []
+    for i, it in enumerate(items):
+        ua = user_answers[i] if i < len(user_answers) else ""
+        grading_input.append(
+            {
+                "index": i,
+                "type": it.get("type"),
+                "question": it.get("question"),
+                "standard": _format_correct_for_item(it),
+                "user_answer": (ua or "").strip(),
+            }
+        )
+    prompt = (
+        f"你是阅卷老师。请根据下列 {n} 道题的标准答案与用户作答判分。选择题、填空题以标准答案为准；"
+        "简答题允许语义相近，合理即给分。\n"
+        f"满分：总分 100；各题 max_score 之和必须等于 100，可参考均分约每题 {per_hint} 分。\n"
+        "只输出一个 JSON 对象，字段如下：\n"
+        '{"total_score":数字,"max_total_score":100,"items":['
+        '{"index":0,"question_type":"mcq|fill|short","score":数字,"max_score":数字,'
+        '"user_answer":"原文","correct_answer":"标准","comment":"简短点评"},...],'
+        '"analysis":"对本次作答的总体分析与学习建议（中文）"}\n\n'
+        f"题目与作答：{json.dumps(grading_input, ensure_ascii=False)}"
+    )
+    text, _r = _invoke_llm(prompt, GRADE_MAX_TOKENS)
+    parsed = _extract_json_object(text or "")
+    per_default = 100.0 / n
+    if isinstance(parsed, dict) and isinstance(parsed.get("items"), list):
+        try:
+            total = float(parsed.get("total_score", 0))
+            max_tot = float(parsed.get("max_total_score", 100))
+            analysis = str(parsed.get("analysis", "") or "").strip() or (text or "（模型未返回解析）")
+            out_items: list[QuizGradeItemResult] = []
+            for row in parsed["items"]:
+                if not isinstance(row, dict):
+                    continue
+                out_items.append(
+                    QuizGradeItemResult(
+                        index=int(row.get("index", 0)),
+                        question_type=str(row.get("question_type", "")),
+                        score=float(row.get("score", 0)),
+                        max_score=float(row.get("max_score", per_default)),
+                        user_answer=str(row.get("user_answer", "")),
+                        correct_answer=str(row.get("correct_answer", "")),
+                        comment=str(row.get("comment", "")),
+                    )
+                )
+            out_items.sort(key=lambda x: x.index)
+            return QuizGradeResponse(
+                total_score=total,
+                max_total_score=max_tot,
+                items=out_items,
+                analysis=analysis,
+            )
+        except (TypeError, ValueError):
+            pass
+    return QuizGradeResponse(
+        total_score=0.0,
+        max_total_score=100.0,
+        items=[],
+        analysis=text or "判分结果解析失败，请稍后重试。",
+    )
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/api/v1/sessions", response_model=SessionCreateResponse)
+def create_session(
+    request: Request,
+    authorization: Optional[str] = Header(default=None),
+) -> SessionCreateResponse:
+    """创建会话，返回 session_secret（仅显示一次，请妥善保存）。"""
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+
+    sid = str(uuid.uuid4())
+    secret = secrets.token_hex(32)
+    now = time.time()
+    chroma_store.session_insert(sid, _hash_session_secret(secret), now, now)
+    return SessionCreateResponse(session_id=sid, session_secret=secret)
+
+
+@app.get("/api/v1/sessions/{session_id}/files", response_model=list[SessionFileItem])
+def list_session_files(
+    request: Request,
+    session_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> list[SessionFileItem]:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+
+    _verify_session(sid, x_session_secret.strip())
+    rows = chroma_store.file_list(sid)
+    return [
+        SessionFileItem(id=r["id"], original_name=r["original_name"], size_bytes=int(r["size_bytes"]))
+        for r in rows
+    ]
+
+
+@app.post("/api/v1/sessions/{session_id}/files", response_model=list[SessionFileItem])
+async def upload_session_files(
+    request: Request,
+    session_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+    files: list[UploadFile] = File(...),
+) -> list[SessionFileItem]:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    if not files:
+        raise HTTPException(status_code=400, detail="至少上传一个文件")
+
+    # 先读入并校验，避免先写入后才发现后续文件不合法
+    prepared: list[tuple[str, bytes]] = []
+    for f in files:
+        if not f.filename:
+            continue
+        suffix = Path(f.filename).suffix.lower()
+        if suffix not in ALLOWED_SUFFIXES:
+            raise HTTPException(status_code=400, detail=f"不支持的文件类型: {suffix or '未知'}")
+        content = await f.read()
+        if not content:
+            continue
+        if len(content) > MAX_FILE_SIZE_BYTES:
+            raise HTTPException(status_code=400, detail=f"单个文件不能超过 {MAX_FILE_SIZE_MB}MB")
+        prepared.append((f.filename, content))
+
+    if not prepared:
+        raise HTTPException(status_code=400, detail="未接收到有效文件")
+
+    secret = x_session_secret.strip()
+    _verify_session(sid, secret)
+    count = len(chroma_store.file_list(sid))
+    if count + len(prepared) > MAX_FILES:
+        raise HTTPException(status_code=400, detail=f"最多只能上传 {MAX_FILES} 个文件")
+
+    session_dir = UPLOAD_DIR / sid
+    session_dir.mkdir(parents=True, exist_ok=True)
+
+    existing_rels = chroma_store.file_list(sid)
+    used_names = {Path(r["stored_rel"]).name for r in existing_rels}
+
+    out: list[SessionFileItem] = []
+    now = time.time()
+
+    for orig_filename, content in prepared:
+        safe_name = _safe_filename(orig_filename, used_names)
+        file_id = uuid.uuid4().hex
+        disk_name = f"{file_id}_{safe_name}"
+        stored_rel = f"{sid}/{disk_name}"
+        dest = UPLOAD_DIR / stored_rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(content)
+
+        _verify_session(sid, secret)
+        chroma_store.file_insert(
+            file_id,
+            sid,
+            Path(orig_filename).name,
+            stored_rel,
+            len(content),
+            now,
+        )
+        out.append(SessionFileItem(id=file_id, original_name=Path(orig_filename).name, size_bytes=len(content)))
+
+    return out
+
+
+@app.delete("/api/v1/sessions/{session_id}/files/{file_id}")
+def delete_session_file(
+    request: Request,
+    session_id: str,
+    file_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> dict[str, str]:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    try:
+        fid = uuid.UUID(file_id).hex
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail="无效的文件 ID") from e
+
+    _verify_session(sid, x_session_secret.strip())
+    row = chroma_store.file_get(sid, fid)
+    if not row:
+        raise HTTPException(status_code=404, detail="文件不存在")
+
+    abs_path = (UPLOAD_DIR / row["stored_rel"]).resolve()
+    if abs_path.is_file():
+        try:
+            invalidate_caches_for_file(abs_path, SERVER_EMBED_MODEL)
+        except Exception:
+            traceback.print_exc()
+        try:
+            abs_path.unlink()
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"删除文件失败: {e}") from e
+
+    chroma_store.file_delete(fid)
+
+    return {"status": "deleted"}
+
+
+@app.post("/api/v1/sessions/{session_id}/qa", response_model=QAResponse)
+def ask_session_qa(
+    request: Request,
+    session_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+    question: str = Form(..., description="用户问题"),
+    top_k: int = Form(3, description="检索片段条数"),
+    max_new_tokens: Optional[int] = Form(None, description="生成 token 上限"),
+) -> QAResponse:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+
+    if not question.strip():
+        raise HTTPException(status_code=400, detail="question 不能为空")
+    if len(question) > MAX_QUESTION_CHARS:
+        raise HTTPException(status_code=400, detail=f"问题长度不能超过 {MAX_QUESTION_CHARS} 个字符")
+
+    _verify_session(sid, x_session_secret.strip())
+    rows = chroma_store.file_list(sid)
+
+    if not rows:
+        raise HTTPException(status_code=400, detail="会话中还没有文件，请先上传")
+
+    saved_paths = [(UPLOAD_DIR / r["stored_rel"]).resolve() for r in rows]
+    for p in saved_paths:
+        if not p.is_file():
+            raise HTTPException(status_code=500, detail="服务器上文件缺失，请重新上传")
+
+    limited_top_k = max(1, min(int(top_k), MAX_TOP_K))
+
+    with _session_qa_lock(sid):
+        try:
+            chunks, _embeddings, index, st = build_or_load_index(saved_paths, SERVER_EMBED_MODEL)
+            hits = search(question, chunks, index, st, top_k=limited_top_k)
+            resp = _run_qa_pipeline(
+                question=question,
+                hits=hits,
+                max_new_tokens=max_new_tokens,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except HTTPException:
+            raise
+        except Exception as e:
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=_server_error_detail(e)) from None
+    now = time.time()
+    uid = uuid.uuid4().hex
+    aid = uuid.uuid4().hex
+    chroma_store.message_add(uid, sid, "user", question.strip(), now)
+    extra: dict[str, Any] = {"route": resp.route, "kb_relevant": resp.kb_relevant}
+    if resp.no_kb_notice:
+        extra["no_kb_notice"] = resp.no_kb_notice
+    chroma_store.message_add(aid, sid, "assistant", resp.answer, now + 0.001, extra=extra)
+    return resp
+
+
+@app.post("/api/v1/sessions/{session_id}/qa/async", response_model=QAJobStartResponse)
+def ask_session_qa_async(
+    request: Request,
+    session_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+    question: str = Form(..., description="用户问题"),
+    top_k: int = Form(3, description="检索片段条数"),
+    max_new_tokens: Optional[int] = Form(None, description="生成 token 上限"),
+) -> QAJobStartResponse:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+
+    if not question.strip():
+        raise HTTPException(status_code=400, detail="question 不能为空")
+    if len(question) > MAX_QUESTION_CHARS:
+        raise HTTPException(status_code=400, detail=f"问题长度不能超过 {MAX_QUESTION_CHARS} 个字符")
+
+    _verify_session(sid, x_session_secret.strip())
+    rows = chroma_store.file_list(sid)
+    if not rows:
+        raise HTTPException(status_code=400, detail="会话中还没有文件，请先上传")
+
+    job_id = uuid.uuid4().hex
+    with _jobs_lock:
+        _qa_jobs[job_id] = {"status": "pending"}
+    secret = x_session_secret.strip()
+    t = threading.Thread(
+        target=_session_qa_worker,
+        args=(job_id, sid, secret, question, top_k, max_new_tokens),
+        daemon=True,
+    )
+    t.start()
+    return QAJobStartResponse(job_id=job_id)
+
+
+@app.get("/api/v1/sessions/{session_id}/qa/jobs/{job_id}", response_model=QAJobStatusResponse)
+def get_session_qa_job(
+    request: Request,
+    session_id: str,
+    job_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> QAJobStatusResponse:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    jid = job_id.strip()
+    with _jobs_lock:
+        row = _qa_jobs.get(jid)
+    if not row:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return QAJobStatusResponse(
+        status=row["status"],
+        detail=row.get("detail"),
+        assistant_message_id=row.get("assistant_message_id"),
+        user_message_id=row.get("user_message_id"),
+        result=row.get("result"),
+    )
+
+
+@app.get("/api/v1/sessions/{session_id}/messages", response_model=list[ChatMessageItem])
+def list_session_messages(
+    request: Request,
+    session_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> list[ChatMessageItem]:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    raw = chroma_store.messages_list(sid)
+    return [
+        ChatMessageItem(
+            id=m["id"],
+            role=m["role"],
+            content=m["content"],
+            created_at=float(m["created_at"]),
+            extra=m.get("extra"),
+        )
+        for m in raw
+    ]
+
+
+@app.delete("/api/v1/sessions/{session_id}/messages/{message_id}")
+def delete_session_message(
+    request: Request,
+    session_id: str,
+    message_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> dict[str, str]:
+    """删除单条聊天记录。"""
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    mid = message_id.strip()
+    if not mid:
+        raise HTTPException(status_code=400, detail="无效的消息 id")
+    if not chroma_store.message_delete(sid, mid):
+        raise HTTPException(status_code=404, detail="消息不存在")
+    return {"status": "deleted"}
+
+
+@app.delete("/api/v1/sessions/{session_id}/messages")
+def delete_all_session_messages(
+    request: Request,
+    session_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> dict[str, str | int]:
+    """清空本会话全部聊天记录。"""
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    n = chroma_store.messages_delete_all(sid)
+    return {"status": "ok", "deleted": n}
+
+
+@app.post("/api/v1/sessions/{session_id}/quiz/generate", response_model=QuizBundlePublic)
+def generate_session_quiz(
+    request: Request,
+    session_id: str,
+    body: QuizGenerateRequest,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> QuizBundlePublic:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    merged = _merge_quiz_segments(body.segments or [])
+    if not merged:
+        raise HTTPException(status_code=400, detail="至少选择一条消息")
+    total_n = sum(s.count for s in merged)
+    if total_n > MAX_QUIZ_QUESTIONS_TOTAL:
+        raise HTTPException(
+            status_code=400,
+            detail=f"题目总数不能超过 {MAX_QUIZ_QUESTIONS_TOTAL}（当前为 {total_n}）",
+        )
+
+    resolved_segments: list[tuple[str, str, int]] = []
+    msgs_for_context: list[dict[str, Any]] = []
+    for s in merged:
+        mid = s.message_id.strip()
+        m = chroma_store.message_get(sid, mid)
+        if not m:
+            raise HTTPException(status_code=400, detail=f"无效的消息 id: {mid}")
+        if m.get("role") != "assistant":
+            raise HTTPException(status_code=400, detail=f"消息 {mid} 不是助手消息，请只勾选助手回复")
+        excerpt = str(m.get("content") or "")
+        resolved_segments.append((mid, excerpt, s.count))
+        msgs_for_context.append(m)
+    msgs_for_context.sort(key=lambda x: float(x["created_at"]))
+    context = "\n\n".join(f"{m['role']}: {m['content']}" for m in msgs_for_context)
+    last_user = next((m["content"] for m in reversed(msgs_for_context) if m["role"] == "user"), None)
+    search_q = (last_user or context)[:800]
+
+    rows = chroma_store.file_list(sid)
+    if not rows:
+        raise HTTPException(status_code=400, detail="会话中还没有文件，请先上传")
+    saved_paths = [(UPLOAD_DIR / r["stored_rel"]).resolve() for r in rows]
+    for p in saved_paths:
+        if not p.is_file():
+            raise HTTPException(status_code=500, detail="服务器上文件缺失，请重新上传")
+
+    limited_top_k = max(1, min(MAX_TOP_K, 5))
+    with _session_qa_lock(sid):
+        try:
+            chunks, _embeddings, index, st = build_or_load_index(saved_paths, SERVER_EMBED_MODEL)
+            hits = search(search_q, chunks, index, st, top_k=limited_top_k)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except Exception as e:
+            traceback.print_exc()
+            raise HTTPException(status_code=500, detail=_server_error_detail(e)) from None
+
+    prev_texts = chroma_store.quiz_list_question_texts(sid)
+    forbidden_lower = {t.casefold() for t in prev_texts if t}
+    raw_bundle = _generate_quiz_bundle_for_segments(
+        hits, resolved_segments, forbidden_lower, total_n
+    )
+    if not raw_bundle:
+        raise HTTPException(
+            status_code=503,
+            detail="无法生成测验（请配置 DASHSCOPE_API_KEY 或本地模型，或稍后重试）",
+        )
+    quiz_id = uuid.uuid4().hex
+    seg_meta = [{"message_id": s.message_id, "count": s.count} for s in merged]
+    payload: dict[str, Any] = {
+        "items": raw_bundle["items"],
+        "meta": {
+            "segments": seg_meta,
+            "message_ids": [s.message_id for s in merged],
+            "total_n": total_n,
+            "context_preview": context[:800],
+        },
+    }
+    chroma_store.quiz_insert(quiz_id, sid, payload, time.time())
+    return _build_quiz_public(quiz_id, raw_bundle["items"])
+
+
+@app.get("/api/v1/sessions/{session_id}/quiz/{quiz_id}", response_model=QuizBundlePublic)
+def get_session_quiz_bundle(
+    request: Request,
+    session_id: str,
+    quiz_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> QuizBundlePublic:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    qid = quiz_id.strip()
+    got = chroma_store.quiz_get(qid)
+    if not got:
+        raise HTTPException(status_code=404, detail="测验不存在")
+    db_sid, payload = got
+    if db_sid != sid:
+        raise HTTPException(status_code=403, detail="无权访问该测验")
+    items = payload.get("items") or []
+    return _build_quiz_public(qid, items)
 
 
 @app.post("/api/v1/qa", response_model=QAResponse)
@@ -277,6 +1414,7 @@ async def ask_doc_qa(
     top_k: int = Form(3, description="检索片段条数"),
     max_new_tokens: Optional[int] = Form(None, description="生成 token 上限"),
 ) -> QAResponse:
+    """一次性上传问答（文件不持久化）；会话模式请用 /api/v1/sessions/...。"""
     _require_access_token(authorization)
     _check_rate_limit(_client_ip(request))
 
@@ -319,7 +1457,7 @@ async def ask_doc_qa(
         limited_top_k = max(1, min(int(top_k), MAX_TOP_K))
         chunks, _embeddings, index, st = build_or_load_index(saved_paths, SERVER_EMBED_MODEL)
         hits = search(question, chunks, index, st, top_k=limited_top_k)
-        answer, route = _generate_strategy_answer(
+        return _run_qa_pipeline(
             question=question,
             hits=hits,
             max_new_tokens=max_new_tokens,
@@ -330,21 +1468,89 @@ async def ask_doc_qa(
         raise
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail="服务处理失败，请稍后重试") from e
+        raise HTTPException(status_code=500, detail=_server_error_detail(e)) from e
     finally:
         _cleanup_dir(request_dir)
 
-    return QAResponse(
-        answer=answer,
-        route=route,
-        hits=[
-            HitItem(
-                score=score,
-                source=chunk.source,
-                page_label=chunk.page_label,
-                meta=chunk.meta,
-                content=_compact_text(chunk.text, limit=360),
-            )
-            for score, chunk in hits
-        ],
+
+@app.post("/api/v1/sessions/{session_id}/quiz/{quiz_id}/grade", response_model=QuizGradeResponse)
+def grade_session_quiz(
+    request: Request,
+    session_id: str,
+    quiz_id: str,
+    body: QuizGradeRequest,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> QuizGradeResponse:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    qid = quiz_id.strip()
+
+    _verify_session(sid, x_session_secret.strip())
+    got = chroma_store.quiz_get(qid)
+    if not got:
+        raise HTTPException(status_code=404, detail="测验不存在或已过期")
+    db_sid, payload = got
+    if db_sid is None:
+        raise HTTPException(status_code=400, detail="该测验请使用 POST /api/v1/quiz/{quiz_id}/grade")
+    if db_sid != sid:
+        raise HTTPException(status_code=403, detail="无权访问该测验")
+    expected = len(payload.get("items") or [])
+    if expected <= 0:
+        raise HTTPException(status_code=400, detail="测验数据无效")
+    if len(body.answers) != expected:
+        raise HTTPException(status_code=400, detail=f"请提交恰好 {expected} 条答案")
+
+    return _grade_quiz_with_llm(payload, body.answers)
+
+
+@app.post("/api/v1/quiz/{quiz_id}/grade", response_model=QuizGradeResponse)
+def grade_standalone_quiz(
+    request: Request,
+    quiz_id: str,
+    body: QuizGradeRequest,
+    authorization: Optional[str] = Header(default=None),
+) -> QuizGradeResponse:
+    """用于一次性 /api/v1/qa（无会话）产生的测验判分。"""
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    qid = quiz_id.strip()
+
+    got = chroma_store.quiz_get(qid)
+    if not got:
+        raise HTTPException(status_code=404, detail="测验不存在或已过期")
+    db_sid, payload = got
+    if db_sid is not None:
+        raise HTTPException(status_code=400, detail="请使用会话判分接口")
+    expected = len(payload.get("items") or [])
+    if expected <= 0:
+        raise HTTPException(status_code=400, detail="测验数据无效")
+    if len(body.answers) != expected:
+        raise HTTPException(status_code=400, detail=f"请提交恰好 {expected} 条答案")
+
+    return _grade_quiz_with_llm(payload, body.answers)
+
+
+# 同一端口提供前端静态页（局域网内用浏览器直接访问根路径即可测试）
+def _resolve_frontend_static_dir() -> Optional[Path]:
+    """优先 RAG_FRONTEND_DIR；否则与仓库同级的 ForRag-frontend；再否则仓库内 ForRag-gh-pages。"""
+    raw = os.environ.get("RAG_FRONTEND_DIR", "").strip()
+    candidates: list[Path] = []
+    if raw:
+        candidates.append(Path(raw).expanduser().resolve())
+    candidates.append(_REPO_ROOT.parent / "ForRag-frontend")
+    candidates.append(_REPO_ROOT / "ForRag-gh-pages")
+    for p in candidates:
+        if p.is_dir():
+            return p
+    return None
+
+
+_FRONTEND_DIR = _resolve_frontend_static_dir()
+if _FRONTEND_DIR:
+    app.mount(
+        "/",
+        StaticFiles(directory=str(_FRONTEND_DIR), html=True),
+        name="frontend",
     )
