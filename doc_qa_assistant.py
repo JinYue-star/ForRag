@@ -1166,6 +1166,7 @@ def generate_answer_via_api(
     user_msg: str,
     max_new_tokens: Optional[int],
     stream: bool = True,
+    json_object: bool = False,
 ) -> str:
     import httpx
     from openai import OpenAI
@@ -1179,7 +1180,7 @@ def generate_answer_via_api(
             http_client=http_client,
             max_retries=2,
         )
-        req = {
+        req: dict[str, Any] = {
             "model": api_model,
             "messages": [{"role": "user", "content": user_msg}],
             "temperature": 0,
@@ -1187,9 +1188,18 @@ def generate_answer_via_api(
         }
         if max_new_tokens is not None:
             req["max_tokens"] = max_new_tokens
+        if json_object and not stream:
+            req["response_format"] = {"type": "json_object"}
         if not stream:
-            resp = client.chat.completions.create(**req)
-            return (resp.choices[0].message.content or "").strip()
+            try:
+                resp = client.chat.completions.create(**req)
+                return (resp.choices[0].message.content or "").strip()
+            except Exception:
+                if json_object and "response_format" in req:
+                    req.pop("response_format", None)
+                    resp = client.chat.completions.create(**req)
+                    return (resp.choices[0].message.content or "").strip()
+                raise
 
         _log_step(f"[API] 使用千问兼容 API 流式生成：{api_model}")
         chunks: List[str] = []

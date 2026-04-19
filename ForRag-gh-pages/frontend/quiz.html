@@ -90,15 +90,18 @@
 
     function authHeaders() {
         var h = {};
+        var access = (localStorage.getItem('RAG_ACCESS_TOKEN') || '').trim();
+        if (access) h['Authorization'] = 'Bearer ' + access;
         var sec = (localStorage.getItem(SEC_KEY) || '').trim();
         if (sec) h['X-Session-Secret'] = sec;
         return h;
     }
 
     function quizTypeLabel(t) {
-        if (t === 'mcq') return '选择题';
-        if (t === 'fill') return '填空题';
-        return '简答题';
+        if (t === 'tf') return '判断题';
+        if (t === 'single') return '单选题';
+        if (t === 'multi') return '多选题';
+        return t || '题目';
     }
 
     var currentQuiz = null;
@@ -115,32 +118,34 @@
             title.className = 'quiz-q-title';
             title.textContent = (i + 1) + '. [' + quizTypeLabel(item.type) + '] ' + (item.question || '');
             wrap.appendChild(title);
-            if (item.type === 'mcq' && item.options) {
-                item.options.forEach(function (opt) {
+            if ((item.type === 'tf' || item.type === 'single') && item.options) {
+                item.options.forEach(function (opt, optIndex) {
                     var lab = document.createElement('label');
                     lab.className = 'quiz-option';
                     var inp = document.createElement('input');
                     inp.type = 'radio';
-                    inp.name = 'quiz-mcq-' + i;
+                    inp.name = 'quiz-opt-' + i;
                     inp.value = opt;
+                    inp.id = 'quiz-opt-' + i + '-' + optIndex;
                     lab.appendChild(inp);
                     lab.appendChild(document.createTextNode(' ' + opt));
                     wrap.appendChild(lab);
                 });
-            } else if (item.type === 'fill') {
-                var fi = document.createElement('input');
-                fi.type = 'text';
-                fi.className = 'quiz-input';
-                fi.id = 'quiz-fill-' + i;
-                fi.placeholder = '请填写答案';
-                wrap.appendChild(fi);
+            } else if (item.type === 'multi' && item.options) {
+                item.options.forEach(function (opt, optIndex) {
+                    var lab = document.createElement('label');
+                    lab.className = 'quiz-option';
+                    var inp = document.createElement('input');
+                    inp.type = 'checkbox';
+                    inp.name = 'quiz-multi-' + i;
+                    inp.value = String(optIndex);
+                    inp.id = 'quiz-multi-' + i + '-' + optIndex;
+                    lab.appendChild(inp);
+                    lab.appendChild(document.createTextNode(' ' + opt));
+                    wrap.appendChild(lab);
+                });
             } else {
-                var ta = document.createElement('textarea');
-                ta.className = 'quiz-textarea';
-                ta.id = 'quiz-short-' + i;
-                ta.rows = 3;
-                ta.placeholder = '请简要作答';
-                wrap.appendChild(ta);
+                wrap.appendChild(document.createTextNode('Unsupported type: ' + (item.type || '')));
             }
             el.quizBody.appendChild(wrap);
         });
@@ -167,16 +172,17 @@
         }
         var items = currentQuiz.items;
         var answers = items.map(function (item, i) {
-            if (item.type === 'mcq') {
-                var sel = el.quizBody.querySelector('input[name="quiz-mcq-' + i + '"]:checked');
+            if (item.type === 'tf' || item.type === 'single') {
+                var sel = el.quizBody.querySelector('input[name="quiz-opt-' + i + '"]:checked');
                 return sel ? sel.value : '';
             }
-            if (item.type === 'fill') {
-                var fe = document.getElementById('quiz-fill-' + i);
-                return fe ? fe.value.trim() : '';
+            if (item.type === 'multi') {
+                var cbs = el.quizBody.querySelectorAll('input[name="quiz-multi-' + i + '"]:checked');
+                return Array.from(cbs).map(function (cb) { return cb.value; }).sort(function (a, b) {
+                    return Number(a) - Number(b);
+                }).join(',');
             }
-            var se = document.getElementById('quiz-short-' + i);
-            return se ? se.value.trim() : '';
+            return '';
         });
         var need = items.length;
         if (answers.length !== need || answers.some(function (a) { return !String(a).trim(); })) {

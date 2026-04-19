@@ -1,5 +1,8 @@
 /**
  * 文档问答前端：侧栏 + 聊天历史 + 异步问答 + 测验子页生成
+ *
+ * 后端开启访问令牌时：localStorage.setItem('RAG_ACCESS_TOKEN', '与服务器相同');
+ * 或服务端设 RAG_REQUIRE_ACCESS_TOKEN=0 关闭校验。
  */
 
 const isGitHubPages = window.location.hostname.endsWith('github.io');
@@ -112,6 +115,10 @@ function clearSession() {
 
 function authHeaders() {
     const h = {};
+    const access = (localStorage.getItem('RAG_ACCESS_TOKEN') || '').trim();
+    if (access) {
+        h['Authorization'] = `Bearer ${access}`;
+    }
     const sec = getSessionSecret();
     if (sec) {
         h['X-Session-Secret'] = sec;

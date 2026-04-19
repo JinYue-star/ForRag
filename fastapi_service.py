@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import os
 import re
 import secrets
@@ -328,6 +329,7 @@ class QuizGradeRequest(BaseModel):
 
 class QuizGradeItemResult(BaseModel):
     index: int
+    question: str = ""
     question_type: str
     score: float
     max_score: float
@@ -569,7 +571,12 @@ def _build_strategy_prompt(question: str, hits: list[tuple[float, object]]) -> s
     )
 
 
-def _invoke_llm(user_msg: str, max_new_tokens: Optional[int]) -> tuple[str, str]:
+def _invoke_llm(
+    user_msg: str,
+    max_new_tokens: Optional[int],
+    *,
+    json_object: bool = False,
+) -> tuple[str, str]:
     route = route_generation(has_api_key=bool(SERVER_API_KEY))
     if route == "api":
         try:
@@ -580,6 +587,7 @@ def _invoke_llm(user_msg: str, max_new_tokens: Optional[int]) -> tuple[str, str]
                 user_msg=user_msg,
                 max_new_tokens=max_new_tokens,
                 stream=False,
+                json_object=json_object,
             )
             return (answer or "").strip(), "api"
         except Exception:
@@ -683,44 +691,82 @@ def _extract_json_object(text: str) -> Optional[dict]:
     return None
 
 
-def _type_targets(n: int) -> tuple[int, int, int]:
-    """整卷约 85% 选择题 / 10% 填空 / 5% 简答，合计 n 题。"""
+def _extract_json_items_loose(text: str) -> Optional[dict]:
+    """模型偶发只输出半截 JSON 或多嵌套引号时，尝试从原文中抠出 items 数组。"""
+    raw = text or ""
+    d = _extract_json_object(raw)
+    if isinstance(d, dict) and isinstance(d.get("items"), list):
+        return d
+    for needle in ('"items"', "'items'"):
+        idx = raw.find(needle)
+        if idx < 0:
+            continue
+        sub = raw[idx:]
+        br = sub.find("[")
+        if br < 0:
+            continue
+        start = idx + br
+        depth = 0
+        for i in range(start, len(raw)):
+            c = raw[i]
+            if c == "[":
+                depth += 1
+            elif c == "]":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        arr = json.loads(raw[start : i + 1])
+                        if isinstance(arr, list):
+                            return {"items": arr}
+                    except json.JSONDecodeError:
+                        pass
+                    break
+    return None
+
+
+def _quiz_type_counts_tf_single_multi(n: int) -> tuple[int, int, int]:
+    """Target mix: True/False (tf), single-select (single), multi-select (multi); sums to n."""
     if n <= 0:
         return 0, 0, 0
-    mcq = int(round(n * 0.85))
-    fill = int(round(n * 0.10))
-    short = n - mcq - fill
-    if short < 0:
-        short = 0
-        fill = max(0, n - mcq)
-    if fill < 0:
-        fill = 0
-    while mcq + fill + short > n:
-        if mcq > 0:
-            mcq -= 1
-        elif fill > 0:
-            fill -= 1
-        else:
-            short -= 1
-    while mcq + fill + short < n:
-        mcq += 1
-    return mcq, fill, short
+    if n == 1:
+        return 0, 1, 0
+    if n == 2:
+        return 1, 1, 0
+    tf_n = max(1, n // 4)
+    multi_n = max(1, n // 4)
+    single_n = n - tf_n - multi_n
+    if single_n < 1:
+        single_n = 1
+        rem = n - single_n
+        tf_n = rem // 2
+        multi_n = rem - tf_n
+    return tf_n, single_n, multi_n
+
+
+def _coerce_quiz_index(val: Any) -> Optional[int]:
+    if isinstance(val, bool):
+        return None
+    if isinstance(val, int):
+        return val
+    if isinstance(val, float) and val == int(val):
+        return int(val)
+    if isinstance(val, str) and val.strip().lstrip("-").isdigit():
+        return int(val.strip())
+    return None
 
 
 def _normalize_quiz_items_flexible(data: dict, n: int, forbidden_questions: set[str]) -> Optional[list[dict]]:
-    """共 n 题；题干去重、与历史 forbidden 不重复；结构校验同前。"""
+    """Exactly n items: types tf | single | multi; English stems expected from prompt."""
     items = data.get("items")
     if not isinstance(items, list) or len(items) != n:
         return None
-    mcq_t, fill_t, short_t = _type_targets(n)
     out: list[dict] = []
     seen_q: set[str] = set()
-    mcq_n = fill_n = short_n = 0
     for it in items:
         if not isinstance(it, dict):
             return None
         t = str(it.get("type", "")).lower().strip()
-        if t not in ("mcq", "fill", "short"):
+        if t not in ("tf", "single", "multi"):
             return None
         q = str(it.get("question", "")).strip()
         if not q:
@@ -732,33 +778,50 @@ def _normalize_quiz_items_flexible(data: dict, n: int, forbidden_questions: set[
         if q_key in forbidden_questions:
             return None
         row: dict = {"type": t, "question": q}
-        if t == "mcq":
-            mcq_n += 1
+        if t == "tf":
             opts = it.get("options")
-            if not isinstance(opts, list) or len(opts) < 2:
+            if not isinstance(opts, list) or len(opts) != 2:
                 return None
-            row["options"] = [str(x).strip() for x in opts[:6]]
-            ci = it.get("correct_index")
-            if not isinstance(ci, int) or ci < 0 or ci >= len(row["options"]):
+            raw_opts = [str(x).strip() for x in opts]
+            a0, a1 = raw_opts[0].casefold(), raw_opts[1].casefold()
+            if {a0, a1} != {"true", "false"}:
+                return None
+            ci_raw = _coerce_quiz_index(it.get("correct_index"))
+            if ci_raw is None or ci_raw not in (0, 1):
+                return None
+            correct_word = raw_opts[ci_raw].casefold()
+            if correct_word not in ("true", "false"):
+                return None
+            row["options"] = ["True", "False"]
+            row["correct_index"] = 0 if correct_word == "true" else 1
+        elif t == "single":
+            opts = it.get("options")
+            if not isinstance(opts, list) or len(opts) < 2 or len(opts) > 6:
+                return None
+            row["options"] = [str(x).strip() for x in opts]
+            ci = _coerce_quiz_index(it.get("correct_index"))
+            if ci is None or ci < 0 or ci >= len(row["options"]):
                 return None
             row["correct_index"] = ci
-        elif t == "fill":
-            fill_n += 1
-            ans = str(it.get("answer", "")).strip()
-            if not ans:
-                return None
-            row["answer"] = ans
         else:
-            short_n += 1
-            ref = str(it.get("reference_answer", it.get("answer", ""))).strip()
-            if not ref:
+            opts = it.get("options")
+            if not isinstance(opts, list) or len(opts) < 3 or len(opts) > 8:
                 return None
-            row["reference_answer"] = ref
+            row["options"] = [str(x).strip() for x in opts]
+            cis_raw = it.get("correct_indices")
+            if not isinstance(cis_raw, list) or len(cis_raw) < 2:
+                return None
+            cis: list[int] = []
+            for x in cis_raw:
+                j = _coerce_quiz_index(x)
+                if j is None or j < 0 or j >= len(row["options"]):
+                    return None
+                cis.append(j)
+            cis = sorted(set(cis))
+            if len(cis) < 2:
+                return None
+            row["correct_indices"] = cis
         out.append(row)
-    if mcq_n != mcq_t or fill_n != fill_t or short_n != short_t:
-        # 允许模型在 ±1 题范围内微调题型分布（小卷时）
-        if n >= 3 and (abs(mcq_n - mcq_t) > 2 or abs(fill_n - fill_t) > 2):
-            return None
     return out
 
 
@@ -768,30 +831,101 @@ def _build_quiz_generation_prompt_v3(
     hits: list[tuple[float, object]],
     forbidden_lines: list[str],
 ) -> str:
-    mcq_t, fill_t, short_t = _type_targets(total_n)
+    tf_n, single_n, multi_n = _quiz_type_counts_tf_single_multi(total_n)
     evidence_blocks = []
     for idx, (score, chunk) in enumerate(hits[:5], start=1):
         evidence_blocks.append(
-            f"[{idx}] 文件:{chunk.source} 位置:{chunk.page_label} 相关度:{score:.4f}\n"
+            f"[{idx}] source:{chunk.source} location:{chunk.page_label} relevance:{score:.4f}\n"
             f"{_compact_text(chunk.text, limit=500)}"
         )
     evidence_text = "\n\n".join(evidence_blocks)
-    forbid = "\n".join(f"- {line[:200]}" for line in forbidden_lines[:80]) if forbidden_lines else "（无）"
+    forbid = "\n".join(f"- {line[:200]}" for line in forbidden_lines[:80]) if forbidden_lines else "(none)"
     return (
-        f"你是出题老师。用户按「对话片段」分别指定了每段要出的题量，你必须**总共**恰好生成 {total_n} 道测验题，"
-        f"且各片段题量与用户要求一致（见下方分段说明）。\n"
-        f"全卷题型数量必须严格为：选择题(mcq) {mcq_t} 道、填空(fill) {fill_t} 道、简答(short) {short_t} 道。\n"
-        "选择题：须有 4 个选项 options 与 correct_index（0 起）。填空题：answer。简答题：reference_answer。\n"
-        "每段题目须紧扣该段对话语义；全卷题干不得重复或仅改一两个词；不得与下列已出现过题干雷同：\n"
-        f"{forbid}\n"
-        "只输出一个 JSON 对象，不要其它文字。\n"
-        '{"items":[... 共 '
+        "You are an expert educator. Design a quiz that helps learners **understand concepts**, not just memorize phrases. "
+        "Use clear English. Each question should have a concise stem, test one main idea, and include a short "
+        "explanation-worthy distractor rationale (implicitly, via plausible wrong options).\n\n"
+        f"You MUST output exactly {total_n} items in total, matching the per-segment counts in the segment block below.\n"
+        "Question type counts (must match exactly):\n"
+        f"- type \"tf\" (True/False): {tf_n} items\n"
+        f"- type \"single\" (single-choice): {single_n} items — provide exactly 4 options unless only 2 are pedagogically justified; prefer 4.\n"
+        f"- type \"multi\" (multiple-select): {multi_n} items — provide 4–6 options and field \"correct_indices\": a sorted JSON array "
+        "of distinct 0-based indices (at least two correct options).\n\n"
+        "JSON schema per item:\n"
+        "- tf: {\"type\":\"tf\",\"question\":\"...\",\"options\":[\"True\",\"False\"],\"correct_index\":0 or 1}\n"
+        "- single: {\"type\":\"single\",\"question\":\"...\",\"options\":[\"A\",\"B\",\"C\",\"D\"],\"correct_index\":0..3}\n"
+        "- multi: {\"type\":\"multi\",\"question\":\"...\",\"options\":[...],\"correct_indices\":[0,2]}\n\n"
+        "Rules: Ground every question in the segment text and retrieval evidence; avoid duplicate or near-duplicate stems; "
+        "do not repeat any question similar to these prior stems:\n"
+        f"{forbid}\n\n"
+        "Output ONE JSON object only, no markdown fences, no commentary. Shape: "
+        '{"items":[ ... exactly '
         f"{total_n} "
-        '道题 ...]}\n\n'
-        "【分段出题要求】\n"
+        "objects ... ]}\n\n"
+        "### Segment requirements (counts per assistant excerpt)\n"
         f"{segment_blocks}\n\n"
-        f"检索证据：\n{evidence_text}"
+        "### Retrieval evidence\n"
+        f"{evidence_text}"
     )
+
+
+def _fallback_quiz_bundle_from_hits(
+    hits: list[tuple[float, object]],
+    resolved_segments: list[tuple[str, str, int]],
+    forbidden_lower: set[str],
+    total_n: int,
+) -> Optional[dict]:
+    """
+    大模型不可用或 JSON 校验失败时，用摘录生成 tf/single 兜底（英文），避免 503。
+    """
+    snippets: list[str] = []
+    for _mid, excerpt, _cnt in resolved_segments:
+        t = _compact_text(excerpt, 500)
+        if t:
+            snippets.append(t)
+    for _score, chunk in hits:
+        t = _compact_text(getattr(chunk, "text", "") or "", 500)
+        if t:
+            snippets.append(t)
+    if not snippets:
+        return None
+    tf_n, single_n, multi_n = _quiz_type_counts_tf_single_multi(total_n)
+    # Reliable offline authoring: multi-select is folded into single-choice here.
+    single_n += multi_n
+    items: list[dict] = []
+    ti = si = 0
+    for idx in range(total_n):
+        base = snippets[idx % len(snippets)]
+        if ti < tf_n:
+            ti += 1
+            excerpt = _compact_text(base, 320)
+            q = (
+                f"True or False: The following accurately reflects the source material: "
+                f"\"{excerpt}\""
+            )
+            if len(base) > 320:
+                q += " …"
+            if q.casefold() in forbidden_lower:
+                q = f"{q} (item {idx + 1})"
+            items.append({"type": "tf", "question": q, "options": ["True", "False"], "correct_index": 0})
+        else:
+            si += 1
+            opts = [
+                f"Main takeaway: {_compact_text(base, 120)}",
+                "A plausible but unsupported inference",
+                "An irrelevant detail",
+                "The opposite of the correct conclusion",
+            ]
+            q = f"Single choice — what does the excerpt best support?\n【Excerpt】{_compact_text(base, 360)}"
+            if len(base) > 360:
+                q += "…"
+            if q.casefold() in forbidden_lower:
+                q = f"{q} (#{idx + 1})"
+            items.append({"type": "single", "question": q, "options": opts, "correct_index": 0})
+
+    normalized = _normalize_quiz_items_flexible({"items": items}, total_n, forbidden_lower)
+    if not normalized:
+        return None
+    return {"items": normalized}
 
 
 def _merge_quiz_segments(segments: list[QuizSegmentSpec]) -> list[QuizSegmentSpec]:
@@ -807,35 +941,92 @@ def _generate_quiz_bundle_for_segments(
     resolved_segments: list[tuple[str, str, int]],
     forbidden_lower: set[str],
     total_n: int,
-) -> Optional[dict]:
-    """resolved_segments: (message_id, excerpt, count)"""
-    if not _llm_available() or total_n <= 0:
-        return None
+) -> tuple[Optional[dict], str]:
+    """返回 (bundle 或 None, 失败原因码)。原因码用于日志与 503 明细。"""
+    if total_n <= 0:
+        return None, "bad_total"
+    last_fail = "llm_empty"
     prev_texts = [t for t in forbidden_lower if t]
     lines: list[str] = []
     for i, (mid, excerpt, cnt) in enumerate(resolved_segments, start=1):
         lines.append(
-            f"片段{i}（message_id={mid}）：本段须恰好 {cnt} 道题，内容须围绕：\n"
+            f"Segment {i} (message_id={mid}): write exactly {cnt} question(s) grounded in:\n"
             f"{_compact_text(excerpt, limit=900)}"
         )
     segment_blocks = "\n\n".join(lines)
-    prompt = _build_quiz_generation_prompt_v3(total_n, segment_blocks, hits, prev_texts)
-    max_tok = min(8000, max(512, QUIZ_GEN_MAX_TOKENS, 300 + total_n * 280))
-    text, _route = _invoke_llm(prompt, max_tok)
-    data = _extract_json_object(text)
-    if not isinstance(data, dict):
-        return None
-    items = _normalize_quiz_items_flexible(data, total_n, forbidden_lower)
-    if not items:
-        return None
-    return {"items": items}
+    base_prompt = _build_quiz_generation_prompt_v3(total_n, segment_blocks, hits, prev_texts)
+    max_tok = min(12000, max(512, QUIZ_GEN_MAX_TOKENS, 400 + total_n * 320))
+
+    if _llm_available():
+        for attempt in range(3):
+            extra = ""
+            if attempt == 1:
+                extra = (
+                    "\n\n[Retry] Previous output failed validation. Output ONE JSON object only; "
+                    f"top-level key \"items\" must be an array of length exactly {total_n}. "
+                    "No markdown, no prose outside JSON."
+                )
+            elif attempt == 2:
+                extra = (
+                    f"\n\n[Retry] Minimal output: {{\"items\":[...]}} with {total_n} objects. "
+                    "Types: tf | single | multi only; multi must include \"correct_indices\" (array of ints)."
+                )
+            prompt = base_prompt + extra
+            # 首次请求优先 JSON 模式（兼容接口不支持时会自动回退）；重试改用普通生成更易出完整长 JSON
+            use_json_mode = attempt == 0
+            text, _route = _invoke_llm(prompt, max_tok, json_object=use_json_mode)
+            if not (text or "").strip():
+                last_fail = "llm_empty"
+                continue
+            data = _extract_json_object(text) or _extract_json_items_loose(text)
+            if not isinstance(data, dict):
+                last_fail = "bad_json"
+                continue
+            items = _normalize_quiz_items_flexible(data, total_n, forbidden_lower)
+            if not items:
+                last_fail = "bad_items"
+                continue
+            return {"items": items}, "ok"
+
+    fb = _fallback_quiz_bundle_from_hits(hits, resolved_segments, forbidden_lower, total_n)
+    if fb:
+        logging.warning(
+            "quiz/generate: fallback items (tf/single) from retrieval — LLM JSON failed or API error"
+        )
+        return fb, "ok"
+
+    if not _llm_available():
+        return None, "no_llm"
+    return None, last_fail
+
+
+def _quiz_generation_fail_detail(code: str) -> str:
+    """测验生成失败时返回给客户端的说明（503 body）。"""
+    if code == "no_llm":
+        return "无法生成测验：未配置可用的语言模型（请设置 DASHSCOPE_API_KEY 或 RAG_ENABLE_LOCAL_LLM=1）。"
+    if code == "bad_total":
+        return "无法生成测验：题目总数无效。"
+    if code == "llm_empty":
+        return (
+            "无法生成测验：大模型无返回或 API 调用失败。请检查 DASHSCOPE_API_KEY 是否有效、网络与账户额度，"
+            "或稍后重试。排障可设置环境变量 RAG_DEBUG_ERRORS=1 查看服务端日志。"
+        )
+    if code == "bad_json":
+        return "无法生成测验：模型返回内容无法解析为 JSON。请减少题目数量或稍后重试。"
+    if code == "bad_items":
+        return (
+            "无法生成测验：题目格式未通过校验（题量与各题型数量须符合要求）。请减少单次出题数量或稍后重试。"
+        )
+    return "无法生成测验（请配置 DASHSCOPE_API_KEY 或本地模型，或稍后重试）。"
 
 
 def _build_quiz_public(quiz_id: str, items: list[dict]) -> QuizBundlePublic:
     pub_items: list[QuizItemPublic] = []
     for i, it in enumerate(items):
-        t = str(it.get("type", "short")).lower()
-        opts = [str(x) for x in it.get("options", [])] if t == "mcq" else None
+        t = str(it.get("type", "single")).lower()
+        opts = None
+        if t in ("tf", "single", "multi"):
+            opts = [str(x) for x in (it.get("options") or [])]
         pub_items.append(
             QuizItemPublic(
                 index=i,
@@ -883,16 +1074,23 @@ def _run_qa_pipeline(
 
 
 def _format_correct_for_item(it: dict) -> str:
-    t = it.get("type", "")
-    if t == "mcq":
-        opts = it.get("options") or []
-        ci = int(it.get("correct_index", 0))
-        if 0 <= ci < len(opts):
+    t = str(it.get("type", "")).lower()
+    opts = it.get("options") or []
+    if t == "tf" or t == "single":
+        ci = _coerce_quiz_index(it.get("correct_index"))
+        if ci is not None and 0 <= ci < len(opts):
             return f"{chr(65 + ci)}. {opts[ci]}"
-        return str(ci)
-    if t == "fill":
-        return str(it.get("answer", ""))
-    return str(it.get("reference_answer", ""))
+        return str(it.get("correct_index", ""))
+    if t == "multi":
+        cis = it.get("correct_indices") or []
+        parts: list[str] = []
+        if isinstance(cis, list):
+            js = sorted({_coerce_quiz_index(x) for x in cis if _coerce_quiz_index(x) is not None})
+            for j in js:
+                if 0 <= j < len(opts):
+                    parts.append(f"{chr(65 + j)}. {opts[j]}")
+        return "; ".join(parts)
+    return ""
 
 
 def _grade_quiz_with_llm(payload: dict, user_answers: list[str]) -> QuizGradeResponse:
@@ -919,15 +1117,17 @@ def _grade_quiz_with_llm(payload: dict, user_answers: list[str]) -> QuizGradeRes
             }
         )
     prompt = (
-        f"你是阅卷老师。请根据下列 {n} 道题的标准答案与用户作答判分。选择题、填空题以标准答案为准；"
-        "简答题允许语义相近，合理即给分。\n"
-        f"满分：总分 100；各题 max_score 之和必须等于 100，可参考均分约每题 {per_hint} 分。\n"
-        "只输出一个 JSON 对象，字段如下：\n"
-        '{"total_score":数字,"max_total_score":100,"items":['
-        '{"index":0,"question_type":"mcq|fill|short","score":数字,"max_score":数字,'
-        '"user_answer":"原文","correct_answer":"标准","comment":"简短点评"},...],'
-        '"analysis":"对本次作答的总体分析与学习建议（中文）"}\n\n'
-        f"题目与作答：{json.dumps(grading_input, ensure_ascii=False)}"
+        f"You are an expert grader. Score exactly {n} items; total must sum to 100 points across items.\n"
+        "Types: tf / single / multi. For tf and single, compare the user answer string to the keyed option text. "
+        "For multi, the user answer is a comma-separated list of option indices (e.g. \"0,2\"); award full credit only "
+        "if the set matches correct_indices; partial credit if clearly justified.\n"
+        f"Target max_score per item ≈ {per_hint} (adjust so item max_scores sum to 100).\n"
+        "Output ONE JSON object only:\n"
+        '{"total_score":number,"max_total_score":100,"items":['
+        '{"index":0,"question":"echo the stem text","question_type":"tf|single|multi","score":number,"max_score":number,'
+        '"user_answer":"...","correct_answer":"...","comment":"brief feedback in English"},...],'
+        '"analysis":"overall feedback and study tips in English"}\n\n'
+        f"Problems and answers: {json.dumps(grading_input, ensure_ascii=False)}"
     )
     text, _r = _invoke_llm(prompt, GRADE_MAX_TOKENS)
     parsed = _extract_json_object(text or "")
@@ -941,9 +1141,14 @@ def _grade_quiz_with_llm(payload: dict, user_answers: list[str]) -> QuizGradeRes
             for row in parsed["items"]:
                 if not isinstance(row, dict):
                     continue
+                idx = int(row.get("index", 0))
+                stem = str(row.get("question", "") or "").strip()
+                if not stem and 0 <= idx < len(items):
+                    stem = str(items[idx].get("question") or "").strip()
                 out_items.append(
                     QuizGradeItemResult(
-                        index=int(row.get("index", 0)),
+                        index=idx,
+                        question=stem,
                         question_type=str(row.get("question_type", "")),
                         score=float(row.get("score", 0)),
                         max_score=float(row.get("max_score", per_default)),
@@ -1359,14 +1564,11 @@ def generate_session_quiz(
 
     prev_texts = chroma_store.quiz_list_question_texts(sid)
     forbidden_lower = {t.casefold() for t in prev_texts if t}
-    raw_bundle = _generate_quiz_bundle_for_segments(
+    raw_bundle, quiz_fail = _generate_quiz_bundle_for_segments(
         hits, resolved_segments, forbidden_lower, total_n
     )
     if not raw_bundle:
-        raise HTTPException(
-            status_code=503,
-            detail="无法生成测验（请配置 DASHSCOPE_API_KEY 或本地模型，或稍后重试）",
-        )
+        raise HTTPException(status_code=503, detail=_quiz_generation_fail_detail(quiz_fail))
     quiz_id = uuid.uuid4().hex
     seg_meta = [{"message_id": s.message_id, "count": s.count} for s in merged]
     payload: dict[str, Any] = {

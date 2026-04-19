@@ -1,9 +1,8 @@
-# 服务运行数据（上传文件、SQLite、向量缓存）
-.data/
-.uploads/
-tests/.pytest_rag_data/
+# 忽略 RAG 框架处理文档时生成的本地缓存
+.rag_cache/
 
-# Python
+# 忽略 Python 的编译缓存文件夹
 __pycache__/
+
+# 忽略所有 Python 编译好的字节码文件（全局匹配）
 *.py[cod]
-.pytest_cache/
