@@ -10,7 +10,8 @@
 环境变量：
   MS_MODEL_ID   模型 ID（魔搭与 HuggingFace 上 Qwen 常用同名，如 Qwen/Qwen2.5-3B-Instruct）
   LLM_HUB       加载渠道：auto（先魔搭，失败则 HF）| modelscope | huggingface
-  HF_ENDPOINT   可选，国内可用镜像：https://hf-mirror.com
+  HF_ENDPOINT   可选；未设置且未 export RAG_USE_OFFICIAL_HF=1 时，默认 https://hf-mirror.com（减轻直连 huggingface.co 的 SSL EOF）
+  RAG_USE_OFFICIAL_HF  设为 1/true 时不再默认 HF_ENDPOINT，改走官方 Hub（需网络可达）
   MS_EMBED_ID   可选，嵌入模型；默认 BAAI/bge-small-zh-v1.5
   DASHSCOPE_API_KEY  可选，若提供则直接走千问兼容 API，不加载本地大模型
   QWEN_API_MODEL     可选，API 模型名，默认 qwen-plus
@@ -32,11 +33,20 @@ import re
 import shutil
 import sys
 import tempfile
+import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, List, Optional, Sequence
+from typing import Any, List, Optional, Sequence  # noqa: F401 used in _bundle_key payload
+
+# 在首次访问 Hub 之前生效：默认经镜像拉嵌入权重，避免直连 huggingface.co 频繁 SSL EOF 及 httpx 重试异常。
+if os.environ.get("RAG_USE_OFFICIAL_HF", "").strip().lower() not in {"1", "true", "yes", "on"}:
+    os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
 import numpy as np
+
+# SentenceTransformer 首次会从 Hub 拉权重；多线程并发加载会触发 huggingface_hub 内 httpx 客户端关闭类错误，故进程内单例串行加载。
+_st_model_singleton: dict[str, object] = {}
+_st_model_singleton_lock = threading.Lock()
 
 
 def _faiss_write_index(index, dest: Path) -> None:
@@ -84,6 +94,9 @@ class TextChunk:
     meta: str  # 额外说明（工作表名等）
     doc_path: str = ""  # 原始文件绝对路径
     chunk_id: str = ""  # 用于缓存/去重的稳定 ID
+    kb_note_id: str = ""  # 知识库笔记 id（非笔记来源为空）
+    kb_attachment_id: str = ""  # 知识库附件 id
+    session_file_id: str = ""  # 会话上传文件 id（chromadb）
 
 
 def _clean_text(s: str) -> str:
@@ -135,7 +148,7 @@ CHUNK_CONFIG = {
     ".tif": {"max_chars": 900, "overlap": 80},
     ".tiff": {"max_chars": 900, "overlap": 80},
 }
-CACHE_VERSION = "rag_cache_v1"
+CACHE_VERSION = "rag_cache_v2"
 
 
 def _sha1_text(text: str) -> str:
@@ -191,6 +204,9 @@ def _chunk_to_dict(chunk: TextChunk) -> dict:
         "meta": chunk.meta,
         "doc_path": chunk.doc_path,
         "chunk_id": chunk.chunk_id,
+        "kb_note_id": getattr(chunk, "kb_note_id", "") or "",
+        "kb_attachment_id": getattr(chunk, "kb_attachment_id", "") or "",
+        "session_file_id": getattr(chunk, "session_file_id", "") or "",
     }
 
 
@@ -202,6 +218,9 @@ def _chunk_from_dict(data: dict) -> TextChunk:
         meta=data["meta"],
         doc_path=data.get("doc_path", ""),
         chunk_id=data.get("chunk_id", ""),
+        kb_note_id=data.get("kb_note_id") or "",
+        kb_attachment_id=data.get("kb_attachment_id") or "",
+        session_file_id=data.get("session_file_id") or "",
     )
 
 
@@ -645,8 +664,8 @@ def invalidate_caches_for_file(path: Path, embed_model_id: str) -> None:
                 break
 
 
-def _bundle_key(paths: Sequence[Path], embed_model_id: str) -> str:
-    payload = {
+def _bundle_key(paths: Sequence[Path], embed_model_id: str, bundle_extra: str = "") -> str:
+    payload: dict[str, Any] = {
         "version": CACHE_VERSION,
         "embed_model_id": embed_model_id,
         "files": [
@@ -654,6 +673,8 @@ def _bundle_key(paths: Sequence[Path], embed_model_id: str) -> str:
             for p in sorted((Path(p) for p in paths), key=lambda x: str(x))
         ],
     }
+    if bundle_extra:
+        payload["kb_bundle"] = bundle_extra
     return _sha1_text(json.dumps(payload, ensure_ascii=False, sort_keys=True))
 
 
@@ -679,8 +700,8 @@ def _doc_cache_paths(path: Path, embed_model_id: str) -> dict:
     }
 
 
-def _bundle_cache_paths(paths: Sequence[Path], embed_model_id: str) -> dict:
-    key = _bundle_key(paths, embed_model_id)
+def _bundle_cache_paths(paths: Sequence[Path], embed_model_id: str, bundle_extra: str = "") -> dict:
+    key = _bundle_key(paths, embed_model_id, bundle_extra)
     root = _cache_root() / "bundles" / key
     return {
         "root": root,
@@ -710,19 +731,50 @@ def _read_chunks(path: Path) -> List[TextChunk]:
 
 
 def _load_st_model(embed_model_id: str):
-    from sentence_transformers import SentenceTransformer
+    """同一 embed_model_id 全进程只加载一次；避免多线程并发拉 Hub 触发 httpx「client has been closed」等错误。"""
+    with _st_model_singleton_lock:
+        if embed_model_id in _st_model_singleton:
+            return _st_model_singleton[embed_model_id]
+        from sentence_transformers import SentenceTransformer
 
-    _log_step(
-        f"[嵌入] (1/2) 加载向量模型 {embed_model_id}（首次会下载约百兆，请等进度条）…"
-    )
-    return SentenceTransformer(embed_model_id)
+        local_path = os.environ.get("RAG_EMBED_MODEL_PATH", "").strip()
+        model_ref = local_path or embed_model_id
+        _log_step(
+            f"[嵌入] (1/2) 加载向量模型 {model_ref}（首次会下载约百兆；默认 HF_ENDPOINT=镜像；也可先下载到本地并设置 RAG_EMBED_MODEL_PATH）…"
+        )
+        try:
+            st = SentenceTransformer(model_ref)
+        except Exception:
+            _log_step(
+                "[嵌入] 加载失败。若走 Hub：检查网络/代理，或显式 set HF_ENDPOINT=… 后重启；需官方源时 set RAG_USE_OFFICIAL_HF=1。若走本地：检查 RAG_EMBED_MODEL_PATH 是否指向完整模型目录。"
+            )
+            raise
+        _st_model_singleton[embed_model_id] = st
+        return st
+
+
+def _normalize_doc_embeddings(doc_emb: np.ndarray, st, num_chunks: int) -> np.ndarray:
+    """保证每份文档的嵌入为 (n, dim)；0 条块时 sentence-transformers 常返回 1D 空数组，不能直接 concatenate。"""
+    doc_emb = np.asarray(doc_emb, dtype=np.float32)
+    dim = int(st.get_sentence_embedding_dimension())
+    if num_chunks == 0:
+        return np.zeros((0, dim), dtype=np.float32)
+    if doc_emb.ndim == 1:
+        return doc_emb.reshape(1, -1)
+    return doc_emb
 
 
 def _encode_chunks(st, chunks: Sequence[TextChunk]) -> np.ndarray:
     texts = [c.text for c in chunks]
     _log_step(f"[嵌入] (2/2) 编码 {len(texts)} 条文本块 …")
+    if not texts:
+        dim = int(st.get_sentence_embedding_dimension())
+        return np.zeros((0, dim), dtype=np.float32)
     emb = st.encode(list(texts), show_progress_bar=True, normalize_embeddings=True)
-    return np.asarray(emb, dtype=np.float32)
+    out = np.asarray(emb, dtype=np.float32)
+    if out.ndim == 1:
+        out = out.reshape(1, -1)
+    return out
 
 
 def _build_faiss_index(embeddings: np.ndarray):
@@ -763,10 +815,11 @@ def _save_bundle_cache(
     chunks: Sequence[TextChunk],
     embeddings: np.ndarray,
     index,
+    bundle_extra: str = "",
 ) -> None:
     import faiss
 
-    files = _bundle_cache_paths(paths, embed_model_id)
+    files = _bundle_cache_paths(paths, embed_model_id, bundle_extra)
     files["root"].mkdir(parents=True, exist_ok=True)
     _write_chunks(files["chunks"], chunks)
     np.save(files["embeddings"], embeddings)
@@ -774,7 +827,7 @@ def _save_bundle_cache(
     manifest = {
         "version": CACHE_VERSION,
         "embed_model_id": embed_model_id,
-        "bundle_key": _bundle_key(paths, embed_model_id),
+        "bundle_key": _bundle_key(paths, embed_model_id, bundle_extra),
         "files": [
             {"path": _normalized_path(p), "fingerprint": _file_fingerprint(Path(p))}
             for p in sorted((Path(p) for p in paths), key=lambda x: str(x))
@@ -784,10 +837,10 @@ def _save_bundle_cache(
     files["manifest"].write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def _load_bundle_cache(paths: Sequence[Path], embed_model_id: str):
+def _load_bundle_cache(paths: Sequence[Path], embed_model_id: str, bundle_extra: str = ""):
     import faiss
 
-    files = _bundle_cache_paths(paths, embed_model_id)
+    files = _bundle_cache_paths(paths, embed_model_id, bundle_extra)
     if not files["manifest"].is_file() or not files["chunks"].is_file() or not files["embeddings"].is_file() or not files["index"].is_file():
         return None
     chunks = _read_chunks(files["chunks"])
@@ -796,8 +849,27 @@ def _load_bundle_cache(paths: Sequence[Path], embed_model_id: str):
     return chunks, np.asarray(embeddings, dtype=np.float32), index
 
 
-def build_or_load_index(paths: Sequence[Path], embed_model_id: str):
-    cached_bundle = _load_bundle_cache(paths, embed_model_id)
+def _apply_path_chunk_tags(doc_chunks: Sequence[TextChunk], path: Path, tags: Optional[dict[str, str]]) -> None:
+    if not tags:
+        return
+    norm = _normalized_path(path)
+    _ = norm  # reserved for future per-path diagnostics
+    for c in doc_chunks:
+        if tags.get("kb_note_id"):
+            c.kb_note_id = tags["kb_note_id"]
+        if tags.get("kb_attachment_id"):
+            c.kb_attachment_id = tags["kb_attachment_id"]
+        if tags.get("session_file_id"):
+            c.session_file_id = tags["session_file_id"]
+
+
+def build_or_load_index(
+    paths: Sequence[Path],
+    embed_model_id: str,
+    bundle_extra: str = "",
+    chunk_tags_by_norm_path: Optional[dict[str, dict[str, str]]] = None,
+):
+    cached_bundle = _load_bundle_cache(paths, embed_model_id, bundle_extra)
     st = _load_st_model(embed_model_id)
     if cached_bundle is not None:
         chunks, embeddings, index = cached_bundle
@@ -816,6 +888,7 @@ def build_or_load_index(paths: Sequence[Path], embed_model_id: str):
         if ext not in PARSERS:
             print(f"[跳过] 不支持的扩展名 {ext}: {p}", file=sys.stderr)
             continue
+        tags = (chunk_tags_by_norm_path or {}).get(_normalized_path(p))
         cached_doc = _load_doc_cache(p, embed_model_id)
         if cached_doc is not None:
             doc_chunks, doc_emb = cached_doc
@@ -825,14 +898,15 @@ def build_or_load_index(paths: Sequence[Path], embed_model_id: str):
             doc_emb = _encode_chunks(st, doc_chunks)
             _save_doc_cache(p, embed_model_id, doc_chunks, doc_emb)
             changed_count += 1
+        _apply_path_chunk_tags(doc_chunks, p, tags)
         chunks_all.extend(doc_chunks)
-        emb_all.append(doc_emb)
+        emb_all.append(_normalize_doc_embeddings(doc_emb, st, len(doc_chunks)))
 
     if not chunks_all:
         raise ValueError("没有可用的文档块，请检查文件路径与格式。")
     embeddings = np.concatenate(emb_all, axis=0).astype(np.float32, copy=False)
     index = _build_faiss_index(embeddings)
-    _save_bundle_cache(paths, embed_model_id, chunks_all, embeddings, index)
+    _save_bundle_cache(paths, embed_model_id, chunks_all, embeddings, index, bundle_extra)
     if changed_count:
         _log_step(f"[缓存] 已更新 {changed_count} 个文档缓存，并重建整库索引。")
     return chunks_all, embeddings, index, st

@@ -78,6 +78,8 @@ const elements = {
     fileList: document.getElementById('fileList'),
     questionInput: document.getElementById('questionInput'),
     topKSelect: document.getElementById('topKSelect'),
+    kbScopeSelect: document.getElementById('kbScopeSelect'),
+    kbCategoryFilter: document.getElementById('kbCategoryFilter'),
     submitBtn: document.getElementById('submitBtn'),
     chatMessages: document.getElementById('chatMessages'),
     clearChatBtn: document.getElementById('clearChatBtn'),
@@ -170,6 +172,36 @@ async function ensureSession() {
     const data = await res.json();
     localStorage.setItem(CONFIG.SESSION_ID_KEY, data.session_id);
     localStorage.setItem(CONFIG.SESSION_SECRET_KEY, data.session_secret);
+}
+
+async function loadKbCategories() {
+    if (!elements.kbCategoryFilter) {
+        return;
+    }
+    if (!getSessionId() || !getSessionSecret()) {
+        elements.kbCategoryFilter.innerHTML = '';
+        return;
+    }
+    try {
+        await ensureSession();
+        const res = await fetch(
+            `${CONFIG.API_BASE}${CONFIG.API_SESSIONS}/${encodeURIComponent(getSessionId())}/kb/categories`,
+            { headers: authHeaders() }
+        );
+        if (!res.ok) {
+            return;
+        }
+        const rows = await res.json();
+        elements.kbCategoryFilter.innerHTML = '';
+        rows.forEach((c) => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name || c.id;
+            elements.kbCategoryFilter.appendChild(opt);
+        });
+    } catch (_) {
+        /* ignore */
+    }
 }
 
 async function refreshServerFiles() {
@@ -357,6 +389,19 @@ function updateClearChatButton() {
         state.chatMutating;
 }
 
+/** 有消息时隐藏欢迎区并展示对话区，与参考 UI 的空状态切换一致 */
+function updateChatShellLayout() {
+    const section = document.querySelector('.chat-section');
+    const hero = document.getElementById('welcomeHero');
+    const has = state.messages.length > 0;
+    if (section) {
+        section.classList.toggle('has-conversation', has);
+    }
+    if (hero) {
+        hero.classList.toggle('is-hidden', has);
+    }
+}
+
 function renderChat() {
     elements.chatMessages.innerHTML = '';
     const frag = document.createDocumentFragment();
@@ -383,6 +428,24 @@ function renderChat() {
         delBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
         inner.appendChild(delBtn);
         row.appendChild(inner);
+
+        if (m.role === 'assistant' && m.extra && Array.isArray(m.extra.citations) && m.extra.citations.length > 0) {
+            const citeBox = document.createElement('div');
+            citeBox.className = 'chat-citations';
+            const title = document.createElement('div');
+            title.className = 'chat-citations-title';
+            title.textContent = '引用';
+            citeBox.appendChild(title);
+            m.extra.citations.forEach((c) => {
+                const chip = document.createElement('span');
+                chip.className = 'chat-citation-chip';
+                const lab = c.source_label || c.excerpt || '';
+                chip.textContent = `[${c.ref}] ${lab}`.trim();
+                chip.title = c.excerpt || lab;
+                citeBox.appendChild(chip);
+            });
+            row.appendChild(citeBox);
+        }
 
         if (m.role === 'assistant') {
             const pick = document.createElement('label');
@@ -428,6 +491,8 @@ function renderChat() {
         inp.addEventListener('input', updateGenerateButtonState);
         inp.addEventListener('change', updateGenerateButtonState);
     });
+
+    updateChatShellLayout();
 }
 
 function updateGenerateButtonState() {
@@ -468,6 +533,21 @@ function renderSourcesFromResult(data) {
     } else {
         elements.sourcesCount.textContent = '';
     }
+
+    const cites = data.citations || [];
+    if (cites.length > 0) {
+        const wrap = document.createElement('div');
+        wrap.className = 'source-citations';
+        wrap.innerHTML = '<div class="chat-citations-title">模型引用</div>';
+        cites.forEach((c) => {
+            const chip = document.createElement('span');
+            chip.className = 'chat-citation-chip';
+            chip.textContent = `[${c.ref}] ${c.source_label || ''}`.trim();
+            chip.title = c.excerpt || '';
+            wrap.appendChild(chip);
+        });
+        elements.sourcesList.appendChild(wrap);
+    }
 }
 
 async function pollQaJob(jobId) {
@@ -495,8 +575,8 @@ async function submitQuestion() {
         showToast('请输入问题', true);
         return;
     }
-    if (state.serverFiles.length === 0) {
-        showToast('请先上传文档', true);
+    if (!canSubmitByRetrievalScope()) {
+        showToast('当前检索范围为「仅会话文件」时请至少上传一个文档', true);
         return;
     }
 
@@ -511,6 +591,17 @@ async function submitQuestion() {
         const formData = new FormData();
         formData.append('question', question);
         formData.append('top_k', parseInt(elements.topKSelect.value, 10));
+        if (elements.kbScopeSelect) {
+            formData.append('kb_scope', elements.kbScopeSelect.value);
+        }
+        if (elements.kbCategoryFilter) {
+            const ids = Array.from(elements.kbCategoryFilter.selectedOptions)
+                .map((o) => o.value)
+                .filter(Boolean);
+            if (ids.length) {
+                formData.append('category_ids', JSON.stringify(ids));
+            }
+        }
 
         const start = await fetch(
             `${CONFIG.API_BASE}${CONFIG.API_SESSIONS}/${encodeURIComponent(getSessionId())}/qa/async`,
@@ -666,11 +757,18 @@ async function deleteServerFile(fileId) {
     }
 }
 
+function canSubmitByRetrievalScope() {
+    const scope = elements.kbScopeSelect ? elements.kbScopeSelect.value : 'union';
+    if (scope === 'session_files') {
+        return state.serverFiles.length > 0;
+    }
+    return true;
+}
+
 function updateSubmitButton() {
-    const hasFiles = state.serverFiles.length > 0;
     const hasQuestion = elements.questionInput.value.trim().length > 0;
     elements.submitBtn.disabled =
-        !hasFiles ||
+        !canSubmitByRetrievalScope() ||
         !hasQuestion ||
         state.isLoading ||
         state.isUploading ||
@@ -718,12 +816,49 @@ function initEventListeners() {
         const ex = !elements.sourcesCard.classList.contains('collapsed');
         elements.toggleSources.setAttribute('aria-expanded', ex ? 'true' : 'false');
     });
+
+    const attachToolbar = document.getElementById('attachFromToolbarBtn');
+    const attachComposer = document.getElementById('composerAttachBtn');
+    const scrollHistory = document.getElementById('scrollChatHistoryBtn');
+    const openFilePicker = () => {
+        if (!state.isLoading && !state.isUploading && elements.fileInput) {
+            elements.fileInput.click();
+        }
+    };
+    if (attachToolbar) {
+        attachToolbar.addEventListener('click', openFilePicker);
+    }
+    if (attachComposer) {
+        attachComposer.addEventListener('click', openFilePicker);
+    }
+    if (scrollHistory && elements.chatMessages) {
+        scrollHistory.addEventListener('click', () => {
+            elements.chatMessages.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    }
+    document.querySelectorAll('.suggestion-chip').forEach((chip) => {
+        chip.addEventListener('click', () => {
+            const prompt = chip.getAttribute('data-prompt') || '';
+            if (!elements.questionInput) return;
+            elements.questionInput.value = prompt;
+            elements.questionInput.focus();
+            updateSubmitButton();
+        });
+    });
+    if (elements.kbScopeSelect) {
+        elements.kbScopeSelect.addEventListener('change', updateSubmitButton);
+    }
+    if (elements.kbCategoryFilter) {
+        elements.kbCategoryFilter.addEventListener('change', updateSubmitButton);
+    }
 }
 
 function init() {
     initEventListeners();
     updateSubmitButton();
+    updateChatShellLayout();
     refreshServerFiles()
+        .then(() => loadKbCategories())
         .then(() => loadChatMessages())
         .catch(() => {});
     console.log('API:', CONFIG.API_BASE);

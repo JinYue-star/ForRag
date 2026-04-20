@@ -6,9 +6,9 @@
 支持会话持久化上传（含图片 OCR 入库）、ChromaDB 元数据（会话/文件/聊天/测验）、服务端向量缓存（RAG_CACHE_ROOT）与按文件删除时同步清理缓存。
 
 启动（允许局域网其它机器访问，需放行防火墙端口）：
-  set RAG_ACCESS_TOKEN=你的强随机令牌
+  生产环境建议：set RAG_ACCESS_TOKEN=你的强随机令牌（设置后即默认要求请求带 Bearer）
   py -3.12 -m uvicorn fastapi_service:app --host 0.0.0.0 --port 8000
-  若不想用访问令牌：set RAG_REQUIRE_ACCESS_TOKEN=0（公网切勿使用）
+  本地未设置 RAG_ACCESS_TOKEN 时默认不校验 Bearer；若仍要强制校验：set RAG_REQUIRE_ACCESS_TOKEN=1（须同时配置 RAG_ACCESS_TOKEN）
 
 环境变量：
   RAG_ALLOWED_ORIGINS  逗号分隔的 CORS 白名单（仅当 RAG_CORS_STRICT=1 时生效）
@@ -20,8 +20,15 @@
   RAG_FRONTEND_DIR     可选，静态前端目录绝对路径；不设时优先使用与 ForRag 同级的 ForRag-frontend，否则用仓库内 ForRag-gh-pages
   RAG_RATE_LIMIT_MAX_REQUESTS  单 IP 在时间窗口内最大请求数，默认 120；设为 0 关闭限流
   RAG_DEBUG_ERRORS           设为 1/true 时，500 错误返回异常类型与信息（仅排障用）
-  RAG_REQUIRE_ACCESS_TOKEN   默认 1；设为 0/false/no/off 时不校验 Bearer 令牌（无需 RAG_ACCESS_TOKEN）
+  RAG_ACCESS_TOKEN         非空时默认启用 Bearer 校验；未设置时本地默认不校验（便于开箱）
+  RAG_REQUIRE_ACCESS_TOKEN 显式设为 1/true 则强制校验（须已配置 RAG_ACCESS_TOKEN）；设为 0 则关闭校验
   RAG_STRICT_IMAGE_OCR       默认关闭；设为 1 时若未安装图像 OCR 依赖则直接报错（不写入占位文本）
+  RAG_ENABLE_REWRITE         设为 1 时问答前对查询做 LLM 改写（需可用 API 或本地模型）
+  RAG_ENABLE_HYBRID          默认开启；设为 0 关闭 dense+BM25 混合检索
+  RAG_ENABLE_RERANK          设为 1 时启用 cross-encoder 重排（见 RAG_RERANK_MODEL）
+  RAG_EMBED_MODEL_PATH       可选：嵌入模型的本地目录（已提前下载时用），设了则优先本地加载（避免网络问题）
+  HF_ENDPOINT                可选；未设置且未设 RAG_USE_OFFICIAL_HF=1 时默认 https://hf-mirror.com
+  RAG_USE_OFFICIAL_HF        设为 1 时关闭上述默认镜像，强制走官方 Hub
 """
 
 from __future__ import annotations
@@ -50,9 +57,12 @@ from pydantic import BaseModel, Field, model_validator
 from starlette.middleware.base import BaseHTTPMiddleware
 
 import chroma_store
+import kb_store
+import rag_pipeline
 
 from doc_qa_assistant import (
     _normalize_llm_hub,
+    _normalized_path,
     build_or_load_index,
     generate_answer,
     generate_answer_via_api,
@@ -73,6 +83,7 @@ if os.environ.get("RAG_RESET_CHROMA", "").strip().lower() in {"1", "true", "yes"
     chroma_store.reset_chroma(_DATA_DIR)
 else:
     chroma_store.init_chroma(_DATA_DIR)
+kb_store.init_kb_db(_DATA_DIR)
 
 
 def _parse_allowed_origins() -> list[str]:
@@ -119,12 +130,14 @@ ALLOWED_SUFFIXES = {
 }
 ALLOWED_ORIGINS = _parse_allowed_origins()
 ACCESS_TOKEN = os.environ.get("RAG_ACCESS_TOKEN", "").strip()
-REQUIRE_ACCESS_TOKEN = os.environ.get("RAG_REQUIRE_ACCESS_TOKEN", "1").strip().lower() not in {
-    "0",
-    "false",
-    "no",
-    "off",
-}
+_raw_require_token = os.environ.get("RAG_REQUIRE_ACCESS_TOKEN", "").strip().lower()
+if _raw_require_token in {"0", "false", "no", "off"}:
+    REQUIRE_ACCESS_TOKEN = False
+elif _raw_require_token in {"1", "true", "yes"}:
+    REQUIRE_ACCESS_TOKEN = True
+else:
+    # 未显式配置时：仅当已设置 RAG_ACCESS_TOKEN 时才要求 Bearer，避免本地未配令牌即 503
+    REQUIRE_ACCESS_TOKEN = bool(ACCESS_TOKEN)
 SERVER_EMBED_MODEL = os.environ.get("MS_EMBED_ID", "BAAI/bge-small-zh-v1.5")
 SERVER_MODEL_ID = os.environ.get("MS_MODEL_ID", "Qwen/Qwen2.5-3B-Instruct")
 SERVER_LLM_HUB = _normalize_llm_hub(os.environ.get("LLM_HUB", "auto"))
@@ -240,6 +253,90 @@ _qa_jobs: dict[str, dict[str, Any]] = {}
 _jobs_lock = threading.Lock()
 
 
+def _kb_note_md_path(session_id: str, note_id: str) -> Path:
+    return (UPLOAD_DIR / session_id / "kb" / "notes" / f"{note_id}.md").resolve()
+
+
+def _sync_kb_note_body_file(session_id: str, note_id: str, body: str) -> None:
+    path = _kb_note_md_path(session_id, note_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(body or "", encoding="utf-8")
+
+
+def _delete_kb_note_body_file(session_id: str, note_id: str) -> None:
+    p = _kb_note_md_path(session_id, note_id)
+    if p.is_file():
+        try:
+            p.unlink()
+        except OSError:
+            traceback.print_exc()
+
+
+def _purge_kb_note_from_disk(session_id: str, note_id: str) -> None:
+    for row in kb_store.note_files_list(_DATA_DIR, session_id, note_id):
+        abs_path = (UPLOAD_DIR / row["stored_rel"]).resolve()
+        if abs_path.is_file():
+            try:
+                invalidate_caches_for_file(abs_path, SERVER_EMBED_MODEL)
+            except Exception:
+                traceback.print_exc()
+            try:
+                abs_path.unlink()
+            except OSError:
+                traceback.print_exc()
+    _delete_kb_note_body_file(session_id, note_id)
+
+
+def _collect_qa_index_inputs(
+    session_id: str,
+    kb_scope: str,
+    category_ids: Optional[list[str]],
+) -> tuple[list[Path], dict[str, dict[str, str]], str]:
+    """
+    返回：参与建索引的路径列表、按规范化路径附加的 chunk 元数据、用于 bundle 缓存的 kb 指纹段。
+    """
+    scope = (kb_scope or "union").strip().lower()
+    if scope not in ("session_files", "kb_only", "union"):
+        scope = "union"
+
+    paths: list[Path] = []
+    chunk_tags: dict[str, dict[str, str]] = {}
+    kb_token = kb_store.session_kb_bundle_token(_DATA_DIR, session_id)
+
+    if scope in ("session_files", "union"):
+        for r in chroma_store.file_list(session_id):
+            p = (UPLOAD_DIR / r["stored_rel"]).resolve()
+            if p.is_file():
+                paths.append(p)
+                chunk_tags[_normalized_path(p)] = {"session_file_id": str(r["id"])}
+
+    if scope in ("kb_only", "union"):
+        for nid in kb_store.kb_note_ids_for_rag(_DATA_DIR, session_id, category_ids):
+            body_path = _kb_note_md_path(session_id, nid)
+            if body_path.is_file():
+                paths.append(body_path)
+                chunk_tags[_normalized_path(body_path)] = {"kb_note_id": nid}
+        for row in kb_store.kb_attachment_rows_for_rag(_DATA_DIR, session_id, category_ids):
+            p = (UPLOAD_DIR / row["stored_rel"]).resolve()
+            if p.is_file():
+                paths.append(p)
+                chunk_tags[_normalized_path(p)] = {
+                    "kb_note_id": str(row["note_id"]),
+                    "kb_attachment_id": str(row["id"]),
+                }
+
+    seen: set[str] = set()
+    uniq: list[Path] = []
+    for p in paths:
+        key = str(p.resolve())
+        if key not in seen:
+            seen.add(key)
+            uniq.append(p)
+
+    bundle_extra = kb_token if scope in ("kb_only", "union") else ""
+    return uniq, chunk_tags, bundle_extra
+
+
 def _session_qa_worker(
     job_id: str,
     sid: str,
@@ -247,24 +344,41 @@ def _session_qa_worker(
     question: str,
     top_k: int,
     max_new_tokens: Optional[int],
+    kb_scope: str = "union",
+    category_ids_json: Optional[str] = None,
 ) -> None:
     try:
         _verify_session(sid, secret)
-        rows = chroma_store.file_list(sid)
-        if not rows:
+        cat_ids = kb_store.parse_category_ids_json(category_ids_json)
+        saved_paths, chunk_tags, bundle_extra = _collect_qa_index_inputs(sid, kb_scope, cat_ids)
+        if not saved_paths:
             with _jobs_lock:
-                _qa_jobs[job_id] = {"status": "error", "detail": "会话中还没有文件，请先上传"}
+                _qa_jobs[job_id] = {
+                    "status": "error",
+                    "detail": "没有可检索的内容：请上传会话文件和/或在知识库中添加笔记或附件",
+                }
             return
-        saved_paths = [(UPLOAD_DIR / r["stored_rel"]).resolve() for r in rows]
         for p in saved_paths:
             if not p.is_file():
                 with _jobs_lock:
-                    _qa_jobs[job_id] = {"status": "error", "detail": "服务器上文件缺失，请重新上传"}
+                    _qa_jobs[job_id] = {"status": "error", "detail": "服务器上文件缺失，请重新上传或同步知识库"}
                 return
         limited_top_k = max(1, min(int(top_k), MAX_TOP_K))
         with _session_qa_lock(sid):
-            chunks, _embeddings, index, st = build_or_load_index(saved_paths, SERVER_EMBED_MODEL)
-            hits = search(question, chunks, index, st, top_k=limited_top_k)
+            chunks, _embeddings, index, st = build_or_load_index(
+                saved_paths,
+                SERVER_EMBED_MODEL,
+                bundle_extra=bundle_extra,
+                chunk_tags_by_norm_path=chunk_tags,
+            )
+            hits = rag_pipeline.hybrid_retrieve(
+                question,
+                chunks,
+                index,
+                st,
+                lambda prompt, max_tok, **kw: _invoke_llm(prompt, max_tok, **kw),
+                limited_top_k,
+            )
             resp = _run_qa_pipeline(question=question, hits=hits, max_new_tokens=max_new_tokens)
         now = time.time()
         uid = uuid.uuid4().hex
@@ -273,6 +387,8 @@ def _session_qa_worker(
         extra: dict[str, Any] = {"route": resp.route, "kb_relevant": resp.kb_relevant}
         if resp.no_kb_notice:
             extra["no_kb_notice"] = resp.no_kb_notice
+        if resp.citations:
+            extra["citations"] = [c.model_dump() for c in resp.citations]
         chroma_store.message_add(aid, sid, "assistant", resp.answer, now + 0.001, extra=extra)
         with _jobs_lock:
             _qa_jobs[job_id] = {
@@ -300,6 +416,21 @@ class HitItem(BaseModel):
     page_label: str
     meta: str
     content: str
+    chunk_id: str = ""
+    kb_note_id: Optional[str] = None
+    kb_attachment_id: Optional[str] = None
+    session_file_id: Optional[str] = None
+
+
+class CitationItem(BaseModel):
+    ref: int
+    score: float
+    source_label: str
+    excerpt: str
+    chunk_id: str = ""
+    kb_note_id: Optional[str] = None
+    kb_attachment_id: Optional[str] = None
+    session_file_id: Optional[str] = None
 
 
 class QuizItemPublic(BaseModel):
@@ -321,6 +452,7 @@ class QAResponse(BaseModel):
     kb_relevant: bool = True
     no_kb_notice: Optional[str] = None
     quiz: Optional[QuizBundlePublic] = None
+    citations: list[CitationItem] = Field(default_factory=list)
 
 
 class QuizGradeRequest(BaseModel):
@@ -354,6 +486,41 @@ class SessionFileItem(BaseModel):
     id: str
     original_name: str
     size_bytes: int
+
+
+class KbCategoryCreate(BaseModel):
+    name: str
+    sort_order: int = 0
+    owner_id: Optional[str] = None
+
+
+class KbCategoryPatch(BaseModel):
+    name: Optional[str] = None
+    sort_order: Optional[int] = None
+
+
+class KbNoteCreate(BaseModel):
+    title: str
+    body_markdown: str = ""
+    owner_id: Optional[str] = None
+
+
+class KbNotePatch(BaseModel):
+    title: Optional[str] = None
+    body_markdown: Optional[str] = None
+    category_id: Optional[str] = None
+
+
+class KbNoteFileItem(BaseModel):
+    id: str
+    note_id: str
+    session_id: str = ""
+    original_name: str
+    stored_rel: str
+    size_bytes: int
+    mime: Optional[str] = None
+    created_at: float = 0
+    updated_at: float = 0
 
 
 class ChatMessageItem(BaseModel):
@@ -466,7 +633,10 @@ def _require_access_token(authorization: Optional[str]) -> None:
     if not REQUIRE_ACCESS_TOKEN:
         return
     if not ACCESS_TOKEN:
-        raise HTTPException(status_code=503, detail="服务未完成安全初始化")
+        raise HTTPException(
+            status_code=503,
+            detail="已启用访问令牌校验（RAG_REQUIRE_ACCESS_TOKEN=1），但未设置 RAG_ACCESS_TOKEN。请设置强随机令牌后重启，或设为 0 关闭校验。",
+        )
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="缺少访问令牌")
     token = authorization[7:].strip()
@@ -547,8 +717,7 @@ def _build_strategy_prompt(question: str, hits: list[tuple[float, object]]) -> s
         evidence_blocks.append(
             "\n".join(
                 [
-                    f"[证据{idx}]",
-                    f"文件: {chunk.source}",
+                    f"[{idx}] 来源: {chunk.source}",
                     f"位置: {chunk.page_label}",
                     f"说明: {chunk.meta}",
                     f"相关度: {score:.4f}",
@@ -563,9 +732,9 @@ def _build_strategy_prompt(question: str, hits: list[tuple[float, object]]) -> s
         "请只依据下面给出的检索证据回答，不要引入证据外事实。\n"
         "回答策略：\n"
         "1. 先给出简洁直接的结论。\n"
-        "2. 再补充 2-4 条关键依据，必须引用具体文件名和位置。\n"
+        "2. 再补充关键依据；每条依据须在句末或段末用半角方括号引用证据编号，例如 [1]、[2]，编号必须与下方证据条目序号一致。\n"
         "3. 若证据不充分，明确指出“不确定”并说明缺什么信息。\n"
-        "4. 不要复述整段原文，不要编造页码或结论。\n\n"
+        "4. 不要复述整段原文，不要编造编号或结论。\n\n"
         f"用户问题：{question}\n\n"
         f"检索证据：\n{evidence_text}"
     )
@@ -1059,9 +1228,16 @@ def _run_qa_pipeline(
             page_label=chunk.page_label,
             meta=chunk.meta,
             content=_compact_text(chunk.text, limit=360),
+            chunk_id=getattr(chunk, "chunk_id", "") or "",
+            kb_note_id=(getattr(chunk, "kb_note_id", "") or None),
+            kb_attachment_id=(getattr(chunk, "kb_attachment_id", "") or None),
+            session_file_id=(getattr(chunk, "session_file_id", "") or None),
         )
         for score, chunk in hits
     ]
+
+    cite_raw = rag_pipeline.build_citations(answer, hits) if kb_rel else []
+    citations = [CitationItem(**c) for c in cite_raw]
 
     return QAResponse(
         answer=answer,
@@ -1070,6 +1246,7 @@ def _run_qa_pipeline(
         kb_relevant=kb_rel,
         no_kb_notice=no_kb_notice,
         quiz=None,
+        citations=citations,
     )
 
 
@@ -1321,6 +1498,312 @@ def delete_session_file(
     return {"status": "deleted"}
 
 
+@app.get("/api/v1/sessions/{session_id}/kb/categories")
+def kb_list_categories(
+    request: Request,
+    session_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> list[dict[str, Any]]:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    return kb_store.categories_list(_DATA_DIR, sid)
+
+
+@app.post("/api/v1/sessions/{session_id}/kb/categories")
+def kb_create_category(
+    request: Request,
+    session_id: str,
+    body: KbCategoryCreate,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> dict[str, Any]:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    return kb_store.category_insert(
+        _DATA_DIR,
+        sid,
+        body.name,
+        owner_id=body.owner_id,
+        sort_order=body.sort_order,
+    )
+
+
+@app.patch("/api/v1/sessions/{session_id}/kb/categories/{category_id}")
+def kb_patch_category(
+    request: Request,
+    session_id: str,
+    category_id: str,
+    body: KbCategoryPatch,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> dict[str, Any]:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    cid = category_id.strip()
+    row = kb_store.category_update(
+        _DATA_DIR,
+        sid,
+        cid,
+        name=body.name,
+        sort_order=body.sort_order,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="类目不存在")
+    return row
+
+
+@app.delete("/api/v1/sessions/{session_id}/kb/categories/{category_id}")
+def kb_delete_category(
+    request: Request,
+    session_id: str,
+    category_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> dict[str, str]:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    cid = category_id.strip()
+    notes = []
+    for cat in kb_store.categories_list(_DATA_DIR, sid):
+        if cat["id"] == cid:
+            notes = kb_store.notes_list_for_category(_DATA_DIR, sid, cid)
+            break
+    for n in notes:
+        _purge_kb_note_from_disk(sid, str(n["id"]))
+    if not kb_store.category_delete(_DATA_DIR, sid, cid):
+        raise HTTPException(status_code=404, detail="类目不存在")
+    return {"status": "deleted"}
+
+
+@app.get("/api/v1/sessions/{session_id}/kb/categories/{category_id}/notes")
+def kb_list_notes(
+    request: Request,
+    session_id: str,
+    category_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> list[dict[str, Any]]:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    cid = category_id.strip()
+    if not kb_store.category_get(_DATA_DIR, sid, cid):
+        raise HTTPException(status_code=404, detail="类目不存在")
+    return kb_store.notes_list_for_category(_DATA_DIR, sid, cid)
+
+
+@app.post("/api/v1/sessions/{session_id}/kb/categories/{category_id}/notes")
+def kb_create_note(
+    request: Request,
+    session_id: str,
+    category_id: str,
+    body: KbNoteCreate,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> dict[str, Any]:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    cid = category_id.strip()
+    try:
+        row = kb_store.note_insert(
+            _DATA_DIR,
+            sid,
+            cid,
+            body.title,
+            body.body_markdown,
+            owner_id=body.owner_id,
+        )
+    except ValueError:
+        raise HTTPException(status_code=404, detail="类目不存在") from None
+    _sync_kb_note_body_file(sid, str(row["id"]), str(row.get("body_markdown") or ""))
+    return row
+
+
+@app.get("/api/v1/sessions/{session_id}/kb/notes/{note_id}")
+def kb_get_note(
+    request: Request,
+    session_id: str,
+    note_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> dict[str, Any]:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    row = kb_store.note_get(_DATA_DIR, sid, note_id.strip())
+    if not row:
+        raise HTTPException(status_code=404, detail="笔记不存在")
+    return row
+
+
+@app.patch("/api/v1/sessions/{session_id}/kb/notes/{note_id}")
+def kb_patch_note(
+    request: Request,
+    session_id: str,
+    note_id: str,
+    body: KbNotePatch,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> dict[str, Any]:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    nid = note_id.strip()
+    try:
+        row = kb_store.note_update(
+            _DATA_DIR,
+            sid,
+            nid,
+            title=body.title,
+            body_markdown=body.body_markdown,
+            category_id=body.category_id,
+        )
+    except ValueError as e:
+        if "category_not_found" in str(e):
+            raise HTTPException(status_code=404, detail="目标类目不存在") from e
+        raise
+    if not row:
+        raise HTTPException(status_code=404, detail="笔记不存在")
+    if body.body_markdown is not None:
+        _sync_kb_note_body_file(sid, nid, str(row.get("body_markdown") or ""))
+    return row
+
+
+@app.delete("/api/v1/sessions/{session_id}/kb/notes/{note_id}")
+def kb_delete_note(
+    request: Request,
+    session_id: str,
+    note_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> dict[str, str]:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    nid = note_id.strip()
+    if not kb_store.note_get(_DATA_DIR, sid, nid):
+        raise HTTPException(status_code=404, detail="笔记不存在")
+    _purge_kb_note_from_disk(sid, nid)
+    kb_store.note_delete(_DATA_DIR, sid, nid)
+    return {"status": "deleted"}
+
+
+@app.get("/api/v1/sessions/{session_id}/kb/notes/{note_id}/files", response_model=list[KbNoteFileItem])
+def kb_list_note_files(
+    request: Request,
+    session_id: str,
+    note_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> list[KbNoteFileItem]:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    nid = note_id.strip()
+    if not kb_store.note_get(_DATA_DIR, sid, nid):
+        raise HTTPException(status_code=404, detail="笔记不存在")
+    rows = kb_store.note_files_list(_DATA_DIR, sid, nid)
+    return [KbNoteFileItem.model_validate(dict(r)) for r in rows]
+
+
+@app.post("/api/v1/sessions/{session_id}/kb/notes/{note_id}/files", response_model=KbNoteFileItem)
+async def kb_upload_note_file(
+    request: Request,
+    session_id: str,
+    note_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+    file: UploadFile = File(...),
+) -> KbNoteFileItem:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    nid = note_id.strip()
+    if not kb_store.note_get(_DATA_DIR, sid, nid):
+        raise HTTPException(status_code=404, detail="笔记不存在")
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="无效文件名")
+    suffix = Path(file.filename).suffix.lower()
+    if suffix not in ALLOWED_SUFFIXES:
+        raise HTTPException(status_code=400, detail=f"不支持的文件类型: {suffix or '未知'}")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="空文件")
+    if len(content) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(status_code=400, detail=f"单个文件不能超过 {MAX_FILE_SIZE_MB}MB")
+
+    attach_id = uuid.uuid4().hex
+    kb_dir = UPLOAD_DIR / sid / "kb" / "files"
+    kb_dir.mkdir(parents=True, exist_ok=True)
+    used = {p.name for p in kb_dir.iterdir() if p.is_file()}
+    safe_name = _safe_filename(file.filename, used)
+    disk_name = f"{attach_id}_{safe_name}"
+    stored_rel = f"{sid}/kb/files/{disk_name}"
+    dest = UPLOAD_DIR / stored_rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(content)
+
+    row = kb_store.note_file_insert(
+        _DATA_DIR,
+        sid,
+        nid,
+        Path(file.filename).name,
+        stored_rel,
+        len(content),
+        file.content_type,
+    )
+    return KbNoteFileItem.model_validate(dict(row))
+
+
+@app.delete("/api/v1/sessions/{session_id}/kb/notes/{note_id}/files/{file_id}")
+def kb_delete_note_file(
+    request: Request,
+    session_id: str,
+    note_id: str,
+    file_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+) -> dict[str, str]:
+    _require_access_token(authorization)
+    _check_rate_limit(_client_ip(request))
+    sid = _parse_uuid_param("session_id", session_id)
+    _verify_session(sid, x_session_secret.strip())
+    nid = note_id.strip()
+    fid = file_id.strip()
+    row = kb_store.note_file_get(_DATA_DIR, sid, fid)
+    if not row or str(row.get("note_id")) != nid:
+        raise HTTPException(status_code=404, detail="附件不存在")
+    abs_path = (UPLOAD_DIR / row["stored_rel"]).resolve()
+    if abs_path.is_file():
+        try:
+            invalidate_caches_for_file(abs_path, SERVER_EMBED_MODEL)
+        except Exception:
+            traceback.print_exc()
+        try:
+            abs_path.unlink()
+        except OSError as e:
+            raise HTTPException(status_code=500, detail=f"删除文件失败: {e}") from e
+    kb_store.note_file_delete(_DATA_DIR, sid, fid)
+    return {"status": "deleted"}
+
+
 @app.post("/api/v1/sessions/{session_id}/qa", response_model=QAResponse)
 def ask_session_qa(
     request: Request,
@@ -1330,6 +1813,10 @@ def ask_session_qa(
     question: str = Form(..., description="用户问题"),
     top_k: int = Form(3, description="检索片段条数"),
     max_new_tokens: Optional[int] = Form(None, description="生成 token 上限"),
+    kb_scope: str = Form("union", description="session_files | kb_only | union"),
+    category_ids: Optional[str] = Form(
+        None, description='可选：限定知识库类目 id 的 JSON 数组，如 ["uuid1"]'
+    ),
 ) -> QAResponse:
     _require_access_token(authorization)
     _check_rate_limit(_client_ip(request))
@@ -1341,22 +1828,35 @@ def ask_session_qa(
         raise HTTPException(status_code=400, detail=f"问题长度不能超过 {MAX_QUESTION_CHARS} 个字符")
 
     _verify_session(sid, x_session_secret.strip())
-    rows = chroma_store.file_list(sid)
-
-    if not rows:
-        raise HTTPException(status_code=400, detail="会话中还没有文件，请先上传")
-
-    saved_paths = [(UPLOAD_DIR / r["stored_rel"]).resolve() for r in rows]
+    cat_ids = kb_store.parse_category_ids_json(category_ids)
+    saved_paths, chunk_tags, bundle_extra = _collect_qa_index_inputs(sid, kb_scope, cat_ids)
+    if not saved_paths:
+        raise HTTPException(
+            status_code=400,
+            detail="没有可检索的内容：请上传会话文件和/或在知识库中添加笔记或附件",
+        )
     for p in saved_paths:
         if not p.is_file():
-            raise HTTPException(status_code=500, detail="服务器上文件缺失，请重新上传")
+            raise HTTPException(status_code=500, detail="服务器上文件缺失，请重新上传或同步知识库")
 
     limited_top_k = max(1, min(int(top_k), MAX_TOP_K))
 
     with _session_qa_lock(sid):
         try:
-            chunks, _embeddings, index, st = build_or_load_index(saved_paths, SERVER_EMBED_MODEL)
-            hits = search(question, chunks, index, st, top_k=limited_top_k)
+            chunks, _embeddings, index, st = build_or_load_index(
+                saved_paths,
+                SERVER_EMBED_MODEL,
+                bundle_extra=bundle_extra,
+                chunk_tags_by_norm_path=chunk_tags,
+            )
+            hits = rag_pipeline.hybrid_retrieve(
+                question,
+                chunks,
+                index,
+                st,
+                lambda prompt, max_tok, **kw: _invoke_llm(prompt, max_tok, **kw),
+                limited_top_k,
+            )
             resp = _run_qa_pipeline(
                 question=question,
                 hits=hits,
@@ -1376,6 +1876,8 @@ def ask_session_qa(
     extra: dict[str, Any] = {"route": resp.route, "kb_relevant": resp.kb_relevant}
     if resp.no_kb_notice:
         extra["no_kb_notice"] = resp.no_kb_notice
+    if resp.citations:
+        extra["citations"] = [c.model_dump() for c in resp.citations]
     chroma_store.message_add(aid, sid, "assistant", resp.answer, now + 0.001, extra=extra)
     return resp
 
@@ -1389,6 +1891,8 @@ def ask_session_qa_async(
     question: str = Form(..., description="用户问题"),
     top_k: int = Form(3, description="检索片段条数"),
     max_new_tokens: Optional[int] = Form(None, description="生成 token 上限"),
+    kb_scope: str = Form("union", description="session_files | kb_only | union"),
+    category_ids: Optional[str] = Form(None, description="可选：类目 id JSON 数组"),
 ) -> QAJobStartResponse:
     _require_access_token(authorization)
     _check_rate_limit(_client_ip(request))
@@ -1400,9 +1904,13 @@ def ask_session_qa_async(
         raise HTTPException(status_code=400, detail=f"问题长度不能超过 {MAX_QUESTION_CHARS} 个字符")
 
     _verify_session(sid, x_session_secret.strip())
-    rows = chroma_store.file_list(sid)
-    if not rows:
-        raise HTTPException(status_code=400, detail="会话中还没有文件，请先上传")
+    cat_ids = kb_store.parse_category_ids_json(category_ids)
+    paths, _, _ = _collect_qa_index_inputs(sid, kb_scope, cat_ids)
+    if not paths:
+        raise HTTPException(
+            status_code=400,
+            detail="没有可检索的内容：请上传会话文件和/或在知识库中添加笔记或附件",
+        )
 
     job_id = uuid.uuid4().hex
     with _jobs_lock:
@@ -1410,7 +1918,7 @@ def ask_session_qa_async(
     secret = x_session_secret.strip()
     t = threading.Thread(
         target=_session_qa_worker,
-        args=(job_id, sid, secret, question, top_k, max_new_tokens),
+        args=(job_id, sid, secret, question, top_k, max_new_tokens, kb_scope, category_ids),
         daemon=True,
     )
     t.start()
@@ -1658,7 +2166,14 @@ async def ask_doc_qa(
 
         limited_top_k = max(1, min(int(top_k), MAX_TOP_K))
         chunks, _embeddings, index, st = build_or_load_index(saved_paths, SERVER_EMBED_MODEL)
-        hits = search(question, chunks, index, st, top_k=limited_top_k)
+        hits = rag_pipeline.hybrid_retrieve(
+            question,
+            chunks,
+            index,
+            st,
+            lambda prompt, max_tok, **kw: _invoke_llm(prompt, max_tok, **kw),
+            limited_top_k,
+        )
         return _run_qa_pipeline(
             question=question,
             hits=hits,
