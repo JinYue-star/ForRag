@@ -1,15 +1,14 @@
 /**
- * 文档问答前端：侧栏 + 聊天历史 + 异步问答 + 测验子页生成
- * 优化版：增强用户体验，添加新功能
+ * RAG chat UI: sidebar, chat history, async Q&A, quiz handoff.
  *
- * 后端开启访问令牌时：在控制台执行
- *   localStorage.setItem('RAG_ACCESS_TOKEN', '与服务器 RAG_ACCESS_TOKEN 相同的字符串')
- * 然后刷新页面。未设置时请求不会带 Authorization（需服务端 RAG_REQUIRE_ACCESS_TOKEN=0）。
+ * If the API requires an access token, run in the console:
+ *   localStorage.setItem('RAG_ACCESS_TOKEN', '<same value as server RAG_ACCESS_TOKEN>')
+ * then reload. If unset, requests omit Authorization (server must allow anonymous access).
  */
 
 const isGitHubPages = window.location.hostname.endsWith('github.io');
 
-/** 与 uvicorn 同端口打开页面时用当前 origin；Live Server 等独立端口仍默认连本机 :8000 */
+/** Same origin as the API when served together; dev front-end ports default to localhost:8000. */
 function resolveDefaultApiBase() {
     if (isGitHubPages) {
         return 'https://kitty-collapse-ivory-vol.trycloudflare.com';
@@ -44,6 +43,8 @@ const CONFIG = {
     SESSION_ID_KEY: 'RAG_SESSION_ID',
     SESSION_SECRET_KEY: 'RAG_SESSION_SECRET',
     LAST_QUIZ_KEY: 'RAG_LAST_QUIZ',
+    CONVERSATIONS_KEY: 'RAG_CONVERSATIONS',
+    FEEDBACK_KEY: 'RAG_MSG_FEEDBACK',
     ALLOWED_TYPES: [
         'application/pdf',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -71,7 +72,8 @@ const state = {
     isLoading: false,
     isUploading: false,
     chatMutating: false,
-    messages: []
+    messages: [],
+    historyMenuAnchorSid: null
 };
 
 const elements = {
@@ -82,16 +84,16 @@ const elements = {
     topKSelect: document.getElementById('topKSelect'),
     submitBtn: document.getElementById('submitBtn'),
     chatMessages: document.getElementById('chatMessages'),
-    clearChatBtn: document.getElementById('clearChatBtn'),
+    newChatBtn: document.getElementById('newChatBtn'),
+    chatHistoryList: document.getElementById('chatHistoryList'),
+    composerDock: document.getElementById('composerDock'),
+    composerAttachBtn: document.getElementById('composerAttachBtn'),
+    composerImageBtn: document.getElementById('composerImageBtn'),
+    composerMicBtn: document.getElementById('composerMicBtn'),
+    composerFileInput: document.getElementById('composerFileInput'),
+    composerImageInput: document.getElementById('composerImageInput'),
     generateBar: document.getElementById('generateBar'),
     generateQuizBtn: document.getElementById('generateQuizBtn'),
-    resultSection: document.getElementById('resultSection'),
-    sourcesCard: document.getElementById('sourcesCard'),
-    sourcesBody: document.getElementById('sourcesBody'),
-    sourcesList: document.getElementById('sourcesList'),
-    sourcesCount: document.getElementById('sourcesCount'),
-    toggleSources: document.getElementById('toggleSources'),
-    kbNotice: document.getElementById('kbNotice'),
     toast: document.getElementById('toast')
 };
 
@@ -100,7 +102,7 @@ function showToast(message, isError = false, isSuccess = false) {
     const messageEl = toast.querySelector('.toast-message');
     messageEl.textContent = message;
     
-    // 重置样式
+    // Reset toast styles
     toast.className = 'toast';
     
     if (isError) {
@@ -126,6 +128,300 @@ function clearSession() {
     localStorage.removeItem(CONFIG.SESSION_SECRET_KEY);
     state.messages = [];
     renderChat();
+}
+
+function loadConversations() {
+    try {
+        const raw = localStorage.getItem(CONFIG.CONVERSATIONS_KEY);
+        if (!raw) return [];
+        const data = JSON.parse(raw);
+        return Array.isArray(data) ? data : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function saveConversations(list) {
+    localStorage.setItem(CONFIG.CONVERSATIONS_KEY, JSON.stringify(list));
+}
+
+function sortConversations(list) {
+    return [...list].sort((a, b) => {
+        if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+        return (b.updated_at || 0) - (a.updated_at || 0);
+    });
+}
+
+function migrateConversations() {
+    const sid = getSessionId();
+    const sec = getSessionSecret();
+    if (!sid || !sec) return;
+    let list = loadConversations();
+    if (!list.some((c) => c.session_id === sid)) {
+        list.push({
+            session_id: sid,
+            session_secret: sec,
+            title: 'New chat',
+            pinned: false,
+            updated_at: Date.now()
+        });
+        saveConversations(list);
+    }
+}
+
+function touchCurrentConversation() {
+    const sid = getSessionId();
+    if (!sid) return;
+    const list = loadConversations();
+    const i = list.findIndex((c) => c.session_id === sid);
+    if (i < 0) return;
+    list[i].updated_at = Date.now();
+    const firstUser = state.messages.find((m) => m.role === 'user');
+    const t = firstUser ? String(firstUser.content || '').trim() : '';
+    const defaultChatTitles = new Set(['新对话', 'New chat']);
+    if (t && (!list[i].title || defaultChatTitles.has(list[i].title))) {
+        list[i].title = t.length > 36 ? `${t.slice(0, 36)}…` : t;
+    }
+    saveConversations(list);
+    renderHistoryList();
+}
+
+function getFeedbackMap() {
+    try {
+        return JSON.parse(localStorage.getItem(CONFIG.FEEDBACK_KEY) || '{}');
+    } catch (_) {
+        return {};
+    }
+}
+
+function setFeedback(messageId, val) {
+    const m = getFeedbackMap();
+    if (val == null) delete m[messageId];
+    else m[messageId] = val;
+    localStorage.setItem(CONFIG.FEEDBACK_KEY, JSON.stringify(m));
+}
+
+function renderHistoryList() {
+    const el = elements.chatHistoryList;
+    if (!el) return;
+    const sid = getSessionId();
+    const list = sortConversations(loadConversations());
+    el.innerHTML = '';
+    if (list.length === 0) {
+        const p = document.createElement('p');
+        p.className = 'chat-history-empty';
+        p.textContent = 'No chats yet. Click New chat to begin.';
+        el.appendChild(p);
+        return;
+    }
+    list.forEach((c) => {
+        const row = document.createElement('div');
+        row.className = `chat-history-item${c.session_id === sid ? ' is-active' : ''}`;
+        row.dataset.sessionId = c.session_id;
+        row.setAttribute('role', 'listitem');
+
+        const titleBtn = document.createElement('button');
+        titleBtn.type = 'button';
+        titleBtn.className = 'chat-history-title';
+        titleBtn.title = c.title || 'Chat';
+        titleBtn.textContent = c.title || 'New chat';
+
+        const menuWrap = document.createElement('div');
+        menuWrap.className = 'chat-history-menu-wrap';
+        const menuBtn = document.createElement('button');
+        menuBtn.type = 'button';
+        menuBtn.className = 'chat-history-menu-btn';
+        menuBtn.setAttribute('aria-label', 'Chat actions');
+        menuBtn.dataset.sessionId = c.session_id;
+        menuBtn.innerHTML =
+            '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
+
+        menuWrap.appendChild(menuBtn);
+        row.appendChild(titleBtn);
+        row.appendChild(menuWrap);
+        el.appendChild(row);
+
+        titleBtn.addEventListener('click', () => {
+            switchConversation(c.session_id);
+        });
+        menuBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openHistoryMenu(menuBtn, c);
+        });
+    });
+}
+
+function ensureHistoryMenuEl() {
+    let el = document.getElementById('historyContextMenu');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'historyContextMenu';
+        el.className = 'chat-history-floatmenu';
+        el.hidden = true;
+        document.body.appendChild(el);
+    }
+    return el;
+}
+
+function closeHistoryMenu() {
+    const el = ensureHistoryMenuEl();
+    el.hidden = true;
+    el.innerHTML = '';
+    state.historyMenuAnchorSid = null;
+}
+
+function openHistoryMenu(anchorBtn, conv) {
+    const el = ensureHistoryMenuEl();
+    state.historyMenuAnchorSid = conv.session_id;
+    el.innerHTML = `
+        <button type="button" data-action="pin">${conv.pinned ? 'Unpin' : 'Pin'}</button>
+        <button type="button" data-action="rename">Rename</button>
+        <button type="button" data-action="delete" class="is-danger">Delete</button>
+    `;
+    el.querySelectorAll('button').forEach((b) => {
+        b.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const action = b.dataset.action;
+            closeHistoryMenu();
+            if (action === 'pin') togglePinConversation(conv.session_id);
+            else if (action === 'rename') renameConversation(conv.session_id);
+            else if (action === 'delete') void deleteConversation(conv.session_id);
+        });
+    });
+
+    const r = anchorBtn.getBoundingClientRect();
+    const desiredTop = r.bottom + 6;
+    const desiredLeft = Math.min(r.right - 160, window.innerWidth - 12 - 160);
+    el.style.top = `${Math.min(desiredTop, window.innerHeight - 12)}px`;
+    el.style.left = `${Math.max(12, desiredLeft)}px`;
+    el.hidden = false;
+}
+
+function togglePinConversation(sessionId) {
+    let list = loadConversations();
+    const i = list.findIndex((x) => x.session_id === sessionId);
+    if (i < 0) return;
+    list[i].pinned = !list[i].pinned;
+    saveConversations(list);
+    renderHistoryList();
+}
+
+function renameConversation(sessionId) {
+    const list = loadConversations();
+    const entry = list.find((x) => x.session_id === sessionId);
+    if (!entry) return;
+    const n = window.prompt('Chat title', entry.title || '');
+    if (n == null) return;
+    const t = n.trim();
+    if (!t) return;
+    entry.title = t.length > 80 ? t.slice(0, 80) : t;
+    saveConversations(list);
+    renderHistoryList();
+}
+
+async function deleteConversation(sessionId) {
+    if (!window.confirm('Delete this chat? Session uploads, messages, and related data will be removed. This cannot be undone.')) {
+        return;
+    }
+    const list = loadConversations();
+    const entry = list.find((x) => x.session_id === sessionId);
+    if (!entry) return;
+    const wasCurrent = getSessionId() === sessionId;
+    try {
+        const res = await fetch(
+            `${CONFIG.API_BASE}${CONFIG.API_SESSIONS}/${encodeURIComponent(sessionId)}`,
+            {
+                method: 'DELETE',
+                headers: {
+                    ...authHeaders(),
+                    'X-Session-Secret': entry.session_secret
+                }
+            }
+        );
+        if (!res.ok && res.status !== 404) {
+            throw new Error(await getErrorMessage(res));
+        }
+    } catch (err) {
+        console.error(err);
+        showToast(err.message || 'Delete failed.', true);
+        return;
+    }
+    const newList = list.filter((x) => x.session_id !== sessionId);
+    saveConversations(newList);
+    if (wasCurrent) {
+        if (newList.length > 0) {
+            await switchConversation(newList[0].session_id);
+        } else {
+            await createFreshSessionAndList();
+        }
+    }
+    renderHistoryList();
+    showToast('Chat deleted.', false, true);
+}
+
+function applyConversation(entry) {
+    localStorage.setItem(CONFIG.SESSION_ID_KEY, entry.session_id);
+    localStorage.setItem(CONFIG.SESSION_SECRET_KEY, entry.session_secret);
+    state.messages = [];
+    renderChat();
+}
+
+async function createFreshSessionAndList() {
+    clearSession();
+    await ensureSession();
+    migrateConversations();
+    await refreshServerFiles();
+    await loadChatMessages();
+    touchCurrentConversation();
+    renderHistoryList();
+}
+
+async function switchConversation(sessionId) {
+    if (sessionId === getSessionId()) return;
+    const list = loadConversations();
+    const entry = list.find((x) => x.session_id === sessionId);
+    if (!entry) return;
+    applyConversation(entry);
+    await refreshServerFiles();
+    await loadChatMessages();
+    touchCurrentConversation();
+    renderHistoryList();
+    closeHistoryMenu();
+}
+
+async function startNewConversation() {
+    if (state.isLoading || state.isUploading || state.chatMutating) {
+        showToast('Please wait for the current action to finish.', true);
+        return;
+    }
+    try {
+        const res = await fetch(`${CONFIG.API_BASE}${CONFIG.API_SESSIONS}`, {
+            method: 'POST',
+            headers: authHeaders()
+        });
+        if (!res.ok) {
+            throw new Error(await getErrorMessage(res));
+        }
+        const data = await res.json();
+        const entry = {
+            session_id: data.session_id,
+            session_secret: data.session_secret,
+            title: 'New chat',
+            pinned: false,
+            updated_at: Date.now()
+        };
+        let list = loadConversations();
+        list.unshift(entry);
+        saveConversations(list);
+        applyConversation(entry);
+        await refreshServerFiles();
+        await loadChatMessages();
+        renderHistoryList();
+        showToast('New chat started.', false, true);
+    } catch (err) {
+        console.error(err);
+        showToast(err.message || 'Could not create session.', true);
+    }
 }
 
 function authHeaders() {
@@ -158,7 +454,7 @@ async function getErrorMessage(response) {
     } catch (_) {
         /* ignore */
     }
-    return `请求失败 (${response.status})`;
+    return `Request failed (${response.status})`;
 }
 
 async function ensureSession() {
@@ -171,7 +467,7 @@ async function ensureSession() {
             return;
         }
         if (check.status === 401) {
-            throw new Error('访问令牌无效');
+            throw new Error('Invalid access token.');
         }
         clearSession();
     }
@@ -185,6 +481,17 @@ async function ensureSession() {
     const data = await res.json();
     localStorage.setItem(CONFIG.SESSION_ID_KEY, data.session_id);
     localStorage.setItem(CONFIG.SESSION_SECRET_KEY, data.session_secret);
+    let convs = loadConversations();
+    if (!convs.some((c) => c.session_id === data.session_id)) {
+        convs.unshift({
+            session_id: data.session_id,
+            session_secret: data.session_secret,
+            title: 'New chat',
+            pinned: false,
+            updated_at: Date.now()
+        });
+        saveConversations(convs);
+    }
 }
 
 async function refreshServerFiles() {
@@ -226,6 +533,7 @@ async function loadChatMessages() {
     }
     state.messages = await res.json();
     renderChat();
+    touchCurrentConversation();
 }
 
 async function deleteChatMessage(messageId) {
@@ -233,7 +541,7 @@ async function deleteChatMessage(messageId) {
         return;
     }
     state.chatMutating = true;
-    updateClearChatButton();
+    updateNewChatButton();
     updateGenerateButtonState();
     updateSubmitButton();
     try {
@@ -245,13 +553,13 @@ async function deleteChatMessage(messageId) {
             throw new Error(await getErrorMessage(res));
         }
         await loadChatMessages();
-        showToast('已删除消息', false, true);
+        showToast('Message deleted.', false, true);
     } catch (err) {
         console.error(err);
-        showToast(err.message || '删除失败', true);
+        showToast(err.message || 'Delete failed.', true);
     } finally {
         state.chatMutating = false;
-        updateClearChatButton();
+        updateNewChatButton();
         updateGenerateButtonState();
         updateSubmitButton();
     }
@@ -261,11 +569,11 @@ async function clearAllChatMessages() {
     if (!getSessionId() || !getSessionSecret() || state.messages.length === 0) {
         return;
     }
-    if (!window.confirm('确定清空本会话的全部聊天记录？此操作不可恢复。')) {
+    if (!window.confirm('Clear all messages in this chat? This cannot be undone.')) {
         return;
     }
     state.chatMutating = true;
-    updateClearChatButton();
+    updateNewChatButton();
     updateGenerateButtonState();
     updateSubmitButton();
     try {
@@ -277,13 +585,13 @@ async function clearAllChatMessages() {
             throw new Error(await getErrorMessage(res));
         }
         await loadChatMessages();
-        showToast('已清空聊天记录', false, true);
+        showToast('Chat cleared.', false, true);
     } catch (err) {
         console.error(err);
-        showToast(err.message || '清空失败', true);
+        showToast(err.message || 'Could not clear chat.', true);
     } finally {
         state.chatMutating = false;
-        updateClearChatButton();
+        updateNewChatButton();
         updateGenerateButtonState();
         updateSubmitButton();
     }
@@ -351,8 +659,12 @@ function formatBytes(n) {
 }
 
 function updateFileList() {
+    if (!elements.fileList) {
+        updateSubmitButton();
+        return;
+    }
     elements.fileList.innerHTML = '';
-    
+
     if (state.serverFiles.length === 0) {
         const emptyState = document.createElement('div');
         emptyState.className = 'file-item empty-state';
@@ -361,7 +673,7 @@ function updateFileList() {
         emptyState.style.background = 'transparent';
         emptyState.style.border = 'none';
         emptyState.style.boxShadow = 'none';
-        emptyState.textContent = '暂无上传文件';
+        emptyState.textContent = 'No files uploaded yet.';
         elements.fileList.appendChild(emptyState);
         return;
     }
@@ -373,7 +685,7 @@ function updateFileList() {
             <span class="file-icon">${getFileIcon(file.original_name)}</span>
             <span class="file-name" title="${file.original_name}">${file.original_name}</span>
             <span class="file-size">${formatBytes(file.size_bytes)}</span>
-            <button type="button" class="remove-btn" data-file-id="${file.id}" title="删除文件">
+            <button type="button" class="remove-btn" data-file-id="${file.id}" title="Remove file">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"/>
                     <line x1="6" y1="6" x2="18" y2="18"/>
@@ -391,39 +703,30 @@ function updateFileList() {
     updateSubmitButton();
 }
 
-function updateClearChatButton() {
-    if (!elements.clearChatBtn) return;
-    elements.clearChatBtn.disabled =
-        !getSessionId() ||
-        !getSessionSecret() ||
-        state.messages.length === 0 ||
-        state.isLoading ||
-        state.isUploading ||
-        state.chatMutating;
+function updateNewChatButton() {
+    if (!elements.newChatBtn) return;
+    elements.newChatBtn.disabled = state.isLoading || state.isUploading || state.chatMutating;
 }
+
+const ASSISTANT_AVATAR_SVG = `<svg class="chat-avatar-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>`;
 
 function renderChat() {
     if (state.messages.length === 0) {
         elements.chatMessages.innerHTML = `
             <div class="chat-msg chat-msg--assistant">
-                <div class="chat-msg-inner">
-                    <div class="chat-bubble">
-                        你好！请先上传文档，然后我可以回答你关于文档内容的问题。
-                        <br><br>
-                        <strong>支持功能：</strong>
-                        <ul>
-                            <li>📄 多格式文档上传</li>
-                            <li>❓ 基于文档内容的问答</li>
-                            <li>🔍 可配置检索片段数量</li>
-                            <li>📝 根据对话生成练习题</li>
-                            <li>📚 查看引用的文档片段</li>
-                        </ul>
+                <div class="chat-msg-inner chat-msg-inner--assistant">
+                    <div class="chat-avatar" aria-hidden="true">${ASSISTANT_AVATAR_SVG}</div>
+                    <div class="chat-msg-main">
+                        <div class="chat-bubble">
+                            <p class="welcome-lead">Hi — type a question below to get started.</p>
+                            <p class="welcome-muted">We retrieve over this session’s uploads and your Knowledge Base notes. Attach files from the toolbar, tune how many chunks to fetch, and turn assistant replies into a quiz.</p>
+                        </div>
                     </div>
                 </div>
             </div>
         `;
         updateGenerateButtonState();
-        updateClearChatButton();
+        updateNewChatButton();
         return;
     }
     
@@ -436,21 +739,106 @@ function renderChat() {
         row.dataset.messageId = m.id;
 
         const inner = document.createElement('div');
-        inner.className = 'chat-msg-inner';
+        inner.className =
+            m.role === 'assistant' ? 'chat-msg-inner chat-msg-inner--assistant' : 'chat-msg-inner';
+
+        if (m.role === 'assistant') {
+            const av = document.createElement('div');
+            av.className = 'chat-avatar';
+            av.setAttribute('aria-hidden', 'true');
+            av.innerHTML = ASSISTANT_AVATAR_SVG;
+            inner.appendChild(av);
+        }
+
+        const main = document.createElement('div');
+        main.className = 'chat-msg-main';
 
         const bubble = document.createElement('div');
         bubble.className = 'chat-bubble';
         bubble.textContent = m.content || '';
-        inner.appendChild(bubble);
+        main.appendChild(bubble);
+
+        if (m.role === 'assistant') {
+            const fb = getFeedbackMap()[m.id];
+            const toolbar = document.createElement('div');
+            toolbar.className = 'assistant-msg-toolbar';
+            const mkBtn = (label, icon, fbVal) => {
+                const b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'msg-tb-btn' + (fb === fbVal ? ' is-active' : '');
+                b.title = label;
+                b.setAttribute('aria-label', label);
+                b.dataset.fb = fbVal;
+                b.textContent = icon;
+                b.addEventListener('click', () => {
+                    const cur = getFeedbackMap()[m.id];
+                    setFeedback(m.id, cur === fbVal ? null : fbVal);
+                    renderChat();
+                });
+                return b;
+            };
+            toolbar.appendChild(mkBtn('Helpful', '👍', 'up'));
+            toolbar.appendChild(mkBtn('Needs work', '👎', 'down'));
+
+            const copyB = document.createElement('button');
+            copyB.type = 'button';
+            copyB.className = 'msg-tb-btn';
+            copyB.textContent = 'Copy';
+            copyB.title = 'Copy reply';
+            copyB.addEventListener('click', async () => {
+                const text = m.content || '';
+                try {
+                    await navigator.clipboard.writeText(text);
+                    showToast('Reply copied.', false, true);
+                } catch (err) {
+                    console.error(err);
+                    showToast('Copy failed.', true);
+                }
+            });
+            toolbar.appendChild(copyB);
+
+            const shareB = document.createElement('button');
+            shareB.type = 'button';
+            shareB.className = 'msg-tb-btn';
+            shareB.textContent = 'Share';
+            shareB.title = 'Share or copy';
+            shareB.addEventListener('click', async () => {
+                const text = m.content || '';
+                if (navigator.share) {
+                    try {
+                        await navigator.share({ text, title: 'Assistant reply' });
+                    } catch (e) {
+                        if (e && e.name !== 'AbortError') {
+                            try {
+                                await navigator.clipboard.writeText(text);
+                                showToast('Copied to clipboard.', false, true);
+                            } catch (_) {
+                                showToast('Share canceled.', false, false);
+                            }
+                        }
+                    }
+                } else {
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        showToast('Copied to clipboard.', false, true);
+                    } catch (err) {
+                        showToast('Could not copy.', true);
+                    }
+                }
+            });
+            toolbar.appendChild(shareB);
+            main.appendChild(toolbar);
+        }
 
         const delBtn = document.createElement('button');
         delBtn.type = 'button';
         delBtn.className = 'chat-msg-delete';
-        delBtn.title = '删除本条消息';
-        delBtn.setAttribute('aria-label', '删除本条消息');
+        delBtn.title = 'Delete this message';
+        delBtn.setAttribute('aria-label', 'Delete this message');
         delBtn.dataset.messageId = m.id;
         delBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
-        inner.appendChild(delBtn);
+        main.appendChild(delBtn);
+        inner.appendChild(main);
         row.appendChild(inner);
 
         if (m.role === 'assistant') {
@@ -462,15 +850,15 @@ function renderChat() {
             cb.dataset.messageId = m.id;
             cb.checked = false;
             pick.appendChild(cb);
-            pick.appendChild(document.createTextNode(' 纳入本次出题'));
+            pick.appendChild(document.createTextNode(' Include in quiz'));
             const countInput = document.createElement('input');
             countInput.type = 'number';
             countInput.className = 'quiz-count-input';
             countInput.min = '1';
             countInput.max = '20';
             countInput.value = '1';
-            countInput.title = '本段生成题目数量';
-            pick.appendChild(document.createTextNode(' 出题数 '));
+            countInput.title = 'Number of questions from this reply';
+            pick.appendChild(document.createTextNode(' Questions '));
             pick.appendChild(countInput);
             row.appendChild(pick);
         }
@@ -481,7 +869,7 @@ function renderChat() {
     elements.chatMessages.appendChild(frag);
     elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
     updateGenerateButtonState();
-    updateClearChatButton();
+    updateNewChatButton();
 
     elements.chatMessages.querySelectorAll('.chat-msg-delete').forEach((btn) => {
         btn.addEventListener('click', (e) => {
@@ -506,39 +894,6 @@ function updateGenerateButtonState() {
         !anyAssistant || checked.length === 0 || state.isLoading || state.chatMutating;
 }
 
-function renderSourcesFromResult(data) {
-    elements.kbNotice.style.display = 'none';
-    elements.kbNotice.textContent = '';
-    elements.sourcesList.innerHTML = '';
-    elements.sourcesCard.style.display = '';
-
-    if (data.no_kb_notice) {
-        elements.kbNotice.style.display = '';
-        elements.kbNotice.textContent = data.no_kb_notice;
-    }
-
-    const hits = data.hits || [];
-    if (hits.length > 0) {
-        elements.sourcesCount.textContent = `(${hits.length})`;
-        hits.forEach((hit, index) => {
-            const sourceItem = document.createElement('div');
-            sourceItem.className = 'source-item';
-            sourceItem.style.animationDelay = `${index * 80}ms`;
-            sourceItem.innerHTML = `
-                <div class="source-meta">
-                    <span class="source-score">${(hit.score * 100).toFixed(1)}%</span>
-                    <span class="source-page">${hit.page_label || hit.source || '未知来源'}</span>
-                </div>
-                <div class="source-content">${hit.content || hit.meta || ''}</div>
-            `;
-            elements.sourcesList.appendChild(sourceItem);
-        });
-        elements.sourcesCard.classList.remove('collapsed');
-    } else {
-        elements.sourcesCount.textContent = '';
-    }
-}
-
 async function pollQaJob(jobId) {
     const sid = getSessionId();
     const url = `${CONFIG.API_BASE}${CONFIG.API_SESSIONS}/${encodeURIComponent(sid)}/qa/jobs/${encodeURIComponent(jobId)}`;
@@ -552,7 +907,7 @@ async function pollQaJob(jobId) {
             return j;
         }
         if (j.status === 'error') {
-            throw new Error(j.detail || '问答失败');
+            throw new Error(j.detail || 'Q&A failed.');
         }
         await sleep(CONFIG.POLL_MS);
     }
@@ -561,20 +916,15 @@ async function pollQaJob(jobId) {
 async function submitQuestion() {
     const question = elements.questionInput.value.trim();
     if (!question) {
-        showToast('请输入问题', true);
+        showToast('Please enter a question.', true);
         return;
     }
-    if (state.serverFiles.length === 0) {
-        showToast('请先上传文档', true);
-        return;
-    }
-
     state.isLoading = true;
     elements.submitBtn.classList.add('loading');
     elements.submitBtn.disabled = true;
     updateGenerateButtonState();
 
-    // 添加用户消息到界面
+    // Show user message immediately
     const userMessage = {
         id: 'temp-' + Date.now(),
         role: 'user',
@@ -602,11 +952,12 @@ async function submitQuestion() {
         const job = await pollQaJob(jobId);
         const result = job.result;
         if (!result) {
-            throw new Error('未收到回答内容');
+            throw new Error('No answer received.');
         }
 
-        renderSourcesFromResult(result);
-        elements.resultSection.classList.add('show');
+        if (result.no_kb_notice) {
+            showToast(result.no_kb_notice, false, false);
+        }
         await loadChatMessages();
 
         const lastAssistant = [...state.messages].reverse().find((m) => m.role === 'assistant');
@@ -621,11 +972,11 @@ async function submitQuestion() {
         updateGenerateButtonState();
 
         elements.questionInput.value = '';
-        showToast('已回答', false, true);
+        showToast('Answer ready.', false, true);
     } catch (err) {
         console.error(err);
-        showToast(err.message || '请求失败', true);
-        // 移除临时消息
+        showToast(err.message || 'Request failed.', true);
+        // Remove optimistic user bubble
         state.messages = state.messages.filter(m => !m.id.startsWith('temp-'));
         renderChat();
     } finally {
@@ -638,7 +989,7 @@ async function submitQuestion() {
 async function generateQuizNavigate() {
     const checked = Array.from(elements.chatMessages.querySelectorAll('.quiz-pick-cb:checked'));
     if (checked.length === 0) {
-        showToast('请勾选至少一条助手消息', true);
+        showToast('Select at least one assistant message.', true);
         return;
     }
     const segments = checked.map((cb) => {
@@ -677,9 +1028,9 @@ async function generateQuizNavigate() {
         window.location.href = 'quiz.html';
     } catch (err) {
         console.error(err);
-        showToast(err.message || '生成失败', true);
+        showToast(err.message || 'Could not generate quiz.', true);
     } finally {
-        elements.generateQuizBtn.innerHTML = '<span class="btn-text">🚀 生成测验</span>';
+        elements.generateQuizBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19.5A2.5 2.5 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 014 19.5v-15A2.5 2.5 016.5 2z"/></svg><span>Generate quiz</span>`;
         updateGenerateButtonState();
     }
 }
@@ -689,20 +1040,20 @@ async function addFiles(fileList) {
     const validFiles = fileArray.filter(isValidFile);
     
     if (fileArray.length - validFiles.length > 0) {
-        showToast('部分文件类型不支持，已跳过', false, false);
+        showToast('Some file types were skipped.', false, false);
     }
     if (validFiles.length === 0) {
         return;
     }
     if (state.serverFiles.length + validFiles.length > CONFIG.MAX_FILES) {
-        showToast(`最多支持 ${CONFIG.MAX_FILES} 个文件`, true);
+        showToast(`You can upload at most ${CONFIG.MAX_FILES} files.`, true);
         return;
     }
 
     state.isUploading = true;
     updateSubmitButton();
     
-    // 添加临时文件显示
+    // Optimistic file list while uploading
     const tempFiles = validFiles.map(file => ({
         id: 'temp-' + Date.now() + Math.random(),
         original_name: file.name,
@@ -724,11 +1075,11 @@ async function addFiles(fileList) {
             throw new Error(await getErrorMessage(res));
         }
         await refreshServerFiles();
-        showToast('已上传成功', false, true);
+        showToast('Upload complete.', false, true);
     } catch (err) {
         console.error(err);
-        showToast(err.message || '上传失败', true);
-        // 恢复原始文件列表
+        showToast(err.message || 'Upload failed.', true);
+        // Restore file list from server
         await refreshServerFiles();
     } finally {
         state.isUploading = false;
@@ -741,7 +1092,7 @@ async function deleteServerFile(fileId) {
         return;
     }
     if (!getSessionId() || !getSessionSecret()) {
-        showToast('会话无效', true);
+        showToast('Session invalid or expired.', true);
         return;
     }
     state.isUploading = true;
@@ -755,10 +1106,10 @@ async function deleteServerFile(fileId) {
             throw new Error(await getErrorMessage(res));
         }
         await refreshServerFiles();
-        showToast('已删除文件', false, true);
+        showToast('File removed.', false, true);
     } catch (err) {
         console.error(err);
-        showToast(err.message || '删除失败', true);
+        showToast(err.message || 'Delete failed.', true);
     } finally {
         state.isUploading = false;
         updateSubmitButton();
@@ -766,48 +1117,50 @@ async function deleteServerFile(fileId) {
 }
 
 function updateSubmitButton() {
-    const hasFiles = state.serverFiles.length > 0;
     const hasQuestion = elements.questionInput.value.trim().length > 0;
+    const sidebarListsFiles = !!elements.fileList;
+    const hasFilesOrNoSidebar = !sidebarListsFiles || state.serverFiles.length > 0;
     elements.submitBtn.disabled =
-        !hasFiles ||
         !hasQuestion ||
+        !hasFilesOrNoSidebar ||
         state.isLoading ||
         state.isUploading ||
         state.chatMutating;
 }
 
 function initEventListeners() {
-    // 文件上传事件
-    elements.uploadZone.addEventListener('click', () => {
-        if (!state.isLoading && !state.isUploading) {
-            elements.fileInput.click();
-        }
-    });
-    elements.fileInput.addEventListener('change', (e) => {
-        if (e.target.files.length > 0) {
-            addFiles(e.target.files);
-            e.target.value = '';
-        }
-    });
-    elements.uploadZone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        if (!state.isLoading && !state.isUploading) {
-            elements.uploadZone.classList.add('dragover');
-        }
-    });
-    elements.uploadZone.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        elements.uploadZone.classList.remove('dragover');
-    });
-    elements.uploadZone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        elements.uploadZone.classList.remove('dragover');
-        if (!state.isLoading && !state.isUploading && e.dataTransfer.files.length > 0) {
-            addFiles(e.dataTransfer.files);
-        }
-    });
+    if (elements.uploadZone && elements.fileInput) {
+        elements.uploadZone.addEventListener('click', () => {
+            if (!state.isLoading && !state.isUploading) {
+                elements.fileInput.click();
+            }
+        });
+        elements.fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                addFiles(e.target.files);
+                e.target.value = '';
+            }
+        });
+        elements.uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (!state.isLoading && !state.isUploading) {
+                elements.uploadZone.classList.add('dragover');
+            }
+        });
+        elements.uploadZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            elements.uploadZone.classList.remove('dragover');
+        });
+        elements.uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            elements.uploadZone.classList.remove('dragover');
+            if (!state.isLoading && !state.isUploading && e.dataTransfer.files.length > 0) {
+                addFiles(e.dataTransfer.files);
+            }
+        });
+    }
 
-    // 问题提交事件
+    // Composer: submit & shortcuts
     elements.questionInput.addEventListener('input', updateSubmitButton);
     elements.questionInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey && !elements.submitBtn.disabled) {
@@ -818,55 +1171,107 @@ function initEventListeners() {
     elements.submitBtn.addEventListener('click', submitQuestion);
     elements.generateQuizBtn.addEventListener('click', generateQuizNavigate);
     
-    if (elements.clearChatBtn) {
-        elements.clearChatBtn.addEventListener('click', clearAllChatMessages);
+    if (elements.newChatBtn) {
+        elements.newChatBtn.addEventListener('click', () => startNewConversation());
     }
-    
-    elements.toggleSources.addEventListener('click', () => {
-        elements.sourcesCard.classList.toggle('collapsed');
-        const ex = !elements.sourcesCard.classList.contains('collapsed');
-        elements.toggleSources.setAttribute('aria-expanded', ex ? 'true' : 'false');
+
+    if (elements.composerAttachBtn && elements.composerFileInput) {
+        elements.composerAttachBtn.addEventListener('click', () => elements.composerFileInput.click());
+        elements.composerFileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                addFiles(e.target.files);
+                e.target.value = '';
+            }
+        });
+    }
+    if (elements.composerImageBtn && elements.composerImageInput) {
+        elements.composerImageBtn.addEventListener('click', () => elements.composerImageInput.click());
+        elements.composerImageInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                addFiles(e.target.files);
+                e.target.value = '';
+            }
+        });
+    }
+    if (elements.composerMicBtn) {
+        elements.composerMicBtn.addEventListener('click', () => {
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SR) {
+                showToast('Voice input is not supported in this browser.', true);
+                return;
+            }
+            const rec = new SR();
+            rec.lang = 'en-US';
+            rec.onresult = (ev) => {
+                const t = ev.results[0][0].transcript;
+                const q = elements.questionInput;
+                q.value = `${q.value} ${t}`.trim();
+                updateSubmitButton();
+            };
+            rec.onerror = () => showToast('Speech recognition error.', true);
+            try {
+                rec.start();
+                showToast('Listening…', false, false);
+            } catch (err) {
+                showToast('Could not start speech recognition.', true);
+            }
+        });
+    }
+
+    document.addEventListener('click', (e) => {
+        const menu = document.getElementById('historyContextMenu');
+        if (menu && !menu.hidden && !e.target.closest('#historyContextMenu')) {
+            closeHistoryMenu();
+        }
     });
+    window.addEventListener('resize', () => closeHistoryMenu());
+    window.addEventListener('scroll', () => closeHistoryMenu(), true);
     
-    // 键盘快捷键
+    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
-        // Ctrl/Cmd + Enter 发送消息
+        // Ctrl/Cmd + Enter: send
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !elements.submitBtn.disabled) {
             e.preventDefault();
             submitQuestion();
         }
-        // Ctrl/Cmd + L 清空聊天
-        if ((e.ctrlKey || e.metaKey) && e.key === 'l' && !elements.clearChatBtn.disabled) {
+        // Ctrl/Cmd + L: clear chat
+        if ((e.ctrlKey || e.metaKey) && e.key === 'l' && !e.shiftKey) {
             e.preventDefault();
             clearAllChatMessages();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+            e.preventDefault();
+            startNewConversation();
         }
     });
 }
 
-// 检查API健康状态
+// Optional API health check
 async function checkApiHealth() {
     try {
         const res = await fetch(`${CONFIG.API_BASE}${CONFIG.API_HEALTH}`);
         if (!res.ok) {
-            showToast('API服务可能不可用', true);
+            showToast('The API may be unreachable.', true);
         }
     } catch (err) {
-        console.warn('API健康检查失败:', err);
+        console.warn('API health check failed:', err);
     }
 }
 
 function init() {
     initEventListeners();
     updateSubmitButton();
-    
-    // 初始化时检查API健康
+    migrateConversations();
+    renderHistoryList();
+
+    // Ping API on load
     checkApiHealth().catch(() => {});
-    
+
     refreshServerFiles()
         .then(() => loadChatMessages())
         .catch(() => {});
     
-    console.log('📚 智能文档问答已加载');
+    console.log('RAG web UI loaded.');
     console.log('API:', CONFIG.API_BASE);
 }
 

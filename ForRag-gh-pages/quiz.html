@@ -1,26 +1,48 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="巩固测验 - 基于文档问答生成的练习题">
-    <title>📝 巩固测验</title>
+    <meta name="description" content="Practice quiz — exercises generated from your AI Assistant chats.">
+    <title>Quiz</title>
     <link rel="stylesheet" href="styles.css">
-    <link rel="icon" type="image/x-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2328a745'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z'/></svg>">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234285f4'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z'/></svg>">
 </head>
-<body class="app-shell">
-    <aside class="sidebar" aria-label="导览">
-        <div class="sidebar-brand">
-            <h1>📚 智能文档问答</h1>
-            <p class="subtitle">基于文档内容的精准AI问答</p>
-        </div>
-        <nav class="sidebar-nav">
-            <a href="index.html" class="nav-link">💬 对话问答</a>
-            <a href="quiz.html" class="nav-link active">📝 巩固测验</a>
+<body class="app-shell app-shell--gemini">
+    <aside class="sidebar" id="appSidebar" aria-label="Navigation">
+        <nav class="sidebar-nav" aria-label="Main navigation">
+            <a href="index.html" class="nav-link">
+                <span class="nav-link-icon" aria-hidden="true">
+                    <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                </span>
+                <span class="nav-link-text">AI Assistant</span>
+            </a>
+            <a href="kb.html" class="nav-link">
+                <span class="nav-link-icon" aria-hidden="true">
+                    <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+                </span>
+                <span class="nav-link-text">Knowledge Base</span>
+            </a>
+            <a href="quiz.html" class="nav-link active">
+                <span class="nav-link-icon" aria-hidden="true">
+                    <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.3" cy="11.2" r="1" fill="currentColor" stroke="none"/><circle cx="14.7" cy="11.2" r="1" fill="currentColor" stroke="none"/><path d="M9.5 14.2c.7.9 1.6 1.4 2.5 1.4s1.9-.5 2.6-1.4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+                </span>
+                <span class="nav-link-text">Quiz</span>
+            </a>
         </nav>
+        <div class="sidebar-section-label">Docs</div>
+        <p class="sidebar-doc-hint">Generate a quiz on AI Assistant, then you’ll land here with the questions.</p>
     </aside>
 
-    <main class="main-panel quiz-page">
+    <div class="workspace">
+        <header class="workspace-header">
+            <div class="workspace-header-text">
+                <h1 class="workspace-title">Quiz</h1>
+                <p class="workspace-subtitle">Answer and get scored</p>
+            </div>
+        </header>
+
+        <main class="main-panel quiz-page">
         <section class="quiz-section">
             <div id="quizEmpty" class="quiz-empty">
                 <div style="margin-bottom: var(--spacing-md);">
@@ -28,33 +50,28 @@
                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                     </svg>
                 </div>
-                <h3 style="color: var(--color-gray-700); margin-bottom: var(--spacing-sm);">暂无测验题目</h3>
+                <h3 style="color: var(--color-gray-700); margin-bottom: var(--spacing-sm);">No quiz loaded</h3>
                 <p style="color: var(--color-gray-500); line-height: 1.6;">
-                    请先在「对话问答」页勾选助手消息并设定各段出题数量后点击「生成测验」，题目将在此展示。
+                    On AI Assistant, select assistant messages, set how many questions per selection, then click Generate quiz. Questions will open here.
                 </p>
-                <a href="index.html" class="link-btn">← 返回对话问答</a>
+                <a href="index.html" class="link-btn">← Back to AI Assistant</a>
             </div>
             
-            <div id="quizInteractive" style="display:none">
-                <div class="card-header" style="background: var(--primary-light); border-color: var(--primary-color);">
-                    <h2 class="quiz-page-title">📝 巩固测验</h2>
-                    <span class="hint" id="quizTypeHint" style="background: var(--primary-color); color: white; padding: 4px 8px; border-radius: var(--radius-sm);">混合题型</span>
+            <div id="quizInteractive" class="quiz-interactive-kahoot" style="display:none">
+                <div class="quiz-kahoot-topbar">
+                    <span id="quizTypeHint" class="quiz-kahoot-typehint">Mixed types</span>
                 </div>
-                
-                <div class="card-body">
-                    <div id="quizBody"></div>
-                </div>
-                
-                <div class="quiz-actions">
-                    <button type="button" id="submitQuizBtn" class="submit-btn">✅ 提交判分</button>
-                    <button type="button" id="resetQuizBtn" class="secondary-btn" style="margin-left: var(--spacing-sm);">🔄 重新答题</button>
+                <div id="quizBody" class="quiz-body-kahoot"></div>
+                <div class="quiz-actions quiz-actions-kahoot">
+                    <button type="button" id="submitQuizBtn" class="submit-btn quiz-kahoot-submit">Submit for grading</button>
+                    <button type="button" id="resetQuizBtn" class="secondary-btn quiz-kahoot-reset">Clear answers</button>
                 </div>
             </div>
             
             <div id="gradeCard" class="grade-card" style="display:none;">
                 <div class="card-header">
-                    <h3>🎯 判分结果</h3>
-                    <button type="button" id="restartQuizBtn" class="secondary-btn">🔄 重新测验</button>
+                    <h3>🎯 Results</h3>
+                    <button type="button" id="restartQuizBtn" class="secondary-btn">🔄 New quiz</button>
                 </div>
                 
                 <div class="card-body">
@@ -65,8 +82,9 @@
             </div>
         </section>
     </main>
+    </div>
 
-    <div class="toast" id="toast">
+    <div class="toast" id="toast" role="status">
         <span class="toast-message"></span>
     </div>
 
@@ -114,16 +132,12 @@
         const toast = el.toast;
         const messageEl = toast.querySelector('.toast-message');
         messageEl.textContent = message;
-        
-        // 重置样式
         toast.className = 'toast';
-        
         if (isError) {
             toast.classList.add('error');
         } else if (isSuccess) {
             toast.classList.add('success');
         }
-        
         toast.classList.add('show');
         setTimeout(() => toast.classList.remove('show'), 3500);
     }
@@ -138,10 +152,10 @@
     }
 
     function quizTypeLabel(t) {
-        if (t === 'tf') return '判断题';
-        if (t === 'single') return '单选题';
-        if (t === 'multi') return '多选题';
-        return t || '题目';
+        if (t === 'tf') return 'True / false';
+        if (t === 'single') return 'Single choice';
+        if (t === 'multi') return 'Multiple select';
+        return t || 'Question';
     }
 
     function getQuizTypeEmoji(t) {
@@ -153,100 +167,141 @@
 
     var currentQuiz = null;
 
+    var KAHOOT_COLOR_CLASSES = ['kahoot-tile--red', 'kahoot-tile--blue', 'kahoot-tile--yellow', 'kahoot-tile--green'];
+    var KAHOOT_SHAPES_HTML = [
+        '<svg class="kahoot-shape" viewBox="0 0 48 48" aria-hidden="true"><polygon points="24,8 40,40 8,40" fill="currentColor"/></svg>',
+        '<svg class="kahoot-shape" viewBox="0 0 48 48" aria-hidden="true"><polygon points="24,6 42,24 24,42 6,24" fill="currentColor"/></svg>',
+        '<svg class="kahoot-shape" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="16" fill="currentColor"/></svg>',
+        '<svg class="kahoot-shape" viewBox="0 0 48 48" aria-hidden="true"><rect x="10" y="10" width="28" height="28" rx="3" fill="currentColor"/></svg>'
+    ];
+
+    function escapeQuizText(s) {
+        var d = document.createElement('div');
+        d.textContent = s == null ? '' : String(s);
+        return d.innerHTML;
+    }
+
+    function kahootGridClass(n) {
+        if (n <= 2) return 'kahoot-grid kahoot-grid--cols-2';
+        if (n === 3) return 'kahoot-grid kahoot-grid--cols-3';
+        if (n === 4) return 'kahoot-grid kahoot-grid--cols-4';
+        return 'kahoot-grid kahoot-grid--flex';
+    }
+
     function renderQuiz(quiz) {
         currentQuiz = quiz;
         el.empty.style.display = 'none';
         el.interactive.style.display = 'block';
         el.quizBody.innerHTML = '';
-        
-        // 统计题型分布
-        const typeCounts = {};
-        quiz.items.forEach(item => {
+
+        var typeCounts = {};
+        quiz.items.forEach(function (item) {
             typeCounts[item.type] = (typeCounts[item.type] || 0) + 1;
         });
-        
-        // 更新题型提示
-        const typeLabels = Object.entries(typeCounts).map(([type, count]) => {
-            return `${quizTypeLabel(type)}(${count})`;
-        }).join(' / ');
+        var typeLabels = Object.keys(typeCounts).map(function (type) {
+            return quizTypeLabel(type) + ' (' + typeCounts[type] + ')';
+        }).join(' · ');
         el.quizTypeHint.textContent = typeLabels;
+
+        var total = quiz.items.length;
 
         quiz.items.forEach(function (item, i) {
             var wrap = document.createElement('div');
-            wrap.className = 'quiz-item';
-            
-            var title = document.createElement('div');
-            title.className = 'quiz-q-title';
-            title.innerHTML = `
-                <span style="margin-right: 8px;">${getQuizTypeEmoji(item.type)}</span>
-                ${(i + 1)}. ${(item.question || '')}
-                <span style="float: right; font-size: 12px; color: var(--color-gray-500);">
-                    ${quizTypeLabel(item.type)} · ${item.score || 10}分
-                </span>
-            `;
-            wrap.appendChild(title);
-            
-            if ((item.type === 'tf' || item.type === 'single') && item.options) {
+            wrap.className = 'quiz-item quiz-item--kahoot quiz-item--type-' + item.type;
+
+            var qBar = document.createElement('div');
+            qBar.className = 'kahoot-question-bar';
+            qBar.innerHTML =
+                '<div class="kahoot-question-text">' +
+                escapeQuizText(item.question || '') +
+                '</div>';
+            wrap.appendChild(qBar);
+
+            var meta = document.createElement('div');
+            meta.className = 'kahoot-meta-strip';
+            meta.innerHTML =
+                '<span class="kahoot-progress" aria-hidden="true">Question ' + (i + 1) + ' / ' + total + '</span>' +
+                '<span class="kahoot-type-pill kahoot-type-pill--' + item.type + '">' +
+                escapeQuizText(quizTypeLabel(item.type)) + '</span>';
+            wrap.appendChild(meta);
+
+            if ((item.type === 'tf' || item.type === 'single') && item.options && item.options.length) {
+                var hintTf = document.createElement('p');
+                hintTf.className = 'kahoot-hint kahoot-hint--' + item.type;
+                hintTf.setAttribute('role', 'note');
+                hintTf.textContent = item.type === 'tf'
+                    ? 'True/false: tap the tile you believe is correct.'
+                    : 'Single choice: pick one answer — tap a tile.';
+                wrap.appendChild(hintTf);
+
+                var grid = document.createElement('div');
+                grid.className = kahootGridClass(item.options.length);
                 item.options.forEach(function (opt, optIndex) {
+                    var colorIdx = optIndex % 4;
                     var lab = document.createElement('label');
-                    lab.className = 'quiz-option';
-                    
-                    var optionCard = document.createElement('div');
-                    optionCard.style.display = 'flex';
-                    optionCard.style.alignItems = 'flex-start';
-                    optionCard.style.gap = '8px';
-                    optionCard.style.width = '100%';
-                    
+                    lab.className = 'kahoot-tile ' + KAHOOT_COLOR_CLASSES[colorIdx];
+                    lab.setAttribute('for', 'quiz-opt-' + i + '-' + optIndex);
+                    lab.style.setProperty('--tile-i', String(optIndex));
+
                     var inp = document.createElement('input');
                     inp.type = 'radio';
+                    inp.className = 'kahoot-input-sr';
                     inp.name = 'quiz-opt-' + i;
                     inp.value = opt;
                     inp.id = 'quiz-opt-' + i + '-' + optIndex;
-                    inp.style.marginTop = '2px';
-                    
-                    var optionText = document.createElement('div');
-                    optionText.style.flex = '1';
-                    optionText.innerHTML = opt;
-                    
-                    optionCard.appendChild(inp);
-                    optionCard.appendChild(optionText);
-                    lab.appendChild(optionCard);
-                    wrap.appendChild(lab);
+
+                    var face = document.createElement('div');
+                    face.className = 'kahoot-tile-face';
+                    face.innerHTML =
+                        '<span class="kahoot-tile-shape">' + KAHOOT_SHAPES_HTML[colorIdx] + '</span>' +
+                        '<span class="kahoot-tile-label">' + escapeQuizText(opt) + '</span>';
+
+                    lab.appendChild(inp);
+                    lab.appendChild(face);
+                    grid.appendChild(lab);
                 });
-            } else if (item.type === 'multi' && item.options) {
-                var hint = document.createElement('div');
-                hint.style.cssText = 'font-size:13px;color:var(--color-gray-600);margin-bottom:8px;';
-                hint.textContent = 'Select all that apply (choose every correct option).';
-                wrap.appendChild(hint);
+                wrap.appendChild(grid);
+            } else if (item.type === 'multi' && item.options && item.options.length) {
+                var multiHint = document.createElement('p');
+                multiHint.className = 'kahoot-hint kahoot-hint--multi';
+                multiHint.setAttribute('role', 'note');
+                multiHint.textContent = 'Multiple select: tap every correct tile; tap again to toggle.';
+
+                var gridM = document.createElement('div');
+                gridM.className = kahootGridClass(item.options.length);
                 item.options.forEach(function (opt, optIndex) {
+                    var colorIdx = optIndex % 4;
                     var lab = document.createElement('label');
-                    lab.className = 'quiz-option';
-                    var optionCard = document.createElement('div');
-                    optionCard.style.display = 'flex';
-                    optionCard.style.alignItems = 'flex-start';
-                    optionCard.style.gap = '8px';
-                    optionCard.style.width = '100%';
+                    lab.className = 'kahoot-tile kahoot-tile--multi ' + KAHOOT_COLOR_CLASSES[colorIdx];
+                    lab.setAttribute('for', 'quiz-multi-' + i + '-' + optIndex);
+                    lab.style.setProperty('--tile-i', String(optIndex));
+
                     var inp = document.createElement('input');
                     inp.type = 'checkbox';
+                    inp.className = 'kahoot-input-sr';
                     inp.name = 'quiz-multi-' + i;
                     inp.value = String(optIndex);
                     inp.id = 'quiz-multi-' + i + '-' + optIndex;
-                    inp.style.marginTop = '2px';
-                    var optionText = document.createElement('div');
-                    optionText.style.flex = '1';
-                    optionText.innerHTML = opt;
-                    optionCard.appendChild(inp);
-                    optionCard.appendChild(optionText);
-                    lab.appendChild(optionCard);
-                    wrap.appendChild(lab);
+
+                    var face = document.createElement('div');
+                    face.className = 'kahoot-tile-face';
+                    face.innerHTML =
+                        '<span class="kahoot-tile-shape">' + KAHOOT_SHAPES_HTML[colorIdx] + '</span>' +
+                        '<span class="kahoot-tile-label">' + escapeQuizText(opt) + '</span>';
+
+                    lab.appendChild(inp);
+                    lab.appendChild(face);
+                    gridM.appendChild(lab);
                 });
+                wrap.appendChild(multiHint);
+                wrap.appendChild(gridM);
             } else {
                 var err = document.createElement('div');
-                err.style.color = 'crimson';
+                err.className = 'kahoot-error';
                 err.textContent = 'Unsupported question type: ' + (item.type || '');
                 wrap.appendChild(err);
             }
-            
+
             el.quizBody.appendChild(wrap);
         });
     }
@@ -254,32 +309,30 @@
     function renderGrade(data) {
         el.interactive.style.display = 'none';
         el.gradeCard.style.display = 'block';
-        
-        // 计算总分和正确率
+
         const totalScore = data.total_score || 0;
         const maxTotal = data.max_total_score || 100;
         const accuracy = maxTotal > 0 ? ((totalScore / maxTotal) * 100).toFixed(1) : 0;
-        
-        // 确定表现评价
+
         let performance = '';
         let performanceClass = '';
         if (accuracy >= 90) {
-            performance = '🎉 优秀';
+            performance = '🎉 Excellent';
             performanceClass = 'success';
         } else if (accuracy >= 70) {
-            performance = '👍 良好';
+            performance = '👍 Good';
             performanceClass = 'info';
         } else if (accuracy >= 60) {
-            performance = '🔰 及格';
+            performance = '🔰 Passing';
             performanceClass = 'warning';
         } else {
-            performance = '⚠️ 需要努力';
+            performance = '⚠️ Keep practicing';
             performanceClass = 'error';
         }
 
         el.gradeSummary.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-sm);">
-                <span>总分：${totalScore} / ${maxTotal} 分</span>
+                <span>Score: ${totalScore} / ${maxTotal} pts</span>
                 <span class="performance-badge ${performanceClass}" style="
                     padding: 4px 12px;
                     border-radius: 20px;
@@ -294,7 +347,7 @@
                 ">${performance} (${accuracy}%)</span>
             </div>
             <div style="font-size: 13px; color: var(--color-gray-500);">
-                完成时间：${new Date().toLocaleString('zh-CN')}
+                Completed: ${new Date().toLocaleString('en-US')}
             </div>
         `;
 
@@ -302,38 +355,37 @@
         (data.items || []).forEach(function (row, index) {
             var div = document.createElement('div');
             div.className = 'grade-item';
-            
-            // 题目状态
+
             const isCorrect = row.score >= row.max_score * 0.8;
             const statusEmoji = isCorrect ? '✅' : '❌';
             const statusClass = isCorrect ? 'success' : 'error';
-            
+
             div.innerHTML = `
                 <div class="grade-item-head">
                     <span style="display: flex; align-items: center; gap: 8px;">
                         ${statusEmoji}
-                        <span>第 ${index + 1} 题 [${row.question_type || ''}]</span>
+                        <span>Question ${index + 1} [${row.question_type || ''}]</span>
                     </span>
                     <span style="font-weight: 600; color: ${isCorrect ? 'var(--success-color)' : 'var(--error-color)'}">
-                        ${row.score || 0} / ${row.max_score || 10} 分
+                        ${row.score || 0} / ${row.max_score || 10} pts
                     </span>
                 </div>
                 <div class="grade-item-detail">
                     <div style="margin-bottom: 8px;">
-                        <strong style="color: var(--color-gray-700);">题目：</strong>
+                        <strong style="color: var(--color-gray-700);">Prompt:</strong>
                         <span style="color: var(--color-gray-700);">${row.question || ''}</span>
                     </div>
                     <div style="margin-bottom: 8px;">
-                        <strong style="color: var(--color-gray-600);">你的答案：</strong>
-                        <span style="color: var(--color-gray-700);">${row.user_answer || '（空）'}</span>
+                        <strong style="color: var(--color-gray-600);">Your answer:</strong>
+                        <span style="color: var(--color-gray-700);">${row.user_answer || '(empty)'}</span>
                     </div>
                     <div style="margin-bottom: 8px;">
-                        <strong style="color: ${isCorrect ? 'var(--success-color)' : 'var(--error-color)'}">标准${isCorrect ? '答案' : '参考答案'}：</strong>
+                        <strong style="color: ${isCorrect ? 'var(--success-color)' : 'var(--error-color)'}">${isCorrect ? 'Correct answer' : 'Reference answer'}:</strong>
                         <span style="color: var(--color-gray-800); font-weight: 500;">${row.correct_answer || ''}</span>
                     </div>
                     ${row.comment ? `
                         <div style="padding: 12px; background: var(--color-gray-50); border-radius: var(--radius-sm); margin-top: 8px;">
-                            <strong style="color: var(--color-gray-700);">老师点评：</strong>
+                            <strong style="color: var(--color-gray-700);">Feedback:</strong>
                             <span style="color: var(--color-gray-800);">${row.comment}</span>
                         </div>
                     ` : ''}
@@ -341,23 +393,23 @@
             `;
             el.gradeItems.appendChild(div);
         });
-        
+
         el.gradeAnalysis.innerHTML = data.analysis ? `
             <div style="padding: var(--spacing-md); background: var(--primary-light); border-radius: var(--radius-md);">
-                <strong style="color: var(--primary-color); display: block; margin-bottom: 8px;">📊 综合分析：</strong>
+                <strong style="color: var(--primary-color); display: block; margin-bottom: 8px;">📊 Summary:</strong>
                 <p style="color: var(--color-gray-800); margin: 0;">${data.analysis}</p>
             </div>
         ` : '';
-        
-        showToast('判分完成！', false, true);
+
+        showToast('Grading complete.', false, true);
     }
 
     async function submitGrade() {
         if (!currentQuiz || !localStorage.getItem(SID_KEY)) {
-            showToast('没有可提交的测验', true);
+            showToast('No quiz to submit.', true);
             return;
         }
-        
+
         var items = currentQuiz.items;
         var answers = items.map(function (item, i) {
             if (item.type === 'tf' || item.type === 'single') {
@@ -372,16 +424,16 @@
             }
             return '';
         });
-        
+
         var need = items.length;
         if (answers.length !== need || answers.some(function (a) { return !String(a).trim(); })) {
-            showToast('请完成全部 ' + need + ' 道题后再提交', true);
+            showToast('Answer all ' + need + ' questions before submitting.', true);
             return;
         }
-        
+
         el.submitBtn.disabled = true;
         el.submitBtn.innerHTML = '<span class="btn-loading"><svg class="spinner" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="60" stroke-linecap="round"/></svg></span>';
-        
+
         try {
             var res = await fetch(
                 API_BASE + '/api/v1/sessions/' + encodeURIComponent(localStorage.getItem(SID_KEY)) + '/quiz/' + encodeURIComponent(currentQuiz.quiz_id) + '/grade',
@@ -391,33 +443,33 @@
                     body: JSON.stringify({ answers: answers })
                 }
             );
-            
+
             if (!res.ok) {
                 var t = await res.text();
-                throw new Error(t || '判分失败');
+                throw new Error(t || 'Grading failed');
             }
-            
+
             var data = await res.json();
             renderGrade(data);
         } catch (e) {
-            showToast(e.message || '判分失败', true);
+            showToast(e.message || 'Grading failed', true);
         } finally {
             el.submitBtn.disabled = false;
-            el.submitBtn.innerHTML = '✅ 提交判分';
+            el.submitBtn.innerHTML = 'Submit for grading';
         }
     }
 
     function resetQuiz() {
         if (!currentQuiz) return;
-        
-        if (window.confirm('确定要清除当前答案，重新答题吗？')) {
+
+        if (window.confirm('Clear your answers and try this quiz again?')) {
             renderQuiz(currentQuiz);
-            showToast('已重置答题状态', false, true);
+            showToast('Answers cleared.', false, true);
         }
     }
 
     function restartQuiz() {
-        if (window.confirm('确定要重新开始测验吗？将返回对话页生成新的题目。')) {
+        if (window.confirm('Start over? You’ll return to AI Assistant to generate a new quiz.')) {
             sessionStorage.removeItem(LAST_QUIZ_KEY);
             window.location.href = 'index.html';
         }
@@ -427,14 +479,11 @@
     el.resetBtn.addEventListener('click', resetQuiz);
     el.restartBtn.addEventListener('click', restartQuiz);
 
-    // 键盘快捷键
     document.addEventListener('keydown', (e) => {
-        // Ctrl/Cmd + Enter 提交答案
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !el.submitBtn.disabled) {
             e.preventDefault();
             submitGrade();
         }
-        // Ctrl/Cmd + R 重置答题
         if ((e.ctrlKey || e.metaKey) && e.key === 'r' && e.shiftKey) {
             e.preventDefault();
             resetQuiz();
@@ -451,8 +500,9 @@
         }
     } catch (e) {
         console.error(e);
-        showToast('加载测验失败', true);
+        showToast('Failed to load quiz.', true);
     }
+
 })();
     </script>
 </body>

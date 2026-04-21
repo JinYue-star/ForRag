@@ -107,6 +107,16 @@ def session_update_last_seen(sid: str, last_seen: float) -> None:
     _chroma_op(op)
 
 
+def session_delete_record(sid: str) -> None:
+    """从 sessions 集合中移除会话记录。"""
+
+    def op() -> None:
+        c = _col("sessions")
+        c.delete(ids=[sid])
+
+    _chroma_op(op)
+
+
 # ---------- session files ----------
 def file_insert(
     fid: str,
@@ -310,3 +320,21 @@ def quiz_list_question_texts(session_id: str) -> list[str]:
         return texts
 
     return _chroma_op(op)
+
+
+def quiz_delete_all_for_session(session_id: str) -> int:
+    """删除某会话关联的全部测验批次元数据。"""
+
+    def op() -> int:
+        c = _col("quiz_batches")
+        r = c.get(where={"session_id": session_id}, include=[])
+        ids = list(r.get("ids") or [])
+        if not ids:
+            return 0
+        c.delete(ids=ids)
+        return len(ids)
+
+    try:
+        return _chroma_op(op)
+    except Exception:
+        return 0

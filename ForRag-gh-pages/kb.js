@@ -1,5 +1,5 @@
 /**
- * 知识库：一级类目 + 笔记（Markdown）+ 附件；与会话绑定。
+ * Knowledge base: categories, Markdown notes, attachments (session-scoped).
  */
 const isGitHubPages = window.location.hostname.endsWith('github.io');
 
@@ -78,7 +78,7 @@ async function getErrorMessage(response) {
     } catch (_) {
         /* ignore */
     }
-    return `请求失败 (${response.status})`;
+    return `Request failed (${response.status})`;
 }
 
 async function ensureSession() {
@@ -160,7 +160,7 @@ function renderNoteList() {
     state.notes.forEach((n) => {
         const li = document.createElement('li');
         li.className = 'kb-note-item' + (n.id === state.currentNoteId ? ' active' : '');
-        li.textContent = n.title || '无标题';
+        li.textContent = n.title || 'Untitled';
         li.dataset.id = n.id;
         li.addEventListener('click', () => selectNote(n.id));
         ul.appendChild(li);
@@ -191,7 +191,7 @@ async function loadAttachments(noteId) {
     files.forEach((f) => {
         const row = document.createElement('div');
         row.className = 'kb-attach-row';
-        row.innerHTML = `<span>${f.original_name}</span><button type="button" data-fid="${f.id}">删除</button>`;
+        row.innerHTML = `<span>${f.original_name}</span><button type="button" data-fid="${f.id}">Remove</button>`;
         row.querySelector('button').addEventListener('click', () => deleteAttach(noteId, f.id));
         box.appendChild(row);
     });
@@ -207,13 +207,13 @@ async function deleteAttach(noteId, fid) {
         return;
     }
     await loadAttachments(noteId);
-    showToast(document.getElementById('toast'), '已删除附件');
+    showToast(document.getElementById('toast'), 'Attachment removed.');
 }
 
 async function saveCurrentNote() {
     if (!state.currentNoteId || state.saving) return;
     state.saving = true;
-    const title = document.getElementById('noteTitle').value.trim() || '无标题';
+    const title = document.getElementById('noteTitle').value.trim() || 'Untitled';
     const body = document.getElementById('noteBody').value;
     try {
         const res = await fetch(noteUrl(state.currentNoteId), {
@@ -224,17 +224,17 @@ async function saveCurrentNote() {
         if (!res.ok) {
             throw new Error(await getErrorMessage(res));
         }
-        showToast(document.getElementById('toast'), '已保存');
+        showToast(document.getElementById('toast'), 'Saved.');
         await loadNotes();
     } catch (e) {
-        showToast(document.getElementById('toast'), e.message || '保存失败', true);
+        showToast(document.getElementById('toast'), e.message || 'Save failed.', true);
     } finally {
         state.saving = false;
     }
 }
 
 async function createCategory() {
-    const name = prompt('新类目名称');
+    const name = prompt('New category name');
     if (!name || !name.trim()) return;
     await ensureSession();
     const res = await fetch(`${sessionKbPrefix()}/categories`, {
@@ -247,19 +247,19 @@ async function createCategory() {
         return;
     }
     await loadCategories();
-    showToast(document.getElementById('toast'), '已创建类目');
+    showToast(document.getElementById('toast'), 'Category created.');
 }
 
 async function createNote() {
     if (!state.currentCategoryId) {
-        showToast(document.getElementById('toast'), '请先选择类目', true);
+        showToast(document.getElementById('toast'), 'Select a category first.', true);
         return;
     }
     await ensureSession();
     const res = await fetch(`${kbBase(state.currentCategoryId)}/notes`, {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: '新笔记', body_markdown: '' })
+        body: JSON.stringify({ title: 'New note', body_markdown: '' })
     });
     if (!res.ok) {
         showToast(document.getElementById('toast'), await getErrorMessage(res), true);
@@ -268,7 +268,7 @@ async function createNote() {
     const row = await res.json();
     await loadNotes();
     await selectNote(row.id);
-    showToast(document.getElementById('toast'), '已创建笔记');
+    showToast(document.getElementById('toast'), 'Note created.');
 }
 
 async function uploadAttach(fileInput) {
@@ -286,7 +286,7 @@ async function uploadAttach(fileInput) {
         return;
     }
     await loadAttachments(state.currentNoteId);
-    showToast(document.getElementById('toast'), '已上传');
+    showToast(document.getElementById('toast'), 'Uploaded.');
 }
 
 function init() {
@@ -308,7 +308,7 @@ function init() {
 
     loadCategories()
         .then(() => loadNotes())
-        .catch((e) => showToast(toast, e.message || '加载失败', true));
+        .catch((e) => showToast(toast, e.message || 'Failed to load.', true));
 }
 
 document.addEventListener('DOMContentLoaded', init);
