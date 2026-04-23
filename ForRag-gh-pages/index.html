@@ -49,6 +49,21 @@
                 <h1 class="workspace-title">AI Assistant</h1>
                 <p class="workspace-subtitle">Retrieval-augmented answers from this session’s files and your knowledge base. Manage notes under Knowledge Base.</p>
             </div>
+            <div class="workspace-header-tools" aria-label="Session tools">
+                <div class="session-files-preview" id="sessionFilesPreview">
+                    <button type="button" class="session-files-trigger" id="sessionFilesTrigger" aria-label="Session uploads" aria-expanded="false" aria-controls="sessionFilesPopover" title="悬停或点击查看本会话已上传文件">
+                        <svg class="session-files-trigger-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+                        </svg>
+                        <span class="session-files-badge" id="sessionFilesBadge" hidden aria-hidden="true">0</span>
+                    </button>
+                    <div class="session-files-popover" id="sessionFilesPopover" role="region" aria-label="本会话已上传文件">
+                        <div class="session-files-popover-inner">
+                            <div id="sessionFilesPopoverList" class="session-files-popover-list-root"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </header>
 
         <main class="chat-workspace chat-workspace--stacked">

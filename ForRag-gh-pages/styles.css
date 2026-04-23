@@ -1924,6 +1924,7 @@ body {
     min-height: 0;
     height: 100vh;
     overflow: hidden;
+    position: relative;
 }
 
 /* KB/quiz main panel scrolls inside workspace (sidebar stays put) */
@@ -1933,11 +1934,155 @@ body {
     -webkit-overflow-scrolling: touch;
 }
 
+/* 顶栏与参考图一致：标题在左，附件入口在右（与下方主内容同一列） */
 .workspace-header {
     flex-shrink: 0;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
     padding: 16px 24px 12px;
     background: var(--gem-canvas);
     border-bottom: 1px solid transparent;
+    position: relative;
+    z-index: 10040;
+    overflow: visible;
+}
+
+.workspace-header-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.workspace-header-tools {
+    flex-shrink: 0;
+    display: flex;
+    align-items: flex-start;
+    padding-top: 2px;
+}
+
+/* Session file preview (header paperclip + hover popover) */
+.session-files-preview {
+    position: relative;
+    display: inline-block;
+}
+
+.session-files-trigger {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--gem-border-subtle, rgba(0, 0, 0, 0.08));
+    border-radius: 10px;
+    background: var(--gem-surface-elevated, #f3f4f6);
+    color: var(--gem-text);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.session-files-trigger:hover,
+.session-files-preview:focus-within .session-files-trigger {
+    background: var(--gem-surface-hover, #e8eaed);
+    border-color: var(--gem-border, rgba(0, 0, 0, 0.12));
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.session-files-trigger-icon {
+    display: block;
+    pointer-events: none;
+}
+
+.session-files-trigger svg,
+.session-files-trigger path {
+    pointer-events: none;
+}
+
+.session-files-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #111827;
+    color: #fbbf24;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 18px;
+    text-align: center;
+    box-sizing: border-box;
+    pointer-events: none;
+}
+
+.session-files-popover {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 10050;
+    min-width: 260px;
+    max-width: min(360px, calc(100vw - 32px));
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-4px);
+    transition:
+        opacity 0.15s ease,
+        transform 0.15s ease,
+        visibility 0.15s;
+}
+
+.session-files-preview:hover .session-files-popover,
+.session-files-preview:focus-within .session-files-popover,
+.session-files-preview.is-open .session-files-popover {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.session-files-popover-inner {
+    padding: 10px;
+    background: var(--gem-panel, #fff);
+    border: 1px solid var(--gem-border-subtle, rgba(0, 0, 0, 0.08));
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.session-files-popover-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.session-files-popover-list li {
+    margin: 0;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--gem-text);
+    word-break: break-word;
+    border-radius: 8px;
+}
+
+.session-files-popover-list li + li {
+    border-top: 1px solid var(--gem-line);
+}
+
+.session-files-popover-empty {
+    margin: 0;
+    padding: 8px 6px;
+    font-size: 13px;
+    color: var(--gem-text-secondary);
+    line-height: 1.45;
 }
 
 .workspace-title {

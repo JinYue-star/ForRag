@@ -94,7 +94,11 @@ const elements = {
     composerImageInput: document.getElementById('composerImageInput'),
     generateBar: document.getElementById('generateBar'),
     generateQuizBtn: document.getElementById('generateQuizBtn'),
-    toast: document.getElementById('toast')
+    toast: document.getElementById('toast'),
+    sessionFilesTrigger: document.getElementById('sessionFilesTrigger'),
+    sessionFilesBadge: document.getElementById('sessionFilesBadge'),
+    sessionFilesPopoverList: document.getElementById('sessionFilesPopoverList'),
+    sessionFilesPreview: document.getElementById('sessionFilesPreview')
 };
 
 function showToast(message, isError = false, isSuccess = false) {
@@ -494,6 +498,12 @@ async function ensureSession() {
     }
 }
 
+function normalizeSessionFilesPayload(data) {
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === 'object' && Array.isArray(data.files)) return data.files;
+    return [];
+}
+
 async function refreshServerFiles() {
     if (!getSessionId() || !getSessionSecret()) {
         state.serverFiles = [];
@@ -512,7 +522,12 @@ async function refreshServerFiles() {
         updateFileList();
         return;
     }
-    state.serverFiles = await res.json();
+    try {
+        const data = await res.json();
+        state.serverFiles = normalizeSessionFilesPayload(data);
+    } catch (_) {
+        state.serverFiles = [];
+    }
     updateFileList();
 }
 
@@ -658,30 +673,81 @@ function formatBytes(n) {
     return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function updateFileList() {
-    if (!elements.fileList) {
-        updateSubmitButton();
+function updateSessionFilesPreview() {
+    const trigger = elements.sessionFilesTrigger;
+    const badge = elements.sessionFilesBadge;
+    const listEl = elements.sessionFilesPopoverList;
+    if (!trigger || !badge || !listEl) {
         return;
     }
-    elements.fileList.innerHTML = '';
 
+    if (!Array.isArray(state.serverFiles)) {
+        state.serverFiles = [];
+    }
+
+    const count = state.serverFiles.length;
+
+    badge.textContent = String(count > 9 ? '9+' : count);
+    if (count > 0) {
+        badge.hidden = false;
+        trigger.setAttribute(
+            'aria-label',
+            `本会话已上传 ${count} 个文件，悬停可查看全部文件名。`
+        );
+    } else {
+        badge.hidden = true;
+        trigger.setAttribute('aria-label', '本会话尚未上传文件。');
+    }
+
+    listEl.innerHTML = '';
     if (state.serverFiles.length === 0) {
-        const emptyState = document.createElement('div');
-        emptyState.className = 'file-item empty-state';
-        emptyState.style.justifyContent = 'center';
-        emptyState.style.color = 'var(--color-gray-400)';
-        emptyState.style.background = 'transparent';
-        emptyState.style.border = 'none';
-        emptyState.style.boxShadow = 'none';
-        emptyState.textContent = 'No files uploaded yet.';
-        elements.fileList.appendChild(emptyState);
+        const empty = document.createElement('p');
+        empty.className = 'session-files-popover-empty';
+        empty.textContent = '本会话尚未上传文件。';
+        listEl.appendChild(empty);
         return;
     }
-    
+
+    const list = document.createElement('ul');
+    list.className = 'session-files-popover-list';
+
     state.serverFiles.forEach((file) => {
-        const fileItem = document.createElement('div');
-        fileItem.className = 'file-item';
-        fileItem.innerHTML = `
+        if (!file || typeof file !== 'object') return;
+        const pending = String(file.id || '').startsWith('temp-');
+        const li = document.createElement('li');
+        const name =
+            file.original_name ||
+            file.name ||
+            file.filename ||
+            String(file.stored_name || file.stored_rel || '').split(/[/\\]/).pop() ||
+            '（未命名）';
+        li.textContent = pending ? `${name}（上传中…）` : name;
+        li.title = name;
+        list.appendChild(li);
+    });
+
+    listEl.appendChild(list);
+}
+
+function updateFileList() {
+    if (elements.fileList) {
+        elements.fileList.innerHTML = '';
+
+        if (state.serverFiles.length === 0) {
+            const emptyState = document.createElement('div');
+            emptyState.className = 'file-item empty-state';
+            emptyState.style.justifyContent = 'center';
+            emptyState.style.color = 'var(--color-gray-400)';
+            emptyState.style.background = 'transparent';
+            emptyState.style.border = 'none';
+            emptyState.style.boxShadow = 'none';
+            emptyState.textContent = 'No files uploaded yet.';
+            elements.fileList.appendChild(emptyState);
+        } else {
+            state.serverFiles.forEach((file) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
             <span class="file-icon">${getFileIcon(file.original_name)}</span>
             <span class="file-name" title="${file.original_name}">${file.original_name}</span>
             <span class="file-size">${formatBytes(file.size_bytes)}</span>
@@ -692,14 +758,18 @@ function updateFileList() {
                 </svg>
             </button>
         `;
-        elements.fileList.appendChild(fileItem);
-    });
-    elements.fileList.querySelectorAll('.remove-btn').forEach((btn) => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            deleteServerFile(btn.dataset.fileId);
-        });
-    });
+                elements.fileList.appendChild(fileItem);
+            });
+            elements.fileList.querySelectorAll('.remove-btn').forEach((btn) => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteServerFile(btn.dataset.fileId);
+                });
+            });
+        }
+    }
+
+    updateSessionFilesPreview();
     updateSubmitButton();
 }
 
@@ -1128,7 +1198,45 @@ function updateSubmitButton() {
         state.chatMutating;
 }
 
+function initSessionFilesPopover() {
+    const { sessionFilesTrigger, sessionFilesPreview } = elements;
+    if (!sessionFilesTrigger || !sessionFilesPreview) return;
+
+    sessionFilesTrigger.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const open = !sessionFilesPreview.classList.contains('is-open');
+        sessionFilesPreview.classList.toggle('is-open', open);
+        sessionFilesTrigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) {
+            try {
+                await refreshServerFiles();
+            } catch (_) {
+                /* keep existing state.serverFiles */
+            }
+            updateSessionFilesPreview();
+        }
+    });
+
+    /* 延后到微任务，避免与按钮同一轮 document 冒泡竞争导致刚打开就被关掉 */
+    document.addEventListener('click', (e) => {
+        const t = e.target;
+        queueMicrotask(() => {
+            if (!sessionFilesPreview.classList.contains('is-open')) return;
+            if (sessionFilesPreview.contains(t)) return;
+            sessionFilesPreview.classList.remove('is-open');
+            sessionFilesTrigger.setAttribute('aria-expanded', 'false');
+        });
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape' || !sessionFilesPreview.classList.contains('is-open')) return;
+        sessionFilesPreview.classList.remove('is-open');
+        sessionFilesTrigger.setAttribute('aria-expanded', 'false');
+    });
+}
+
 function initEventListeners() {
+    initSessionFilesPopover();
     if (elements.uploadZone && elements.fileInput) {
         elements.uploadZone.addEventListener('click', () => {
             if (!state.isLoading && !state.isUploading) {

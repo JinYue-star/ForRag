@@ -1,0 +1,36 @@
+{
+  "version": "rag_cache_v2",
+  "embed_model_id": "BAAI/bge-small-zh-v1.5",
+  "bundle_key": "176afc3ca21caf66e6a150e2f790f791717640ea",
+  "files": [
+    {
+      "path": "E:\\For_RAG\\.uploads\\3dd79ec0-b3b2-493d-b028-4fd58c580619\\fc802b92ff154cf6bb7f6f43eb8bb5ca_Ch-3.pptx",
+      "fingerprint": "b634ea2cc8d50462b0d9627d6858424e17ec5ae2"
+    },
+    {
+      "path": "E:\\For_RAG\\.uploads\\kb\\default\\files\\0131f73fd04a4b92a3a10b681b5ab883_CH-1_Introduction_2025.pdf",
+      "fingerprint": "9553ffe36987b57815e00bbb99f08380cd396a62"
+    },
+    {
+      "path": "E:\\For_RAG\\.uploads\\kb\\default\\files\\67213b19ba134e7d9663baa7301b172d_Ch-3.pptx",
+      "fingerprint": "a6bed18b8d52152da6c6af998893b7d9b1432a2b"
+    },
+    {
+      "path": "E:\\For_RAG\\.uploads\\kb\\default\\files\\8cfec402524448238b50b52f47c9d9e0_Ch-2_basics_of_signal_processing.pdf",
+      "fingerprint": "97dea442d4b75a68b0bd1dfbb866f69612a53ac4"
+    },
+    {
+      "path": "E:\\For_RAG\\.uploads\\kb\\default\\notes\\07a63de317cb409c9dc84586ed8ab06e.md",
+      "fingerprint": "0aab76dbe3f3de369d79be28f7ddece9abf6cdad"
+    },
+    {
+      "path": "E:\\For_RAG\\.uploads\\kb\\default\\notes\\28f21524b9244d13a033aa06e5720877.md",
+      "fingerprint": "6115bfb40eb0ae20f266f0e591f03cf1cc14cecb"
+    },
+    {
+      "path": "E:\\For_RAG\\.uploads\\kb\\default\\notes\\2f6f84b897cc4907a2d88a6bbe5d3cef.md",
+      "fingerprint": "1b302b5384b5ca15c21a0817ab8a3aecb617807c"
+    }
+  ],
+  "chunk_count": 216
+}
