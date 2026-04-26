@@ -129,6 +129,8 @@ RATE_LIMIT_WINDOW_SECONDS = max(10, int(os.environ.get("RAG_RATE_LIMIT_WINDOW_SE
 RATE_LIMIT_MAX_REQUESTS = max(0, int(os.environ.get("RAG_RATE_LIMIT_MAX_REQUESTS", "120")))
 PROMPT_CHUNK_CHAR_LIMIT = max(160, int(os.environ.get("RAG_PROMPT_CHUNK_CHAR_LIMIT", "700")))
 KB_MIN_SCORE = float(os.environ.get("RAG_KB_MIN_SCORE", "0.28"))
+# 仅检索到 1 条时，需达到更高分才走「依据文档」模式，避免单条低相关被硬套成 RAG 答案
+KB_SINGLE_HIT_MIN_SCORE = float(os.environ.get("RAG_KB_SINGLE_HIT_MIN_SCORE", "0.40"))
 QUIZ_GEN_MAX_TOKENS = max(256, int(os.environ.get("RAG_QUIZ_GEN_MAX_TOKENS", "1200")))
 GRADE_MAX_TOKENS = max(256, int(os.environ.get("RAG_QUIZ_GRADE_MAX_TOKENS", "2000")))
 MAX_QUIZ_QUESTIONS_TOTAL = max(1, min(50, int(os.environ.get("RAG_MAX_QUIZ_QUESTIONS", "40"))))

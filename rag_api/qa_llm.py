@@ -81,12 +81,7 @@ def build_fallback_answer(question: str, hits: list[tuple[float, object]]) -> st
 
 def build_strategy_prompt(question: str, hits: list[tuple[float, object]]) -> str:
     if not hits:
-        return (
-            "你是文档问答助手。\n"
-            "当前没有检索到任何有效文档片段。请明确告诉用户证据不足，"
-            "并建议重新上传更相关的文档或换个问法。\n\n"
-            f"用户问题：{question}"
-        )
+        return build_no_kb_prompt(question)
 
     evidence_blocks = []
     for idx, (score, chunk) in enumerate(hits, start=1):
@@ -104,23 +99,29 @@ def build_strategy_prompt(question: str, hits: list[tuple[float, object]]) -> st
 
     evidence_text = "\n\n".join(evidence_blocks)
     return (
-        "你是一个严谨的文档问答助手。"
-        "请只依据下面给出的检索证据回答，不要引入证据外事实。\n\n"
-        "【输出格式】必须严格按下述结构书写：单独一行以 Answer: 开头写结论；"
+        "你面向【课程学习、作业与学术答辩备询】等场景。身份：严谨的文档依据型助手。回答须学术化表达："
+        "用语准确、逻辑清楚；先给可核对的核心结论，再作必要展开；避免口语化与模糊断言。\n"
+        "只依据下述检索证据作答；对证据中未出现的信息不得当作事实写出。若作合理归纳或推断，"
+        "须在 Answer 中点明是「从材料可归纳/可推出」，且不得外推到证据无法支撑的程度。\n\n"
+        "【学术写作要求】\n"
+        "• 对术语可在证据范围内简要界定；若多段证据有细微表述差异，应如实反映或说明以何者为准、为何如此。\n"
+        "• 若问题涉及比较、条件或适用边界，在 Answer 中写清「适用于…」「前提为…」等，避免过宽结论。\n"
+        "• 若证据仅部分覆盖问题，须明确写「材料未充分说明/未涉及…」，可指出尚需何种材料，勿补写虚构细节。\n\n"
+        "【输出格式】必须严格按下述结构书写：单独一行以 Answer: 开头；"
         "随后每条证据单独一行，以 - Evidence k 开头（k 为正整数，与检索证据块序号一致）。\n"
         "Answer:\n"
-        "<一到两句直接结论；关键分句或句末写半角 [1]、[2] 等，编号须与下方 Evidence 的 k 一致，且仅引用实际用到的证据>\n"
+        "<先写学术化核心结论或首句；关键命题或分句后附半角 [1]、[2] 等，编号与下方 Evidence 的 k 一致，且仅标实际用到的证据>\n"
         "\n"
         "- Evidence 1 (与检索块「来源」一致的文件名, 与「位置」一致的位置描述): "
-        "一两句说明如何支撑结论，勿大段照抄；行末再写 [1]。\n"
+        "简要说明该段如何支持 Answer，避免大段照抄；行末再写 [1]。\n"
         "- Evidence 2 (...): ... [2]\n"
         "依此类推；仅列出在 Answer 中实际引用过的证据。\n"
         "若连续两条来自同一文件、仅位置不同，从第二条起可将括号内写为：(same file, 与「位置」字段一致)，仍以英文 same file 开头。\n\n"
         "【规则】\n"
-        "1. Evidence 序号 k 与检索证据块标题行的 [k] 必须一致；[k] 须为半角方括号。\n"
-        "2. 文件名、位置必须与对应检索证据中的来源、位置一致，不得编造。\n"
-        "3. 若证据不充分，在 Answer 中明确写不确定或无法从材料确认，并说明缺什么；Evidence 可列出相关但不足的片段。\n"
-        "4. 不要复述整段原文，不要编造结论。\n\n"
+        "1. Evidence 序号 k 与证据块 [k] 须一致，方括号为半角。\n"
+        "2. 文件名、位置须与证据块中来源、位置一致，不得编造。\n"
+        "3. 证据不足时，在 Answer 中直陈不确定性或无法从所给材料完全确认，并说明缺口；Evidence 可列相关但不足的片段。\n"
+        "4. 勿复述全段原文，勿编造引文、数据、结论。\n\n"
         f"用户问题：{question}\n\n"
         f"检索证据：\n{evidence_text}"
     )
@@ -194,15 +195,25 @@ def generate_strategy_answer(
 def hits_are_relevant(hits: list[tuple[float, object]]) -> bool:
     if not hits:
         return False
-    return float(hits[0][0]) >= settings.KB_MIN_SCORE
+    top = float(hits[0][0])
+    if top < settings.KB_MIN_SCORE:
+        return False
+    if len(hits) == 1 and top < settings.KB_SINGLE_HIT_MIN_SCORE:
+        return False
+    return True
 
 
 def build_no_kb_prompt(question: str) -> str:
     return (
-        "你是可靠的助手。用户已上传文档作为知识库，但检索结果表明：当前知识库中未找到与问题直接相关、"
-        "或相关度足够高的片段。\n"
-        "请先简要说明这一情况（一至两段话）。然后基于你的通用知识回答用户问题；若问题强依赖未提供的专有材料，"
-        "请明确说明无法从通用知识确认。请勿编造文档引用。\n\n"
+        "【情境】知识库未返回足够相关、可据之作答的文档片段（或仅有一条置信度偏低的命中）。\n"
+        "【要求】请直接运用你的通识与学科规范理解作答，以适合【课程、作业与学术答辩备询】的中文学术风格书写：\n"
+        "• 结构：可先给出最简明的核心判断或定义，再分点说明（定义—要点—条件/例外—局限）；长答注意层级标题或编号。\n"
+        "• 表达：使用准确、可核对的学科用语，必要时在括号中保留标准英文术词；避免口语化、营销式或与问题无关的铺陈。\n"
+        "• 诚信：不得编造不存在的论文、数据、标准号或课本文页；不伪造「某文献称…」式引用。若需说明常见通说，可写"
+        "「在多数教材/通论中常表述为…」并点明为一般性通识，非用户上传材料。\n"
+        "• 边界：对存在学派分歧、或强依赖题设材料而未给出的内容，须标注不确定性或列明需补充的已知条件；"
+        "对前沿/政策类问题注明时效性。\n"
+        "• 不要依据不存在的知识库命中强行敷衍；与问题强依赖未提供内部材料时，明确说明无法仅凭通识作确定性结论。\n\n"
         f"用户问题：{question}"
     )
 
@@ -593,7 +604,9 @@ def run_qa_pipeline(
 
     if not kb_rel:
         answer, route = generate_general_knowledge_answer(question, max_new_tokens)
-        no_kb_notice = "当前知识库中未检索到与问题足够相关的片段，以下为基于模型通用知识的回答（仅供参考，非文档结论）。"
+        no_kb_notice = (
+            "未据上传材料检索作答；下述为通识性学术表述，非文献原文结论，引用课程材料时请以自行核对为准。"
+        )
     else:
         answer, route = generate_strategy_answer(question, hits, max_new_tokens)
 
