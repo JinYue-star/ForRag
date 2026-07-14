@@ -16,3 +16,6 @@ __pycache__/
 .uploads/
 .hf/
 .data/vector_cache/
+
+# 本地模型权重（体积大，不入库）
+.models/
