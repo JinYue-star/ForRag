@@ -43,6 +43,16 @@ const state = {
     saving: false
 };
 
+function currentRole() {
+    return (localStorage.getItem('hku_role') || '').trim();
+}
+
+function isTeacher() {
+    // In no-auth local mode role may be empty → allow writing (single-user dev).
+    const r = currentRole();
+    return r === 'teacher' || r === '';
+}
+
 function authHeaders() {
     const h = {};
     const access = (localStorage.getItem('RAG_ACCESS_TOKEN') || '').trim();
@@ -191,8 +201,12 @@ async function loadAttachments(noteId) {
     files.forEach((f) => {
         const row = document.createElement('div');
         row.className = 'kb-attach-row';
-        row.innerHTML = `<span>${f.original_name}</span><button type="button" data-fid="${f.id}">Remove</button>`;
-        row.querySelector('button').addEventListener('click', () => deleteAttach(noteId, f.id));
+        if (isTeacher()) {
+            row.innerHTML = `<span>${f.original_name}</span><button type="button" data-fid="${f.id}">Remove</button>`;
+            row.querySelector('button').addEventListener('click', () => deleteAttach(noteId, f.id));
+        } else {
+            row.innerHTML = `<span>${f.original_name}</span>`;
+        }
         box.appendChild(row);
     });
 }
@@ -289,8 +303,33 @@ async function uploadAttach(fileInput) {
     showToast(document.getElementById('toast'), 'Uploaded.');
 }
 
+function applyRoleGating() {
+    // Subtitle reflects whether the KB is writable for this role.
+    const sub = document.querySelector('.workspace-subtitle');
+    if (sub) {
+        sub.setAttribute('data-i18n', isTeacher() ? 'kb.subtitle.teacher' : 'kb.subtitle.student');
+        if (window.HKU && window.HKU.apply) window.HKU.apply(document);
+    }
+    if (isTeacher()) return;
+    // Student: read-only knowledge base — hide all write controls.
+    const hideIds = ['btnNewCategory', 'btnNewNote', 'btnSaveNote', 'btnPickFile'];
+    hideIds.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    const noteFile = document.getElementById('noteFile');
+    if (noteFile) noteFile.disabled = true;
+    ['noteTitle', 'noteBody'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.setAttribute('readonly', 'readonly');
+    });
+    const attachLabel = document.querySelector('.kb-attach-label');
+    if (attachLabel) attachLabel.style.display = 'none';
+}
+
 function init() {
     const toast = document.getElementById('toast');
+    applyRoleGating();
     document.getElementById('btnNewCategory')?.addEventListener('click', () => createCategory().catch((e) => showToast(toast, e.message, true)));
     document.getElementById('btnNewNote')?.addEventListener('click', () => createNote().catch((e) => showToast(toast, e.message, true)));
     document.getElementById('btnSaveNote')?.addEventListener('click', () => saveCurrentNote());

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HKU SOLO Bot — Teacher Console</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23006B54'><path d='M12 2L2 7l10 5 10-5-10-5z'/></svg>">
+</head>
+<body data-hku-role="teacher">
+    <main class="hku-teacher-body">
+        <h1 data-i18n="teacher.title">Teacher Console</h1>
+        <p class="hku-teacher-sub" data-i18n="teacher.subtitle">Manage course materials, students and exports.</p>
+
+        <div class="hku-teacher-cards">
+            <div class="hku-tcard">
+                <div class="hku-tcard__title" data-i18n="teacher.card.kb">Course Knowledge Base</div>
+                <div class="hku-tcard__desc" data-i18n="teacher.card.kb.desc">Upload course materials shared with all students.</div>
+                <a class="hku-tcard__btn" href="kb.html" data-i18n="teacher.open">Open</a>
+            </div>
+            <div class="hku-tcard">
+                <div class="hku-tcard__title" data-i18n="teacher.card.export">Export</div>
+                <div class="hku-tcard__desc" data-i18n="teacher.card.export.desc">Export student questions and quiz data as CSV or Excel.</div>
+                <a class="hku-tcard__btn" href="export.html" data-i18n="teacher.open">Open</a>
+            </div>
+        </div>
+
+        <!-- Registration code -->
+        <section class="hku-panel">
+            <h2 data-i18n="teacher.card.students">Students</h2>
+            <div style="margin-bottom:16px;">
+                <span data-i18n="teacher.regcode.label">Registration code</span>:
+                <span class="hku-regcode" id="regCode">····</span>
+                <button type="button" class="hku-inline-btn" id="rotateCodeBtn" data-i18n="teacher.regcode.rotate">Regenerate</button>
+            </div>
+
+            <table class="hku-table" id="usersTable">
+                <thead>
+                    <tr>
+                        <th data-i18n="auth.username">Username</th>
+                        <th data-i18n="common.name">Name</th>
+                        <th data-i18n="auth.studentno">Student number</th>
+                        <th data-i18n="common.role">Role</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="usersBody"></tbody>
+            </table>
+            <p id="usersEmpty" data-i18n="teacher.students.empty" style="color:#5a6b65;font-size:13px;margin-top:10px;display:none;">No student accounts yet.</p>
+
+            <form class="hku-form-row" id="createUserForm">
+                <div class="hku-field">
+                    <label data-i18n="auth.username">Username</label>
+                    <input type="text" id="nuUsername" required>
+                </div>
+                <div class="hku-field">
+                    <label data-i18n="auth.password">Password</label>
+                    <input type="password" id="nuPassword" required>
+                </div>
+                <div class="hku-field">
+                    <label data-i18n="auth.displayname">Display name</label>
+                    <input type="text" id="nuDisplay">
+                </div>
+                <div class="hku-field">
+                    <label data-i18n="auth.studentno">Student number</label>
+                    <input type="text" id="nuStudentNo">
+                </div>
+                <div class="hku-field">
+                    <label data-i18n="common.role">Role</label>
+                    <select id="nuRole" class="composer-select" style="height:42px;border-radius:10px;border:1px solid var(--gem-line);padding:0 10px;">
+                        <option value="student">student</option>
+                        <option value="teacher">teacher</option>
+                    </select>
+                </div>
+                <button type="submit" class="hku-btn-primary" style="width:auto;padding:0 20px;" data-i18n="common.create">Create</button>
+            </form>
+            <div class="hku-auth-error" id="teacherError"></div>
+        </section>
+    </main>
+
+    <div class="toast" id="toast" role="status"><span class="toast-message"></span></div>
+
+    <script src="auth.js"></script>
+    <script src="brand.js"></script>
+    <script>
+    (function () {
+        var errorEl = document.getElementById("teacherError");
+        function showError(msg) { errorEl.textContent = msg; errorEl.classList.add("show"); setTimeout(function(){errorEl.classList.remove("show");}, 4000); }
+        function T(k) { return (window.HKU && window.HKU.t) ? window.HKU.t(k) : k; }
+
+        async function loadCode() {
+            try {
+                var data = await window.HKUAuth.me ? null : null;
+            } catch (e) {}
+            try {
+                var res = await fetch(window.HKUAuth.API_BASE + "/api/v1/admin/registration-code", {
+                    headers: { Authorization: "Bearer " + window.HKUAuth.token() }
+                });
+                var d = await res.json();
+                if (res.ok) document.getElementById("regCode").textContent = d.code;
+            } catch (e) {}
+        }
+
+        document.getElementById("rotateCodeBtn").addEventListener("click", async function () {
+            try {
+                var res = await fetch(window.HKUAuth.API_BASE + "/api/v1/admin/registration-code", {
+                    method: "POST",
+                    headers: { Authorization: "Bearer " + window.HKUAuth.token() }
+                });
+                var d = await res.json();
+                if (res.ok) document.getElementById("regCode").textContent = d.code;
+            } catch (e) { showError("Failed"); }
+        });
+
+        async function loadUsers() {
+            try {
+                var res = await fetch(window.HKUAuth.API_BASE + "/api/v1/admin/users", {
+                    headers: { Authorization: "Bearer " + window.HKUAuth.token() }
+                });
+                var users = await res.json();
+                if (!res.ok) throw new Error((users && users.detail) || "Failed");
+                var body = document.getElementById("usersBody");
+                body.innerHTML = "";
+                document.getElementById("usersEmpty").style.display = users.length ? "none" : "block";
+                users.forEach(function (u) {
+                    var tr = document.createElement("tr");
+                    tr.innerHTML =
+                        "<td>" + esc(u.username) + "</td>" +
+                        "<td>" + esc(u.display_name || "") + "</td>" +
+                        "<td>" + esc(u.student_no || "") + "</td>" +
+                        "<td>" + esc(u.role) + "</td>" +
+                        "<td></td>";
+                    var del = document.createElement("button");
+                    del.className = "hku-inline-btn";
+                    del.textContent = T("common.delete");
+                    del.addEventListener("click", function () { deleteUser(u.id); });
+                    tr.lastChild.appendChild(del);
+                    body.appendChild(tr);
+                });
+            } catch (e) { showError(e.message || "Failed to load users"); }
+        }
+
+        function esc(s) { var d = document.createElement("div"); d.textContent = String(s == null ? "" : s); return d.innerHTML; }
+
+        async function deleteUser(id) {
+            try {
+                var res = await fetch(window.HKUAuth.API_BASE + "/api/v1/admin/users/" + encodeURIComponent(id), {
+                    method: "DELETE",
+                    headers: { Authorization: "Bearer " + window.HKUAuth.token() }
+                });
+                if (!res.ok) { var d = await res.json(); throw new Error(d.detail || "Failed"); }
+                loadUsers();
+            } catch (e) { showError(e.message || "Delete failed"); }
+        }
+
+        document.getElementById("createUserForm").addEventListener("submit", async function (e) {
+            e.preventDefault();
+            var payload = {
+                username: document.getElementById("nuUsername").value.trim(),
+                password: document.getElementById("nuPassword").value,
+                display_name: document.getElementById("nuDisplay").value.trim(),
+                student_no: document.getElementById("nuStudentNo").value.trim(),
+                role: document.getElementById("nuRole").value
+            };
+            try {
+                var res = await fetch(window.HKUAuth.API_BASE + "/api/v1/admin/users", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", Authorization: "Bearer " + window.HKUAuth.token() },
+                    body: JSON.stringify(payload)
+                });
+                var d = await res.json();
+                if (!res.ok) throw new Error(d.detail || "Failed");
+                e.target.reset();
+                loadUsers();
+            } catch (err) { showError(err.message || "Create failed"); }
+        });
+
+        // Guard: must be a teacher.
+        window.HKUAuth.requireRole("teacher").then(function (user) {
+            if (!user) return; // redirected
+            loadCode();
+            loadUsers();
+        });
+    })();
+    </script>
+</body>
+</html>

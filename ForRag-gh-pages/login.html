@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HKU SOLO Bot — Sign in</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23006B54'><path d='M12 2L2 7l10 5 10-5-10-5z'/></svg>">
+</head>
+<body>
+    <main class="hku-auth-body">
+        <section class="hku-auth-card">
+            <h1 id="authTitle" data-i18n="auth.teacher.title">Sign in</h1>
+
+            <form id="loginForm">
+                <div class="hku-field">
+                    <label for="username" data-i18n="auth.username">Username</label>
+                    <input type="text" id="username" autocomplete="username" required>
+                </div>
+                <div class="hku-field">
+                    <label for="password" data-i18n="auth.password">Password</label>
+                    <input type="password" id="password" autocomplete="current-password" required>
+                </div>
+
+                <!-- student registration extra fields -->
+                <div id="registerExtra" style="display:none">
+                    <div class="hku-field">
+                        <label for="displayName" data-i18n="auth.displayname">Display name</label>
+                        <input type="text" id="displayName" autocomplete="name">
+                    </div>
+                    <div class="hku-field">
+                        <label for="studentNo" data-i18n="auth.studentno">Student number (optional)</label>
+                        <input type="text" id="studentNo">
+                    </div>
+                    <div class="hku-field">
+                        <label for="regCode" data-i18n="auth.regcode">Course registration code</label>
+                        <input type="text" id="regCode">
+                    </div>
+                </div>
+
+                <button type="submit" class="hku-btn-primary" id="submitBtn" data-i18n="auth.submit.login">Sign in</button>
+                <div class="hku-auth-error" id="authError"></div>
+            </form>
+
+            <div class="hku-auth-switch" id="switchWrap" style="display:none">
+                <a id="switchLink" data-i18n="auth.toRegister">New student? Create an account</a>
+            </div>
+            <div class="hku-auth-switch">
+                <a href="landing.html" data-i18n="auth.back">Back</a>
+            </div>
+        </section>
+    </main>
+
+    <script src="auth.js"></script>
+    <script src="brand.js"></script>
+    <script>
+    (function () {
+        var params = new URLSearchParams(window.location.search);
+        var role = params.get("role") === "teacher" ? "teacher" : "student";
+        document.body.setAttribute("data-hku-role", role);
+
+        var isRegister = false;
+        var titleEl = document.getElementById("authTitle");
+        var submitBtn = document.getElementById("submitBtn");
+        var registerExtra = document.getElementById("registerExtra");
+        var switchWrap = document.getElementById("switchWrap");
+        var switchLink = document.getElementById("switchLink");
+        var errorEl = document.getElementById("authError");
+
+        function T(k) { return (window.HKU && window.HKU.t) ? window.HKU.t(k) : k; }
+
+        function refresh() {
+            titleEl.setAttribute("data-i18n", role === "teacher" ? "auth.teacher.title" : "auth.student.title");
+            // students may register; teachers cannot self-register
+            switchWrap.style.display = role === "student" ? "block" : "none";
+            registerExtra.style.display = (role === "student" && isRegister) ? "block" : "none";
+            submitBtn.setAttribute("data-i18n", isRegister ? "auth.submit.register" : "auth.submit.login");
+            switchLink.setAttribute("data-i18n", isRegister ? "auth.toLogin" : "auth.toRegister");
+            if (window.HKU) window.HKU.apply(document);
+        }
+
+        switchLink.addEventListener("click", function () {
+            isRegister = !isRegister;
+            hideError();
+            refresh();
+        });
+
+        function showError(msg) { errorEl.textContent = msg; errorEl.classList.add("show"); }
+        function hideError() { errorEl.classList.remove("show"); }
+
+        function destForRole(r) { return r === "teacher" ? "teacher.html" : "index.html"; }
+
+        document.getElementById("loginForm").addEventListener("submit", async function (e) {
+            e.preventDefault();
+            hideError();
+            submitBtn.disabled = true;
+            var username = document.getElementById("username").value.trim();
+            var password = document.getElementById("password").value;
+            try {
+                var data;
+                if (role === "student" && isRegister) {
+                    data = await window.HKUAuth.register({
+                        username: username,
+                        password: password,
+                        display_name: document.getElementById("displayName").value.trim(),
+                        student_no: document.getElementById("studentNo").value.trim(),
+                        code: document.getElementById("regCode").value.trim()
+                    });
+                } else {
+                    data = await window.HKUAuth.login(username, password);
+                }
+                var r = (data && data.user && data.user.role) || role;
+                window.location.href = destForRole(r);
+            } catch (err) {
+                showError(err.message || "Sign in failed");
+                submitBtn.disabled = false;
+            }
+        });
+
+        // If auth is disabled on the server (no-auth local mode), skip login.
+        window.HKUAuth.config().then(function (cfg) {
+            if (!cfg.auth_required) {
+                try { localStorage.setItem("hku_role", role); } catch (e) {}
+                window.location.href = destForRole(role);
+            }
+        });
+
+        refresh();
+    })();
+    </script>
+</body>
+</html>

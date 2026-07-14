@@ -1,0 +1,21 @@
+# Keep the build context small & secret-free
+.git
+.gitignore
+.data
+.uploads
+.hf
+**/__pycache__
+**/*.pyc
+*.log
+.env
+.venv
+venv
+env
+node_modules
+ForRag-gh-pages/**/*.map
+files
+docs
+tests
+.pytest_cache
+.idea
+.vscode

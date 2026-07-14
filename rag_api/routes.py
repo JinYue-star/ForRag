@@ -25,6 +25,7 @@ from doc_qa_assistant import (
 )
 
 from rag_api import settings
+from rag_api.auth import require_teacher, resolve_current_user
 from rag_api.http_common import (
     check_rate_limit,
     cleanup_dir,
@@ -88,10 +89,11 @@ def create_session(
     require_access_token(authorization)
     check_rate_limit(client_ip(request))
 
+    user = resolve_current_user(authorization)
     sid = str(uuid.uuid4())
     secret = secrets.token_hex(32)
     now = time.time()
-    chroma_store.session_insert(sid, hash_session_secret(secret), now, now)
+    chroma_store.session_insert(sid, hash_session_secret(secret), now, now, owner=user)
     return SessionCreateResponse(session_id=sid, session_secret=secret)
 
 
@@ -279,6 +281,7 @@ def kb_create_category(
     x_session_secret: str = Header(..., alias="X-Session-Secret"),
 ) -> dict[str, Any]:
     require_access_token(authorization)
+    require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
     verify_session(sid, x_session_secret.strip())
@@ -302,6 +305,7 @@ def kb_patch_category(
     x_session_secret: str = Header(..., alias="X-Session-Secret"),
 ) -> dict[str, Any]:
     require_access_token(authorization)
+    require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
     verify_session(sid, x_session_secret.strip())
@@ -327,6 +331,7 @@ def kb_delete_category(
     x_session_secret: str = Header(..., alias="X-Session-Secret"),
 ) -> dict[str, str]:
     require_access_token(authorization)
+    require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
     verify_session(sid, x_session_secret.strip())
@@ -371,6 +376,7 @@ def kb_create_note(
     x_session_secret: str = Header(..., alias="X-Session-Secret"),
 ) -> dict[str, Any]:
     require_access_token(authorization)
+    require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
     verify_session(sid, x_session_secret.strip())
@@ -419,6 +425,7 @@ def kb_patch_note(
     x_session_secret: str = Header(..., alias="X-Session-Secret"),
 ) -> dict[str, Any]:
     require_access_token(authorization)
+    require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
     verify_session(sid, x_session_secret.strip())
@@ -452,6 +459,7 @@ def kb_delete_note(
     x_session_secret: str = Header(..., alias="X-Session-Secret"),
 ) -> dict[str, str]:
     require_access_token(authorization)
+    require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
     verify_session(sid, x_session_secret.strip())
@@ -492,6 +500,7 @@ async def kb_upload_note_file(
     file: UploadFile = File(...),
 ) -> KbNoteFileItem:
     require_access_token(authorization)
+    require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
     verify_session(sid, x_session_secret.strip())
@@ -542,6 +551,7 @@ def kb_delete_note_file(
     x_session_secret: str = Header(..., alias="X-Session-Secret"),
 ) -> dict[str, str]:
     require_access_token(authorization)
+    require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
     verify_session(sid, x_session_secret.strip())
@@ -974,7 +984,20 @@ def grade_session_quiz(
     if len(body.answers) != expected:
         raise HTTPException(status_code=400, detail=f"请提交恰好 {expected} 条答案")
 
-    return grade_quiz_with_llm(payload, body.answers)
+    result = grade_quiz_with_llm(payload, body.answers)
+    try:
+        chroma_store.quiz_answer_save(
+            qid,
+            sid,
+            {
+                "answers": list(body.answers),
+                "grade": result.model_dump(),
+            },
+            time.time(),
+        )
+    except Exception:
+        traceback.print_exc()
+    return result
 
 
 @router_v1.post("/quiz/{quiz_id}/grade", response_model=QuizGradeResponse)

@@ -1,0 +1,14 @@
+[
+  {
+    "question": "What is the main topic of the course material?",
+    "ground_truth": ""
+  },
+  {
+    "question": "Explain the key concept introduced in the first lecture.",
+    "ground_truth": ""
+  },
+  {
+    "question": "List the assessment components and their weights.",
+    "ground_truth": ""
+  }
+]

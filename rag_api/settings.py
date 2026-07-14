@@ -11,11 +11,23 @@ from pathlib import Path
 
 import chroma_store
 import kb_store
+import auth_store
 
 from doc_qa_assistant import _normalize_llm_hub
 
 # 仓库根目录（rag_api 的上一级）
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# 直接以 uvicorn 运行时，自动加载仓库根目录下的 .env（若安装了 python-dotenv）。
+# Docker 通过 compose 的 env_file 注入，此处为冗余但无害；不覆盖已存在的环境变量。
+try:
+    from dotenv import load_dotenv
+
+    _env_file = REPO_ROOT / ".env"
+    if _env_file.is_file():
+        load_dotenv(_env_file, override=False)
+except Exception:
+    traceback.print_exc()
 
 DATA_DIR = Path(os.environ.get("RAG_DATA_DIR", str(REPO_ROOT / ".data"))).resolve()
 if not os.environ.get("RAG_CACHE_ROOT"):
@@ -27,6 +39,7 @@ if os.environ.get("RAG_RESET_CHROMA", "").strip().lower() in {"1", "true", "yes"
 else:
     chroma_store.init_chroma(DATA_DIR)
 kb_store.init_kb_db(DATA_DIR)
+auth_store.init_auth_db(DATA_DIR)
 
 
 def parse_allowed_origins() -> list[str]:
@@ -111,13 +124,59 @@ elif _raw_require_token in {"1", "true", "yes"}:
 else:
     REQUIRE_ACCESS_TOKEN = bool(ACCESS_TOKEN)
 
-SERVER_EMBED_MODEL = os.environ.get("MS_EMBED_ID", "BAAI/bge-small-zh-v1.5")
+# ---- 师生账号鉴权（用户名 + 密码 + 登录令牌） ----
+# RAG_REQUIRE_AUTH：显式开关；未显式设置时，只要存在任意用户账号即视为启用。
+_raw_require_auth = os.environ.get("RAG_REQUIRE_AUTH", "").strip().lower()
+if _raw_require_auth in {"0", "false", "no", "off"}:
+    REQUIRE_AUTH: bool | None = False
+elif _raw_require_auth in {"1", "true", "yes", "on"}:
+    REQUIRE_AUTH = True
+else:
+    REQUIRE_AUTH = None  # auto：由 auth.py 依据是否存在用户判断
+AUTH_TOKEN_TTL_SECONDS = max(300, int(os.environ.get("RAG_AUTH_TOKEN_TTL", str(7 * 24 * 3600))))
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "").strip()
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+ADMIN_DISPLAY_NAME = os.environ.get("ADMIN_DISPLAY_NAME", "").strip()
+STUDENT_REGISTER_CODE = os.environ.get("STUDENT_REGISTER_CODE", "").strip()
+
+
+def bootstrap_auth() -> None:
+    """启动时：按环境变量创建管理员/教师账号，并确保存在学生注册码。"""
+    if ADMIN_USERNAME and ADMIN_PASSWORD:
+        existing = auth_store.user_get_by_username(DATA_DIR, ADMIN_USERNAME)
+        if not existing:
+            try:
+                auth_store.user_create(
+                    DATA_DIR,
+                    ADMIN_USERNAME,
+                    ADMIN_PASSWORD,
+                    role=auth_store.ROLE_TEACHER,
+                    display_name=ADMIN_DISPLAY_NAME or ADMIN_USERNAME,
+                )
+            except ValueError:
+                traceback.print_exc()
+    # 学生自助注册码：环境变量优先，否则自动生成一个并持久化
+    auth_store.ensure_registration_code(DATA_DIR, STUDENT_REGISTER_CODE)
+
+
+try:
+    bootstrap_auth()
+except Exception:
+    traceback.print_exc()
+
+# 默认多语种嵌入模型 BAAI/bge-m3：多语种标杆、8192 长上下文，适配英文/双语课程。
+# 换模型会自动以新 embed_model_id 重建向量缓存（无需手动清理）。
+# 备选：intfloat/multilingual-e5-large（同级、带 e5 前缀）、多语种小模型 BAAI/bge-small-zh-v1.5（离线/低配）。
+# 注意：bge-m3 约 0.5B 参数、需约 2.3GB 内存；低内存/CPU 机器建议改用小模型。
+SERVER_EMBED_MODEL = os.environ.get("MS_EMBED_ID", "BAAI/bge-m3")
 SERVER_MODEL_ID = os.environ.get("MS_MODEL_ID", "Qwen/Qwen2.5-3B-Instruct")
 SERVER_LLM_HUB = _normalize_llm_hub(os.environ.get("LLM_HUB", "auto"))
 SERVER_LOW_MEMORY = os.environ.get("RAG_LOW_MEMORY", "").strip().lower() in {"1", "true", "yes"}
 ENABLE_LOCAL_LLM = os.environ.get("RAG_ENABLE_LOCAL_LLM", "").strip().lower() in {"1", "true", "yes"}
-_DEFAULT_DASHSCOPE_API_KEY = "sk-a9039ea944cb4de792c876d6f731f5d6"
-SERVER_API_KEY = (os.environ.get("DASHSCOPE_API_KEY") or _DEFAULT_DASHSCOPE_API_KEY).strip()
+# 不再内置任何默认密钥：仅从环境变量读取（DASHSCOPE_API_KEY，兼容 QWEN_API_KEY）。
+SERVER_API_KEY = (
+    os.environ.get("DASHSCOPE_API_KEY") or os.environ.get("QWEN_API_KEY") or ""
+).strip()
 SERVER_API_MODEL = os.environ.get("QWEN_API_MODEL", "qwen-plus")
 SERVER_API_BASE = os.environ.get("QWEN_API_BASE", "https://dashscope.aliyuncs.com/compatible-mode/v1")
 MAX_FILES = max(1, int(os.environ.get("RAG_MAX_FILES", "5")))
@@ -131,6 +190,13 @@ PROMPT_CHUNK_CHAR_LIMIT = max(160, int(os.environ.get("RAG_PROMPT_CHUNK_CHAR_LIM
 KB_MIN_SCORE = float(os.environ.get("RAG_KB_MIN_SCORE", "0.28"))
 # 仅检索到 1 条时，需达到更高分才走「依据文档」模式，避免单条低相关被硬套成 RAG 答案
 KB_SINGLE_HIT_MIN_SCORE = float(os.environ.get("RAG_KB_SINGLE_HIT_MIN_SCORE", "0.40"))
+# 开启重排后，命中分是交叉编码器 sigmoid 概率（0~1），语义与余弦不同，故用独立阈值。
+# CRAG 风格三档门控：< MIN → 判为无依据(走通识)；[MIN, STRONG) → 有依据但弱(附提示)；>= STRONG → 有把握。
+RERANK_MIN_SCORE = float(os.environ.get("RAG_RERANK_MIN_SCORE", "0.05"))
+RERANK_SINGLE_HIT_MIN_SCORE = float(os.environ.get("RAG_RERANK_SINGLE_HIT_MIN_SCORE", "0.12"))
+RERANK_STRONG_SCORE = float(os.environ.get("RAG_RERANK_STRONG_SCORE", "0.5"))
+# 证据精炼（knowledge refinement）：相对最高分的比例阈值，低于此的候选块不进 prompt（至少保留 1 条）。
+EVIDENCE_KEEP_RATIO = float(os.environ.get("RAG_EVIDENCE_KEEP_RATIO", "0.25"))
 QUIZ_GEN_MAX_TOKENS = max(256, int(os.environ.get("RAG_QUIZ_GEN_MAX_TOKENS", "1200")))
 GRADE_MAX_TOKENS = max(256, int(os.environ.get("RAG_QUIZ_GRADE_MAX_TOKENS", "2000")))
 MAX_QUIZ_QUESTIONS_TOTAL = max(1, min(50, int(os.environ.get("RAG_MAX_QUIZ_QUESTIONS", "40"))))

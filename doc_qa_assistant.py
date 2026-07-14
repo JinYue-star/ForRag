@@ -97,12 +97,48 @@ class TextChunk:
     kb_note_id: str = ""  # 知识库笔记 id（非笔记来源为空）
     kb_attachment_id: str = ""  # 知识库附件 id
     session_file_id: str = ""  # 会话上传文件 id（chromadb）
+    context_header: str = ""  # Contextual Retrieval：块所在文档/位置的语境前缀（仅用于检索，不进 prompt）
 
 
 def _clean_text(s: str) -> str:
     s = s.replace("\x00", " ")
     s = re.sub(r"\s+", " ", s).strip()
     return s
+
+
+# 结构/版面感知分块：优先在自然边界（段落 > 句子 > 词）切开，而非在 max_chars 处硬切，
+# 避免把同一句话/概念拦腰截断导致嵌入与 BM25 语义受损。仅改变"在哪里切"，不改接口与页码。
+_SENTENCE_END = re.compile(r"[。．！？；]|[.!?;](?=\s|$)")
+
+
+def _find_split(text: str, start: int, hard_end: int) -> int:
+    """在 [start, hard_end] 内寻找靠近 hard_end 的自然断点；找不到则返回 hard_end。
+
+    回看窗口约为本块长度的 35%，只在该窗口内回退，保证块长不过度缩水、且必然向前推进。
+    """
+    n = len(text)
+    if hard_end >= n:
+        return n
+    window = max(1, int((hard_end - start) * 0.35))
+    lo = max(start + 1, hard_end - window)
+    # 1) 段落边界
+    p = text.rfind("\n\n", lo, hard_end)
+    if p != -1:
+        return p + 2
+    p = text.rfind("\n", lo, hard_end)
+    if p != -1:
+        return p + 1
+    # 2) 句子边界（中英文标点）
+    best = -1
+    for m in _SENTENCE_END.finditer(text, lo, hard_end):
+        best = m.end()
+    if best != -1 and best > start:
+        return best
+    # 3) 词/空白边界
+    p = text.rfind(" ", lo, hard_end)
+    if p != -1 and p + 1 > start:
+        return p + 1
+    return hard_end
 
 
 def chunk_by_chars(
@@ -120,9 +156,14 @@ def chunk_by_chars(
     start = 0
     n = len(text)
     while start < n:
-        end = min(start + max_chars, n)
-        piece = text[start:end]
-        chunks.append(TextChunk(text=piece, source=source, page_label=page_label, meta=meta))
+        hard_end = min(start + max_chars, n)
+        end = _find_split(text, start, hard_end)
+        # 兜底：断点未向前推进时退回硬切，杜绝死循环。
+        if end <= start:
+            end = hard_end
+        piece = text[start:end].strip()
+        if piece:
+            chunks.append(TextChunk(text=piece, source=source, page_label=page_label, meta=meta))
         if end >= n:
             break
         start = end - overlap
@@ -148,7 +189,25 @@ CHUNK_CONFIG = {
     ".tif": {"max_chars": 900, "overlap": 80},
     ".tiff": {"max_chars": 900, "overlap": 80},
 }
-CACHE_VERSION = "rag_cache_v2"
+CACHE_VERSION = "rag_cache_v4"  # v4: 边界感知分块（段落/句子/词），触发向量缓存重建
+
+# Contextual Retrieval（Anthropic, 2024）：给每个块拼一段"它在文档中的语境"再嵌入+建 BM25。
+# 这里用零成本的确定性上下文头（文件名/位置/说明），显著改善术语错配的召回；
+# 关闭时置空即可（需清缓存或已由 CACHE_VERSION 变更触发重建）。
+CONTEXTUAL_HEADERS = os.environ.get("RAG_CONTEXTUAL_HEADERS", "1").strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _build_context_header(source: str, page_label: str, meta: str) -> str:
+    if not CONTEXTUAL_HEADERS:
+        return ""
+    parts = []
+    if source:
+        parts.append(f"Document: {source}")
+    if page_label:
+        parts.append(f"Location: {page_label}")
+    if meta:
+        parts.append(str(meta)[:120])
+    return " | ".join(parts)
 
 
 def _sha1_text(text: str) -> str:
@@ -191,6 +250,7 @@ def _finalize_chunks(chunks: Sequence[TextChunk], path: Path) -> List[TextChunk]
             meta=chunk.meta,
             doc_path=doc_path,
         )
+        item.context_header = _build_context_header(chunk.source, chunk.page_label, chunk.meta)
         item.chunk_id = _chunk_identity(item)
         out.append(item)
     return out
@@ -207,6 +267,7 @@ def _chunk_to_dict(chunk: TextChunk) -> dict:
         "kb_note_id": getattr(chunk, "kb_note_id", "") or "",
         "kb_attachment_id": getattr(chunk, "kb_attachment_id", "") or "",
         "session_file_id": getattr(chunk, "session_file_id", "") or "",
+        "context_header": getattr(chunk, "context_header", "") or "",
     }
 
 
@@ -221,6 +282,7 @@ def _chunk_from_dict(data: dict) -> TextChunk:
         kb_note_id=data.get("kb_note_id") or "",
         kb_attachment_id=data.get("kb_attachment_id") or "",
         session_file_id=data.get("session_file_id") or "",
+        context_header=data.get("context_header") or "",
     )
 
 
@@ -730,6 +792,22 @@ def _read_chunks(path: Path) -> List[TextChunk]:
     return chunks
 
 
+def _embed_prefixes(model_id: str) -> tuple[str, str]:
+    """返回 (query_prefix, passage_prefix)。
+
+    e5 系列（multilingual-e5 等）要求查询/段落分别加 "query: " / "passage: " 前缀，
+    否则检索质量明显下降。其它模型（bge、gte…）默认不加前缀，保持既有行为。
+    可用 RAG_EMBED_QUERY_PREFIX / RAG_EMBED_PASSAGE_PREFIX 显式覆盖。
+    """
+    q = os.environ.get("RAG_EMBED_QUERY_PREFIX")
+    p = os.environ.get("RAG_EMBED_PASSAGE_PREFIX")
+    if q is not None or p is not None:
+        return (q or "", p or "")
+    if "e5" in (model_id or "").lower():
+        return ("query: ", "passage: ")
+    return ("", "")
+
+
 def _load_st_model(embed_model_id: str):
     """同一 embed_model_id 全进程只加载一次；避免多线程并发拉 Hub 触发 httpx「client has been closed」等错误。"""
     with _st_model_singleton_lock:
@@ -749,6 +827,9 @@ def _load_st_model(embed_model_id: str):
                 "[嵌入] 加载失败。若走 Hub：检查网络/代理，或显式 set HF_ENDPOINT=… 后重启；需官方源时 set RAG_USE_OFFICIAL_HF=1。若走本地：检查 RAG_EMBED_MODEL_PATH 是否指向完整模型目录。"
             )
             raise
+        qp, pp = _embed_prefixes(embed_model_id)
+        st._rag_query_prefix = qp
+        st._rag_passage_prefix = pp
         _st_model_singleton[embed_model_id] = st
         return st
 
@@ -764,8 +845,16 @@ def _normalize_doc_embeddings(doc_emb: np.ndarray, st, num_chunks: int) -> np.nd
     return doc_emb
 
 
+def chunk_embed_text(chunk: TextChunk) -> str:
+    """用于检索的块文本：Contextual Retrieval 语境头 + 正文（正文本身仍用于 prompt/展示）。"""
+    header = getattr(chunk, "context_header", "") or ""
+    body = chunk.text or ""
+    return f"{header}\n{body}" if header else body
+
+
 def _encode_chunks(st, chunks: Sequence[TextChunk]) -> np.ndarray:
-    texts = [c.text for c in chunks]
+    passage_prefix = getattr(st, "_rag_passage_prefix", "") or ""
+    texts = [passage_prefix + chunk_embed_text(c) for c in chunks]
     _log_step(f"[嵌入] (2/2) 编码 {len(texts)} 条文本块 …")
     if not texts:
         dim = int(st.get_sentence_embedding_dimension())
@@ -919,7 +1008,8 @@ def search(
     st,
     top_k: int,
 ) -> List[tuple[float, TextChunk]]:
-    q = st.encode([query], normalize_embeddings=True)
+    query_prefix = getattr(st, "_rag_query_prefix", "") or ""
+    q = st.encode([query_prefix + query], normalize_embeddings=True)
     q = np.asarray(q, dtype=np.float32)
     n = len(chunks)
     if n == 0:
@@ -1319,7 +1409,7 @@ def main():
     )
     parser.add_argument(
         "--api-key",
-        default=os.environ.get("DASHSCOPE_API_KEY", "sk-a9039ea944cb4de792c876d6f731f5d6"),
+        default=os.environ.get("DASHSCOPE_API_KEY", ""),
         help="千问 API Key；提供后将直接走 API，不加载本地大模型。也可设环境变量 DASHSCOPE_API_KEY",
     )
     parser.add_argument(

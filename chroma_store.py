@@ -70,10 +70,30 @@ def _col(name: str):
 
 
 # ---------- sessions ----------
-def session_insert(sid: str, secret_hash: str, created_at: float, last_seen: float) -> None:
+def session_insert(
+    sid: str,
+    secret_hash: str,
+    created_at: float,
+    last_seen: float,
+    owner: Optional[dict[str, Any]] = None,
+) -> None:
     def op() -> None:
         c = _col("sessions")
-        doc = json.dumps({"secret_hash": secret_hash, "created_at": created_at, "last_seen": last_seen}, ensure_ascii=False)
+        payload: dict[str, Any] = {
+            "secret_hash": secret_hash,
+            "created_at": created_at,
+            "last_seen": last_seen,
+        }
+        if owner:
+            # 记录发起会话的用户身份，供教师导出归因（不含任何密钥）
+            payload["owner"] = {
+                "user_id": str(owner.get("user_id") or owner.get("id") or ""),
+                "username": str(owner.get("username") or ""),
+                "display_name": str(owner.get("display_name") or ""),
+                "student_no": str(owner.get("student_no") or ""),
+                "role": str(owner.get("role") or ""),
+            }
+        doc = json.dumps(payload, ensure_ascii=False)
         c.upsert(ids=[sid], documents=[doc], metadatas=[{"kind": "session"}])
 
     _chroma_op(op)
@@ -338,3 +358,92 @@ def quiz_delete_all_for_session(session_id: str) -> int:
         return _chroma_op(op)
     except Exception:
         return 0
+
+
+# ---------- enumeration & exports (teacher) ----------
+def sessions_list_all() -> list[dict]:
+    """列出全部会话记录（含 owner 归因信息），供教师导出。"""
+
+    def op() -> list[dict]:
+        c = _col("sessions")
+        r = c.get(include=["documents"])
+        out: list[dict] = []
+        for i, sid in enumerate(r.get("ids") or []):
+            try:
+                d = json.loads(r["documents"][i])
+            except (json.JSONDecodeError, TypeError):
+                d = {}
+            d["session_id"] = sid
+            d.pop("secret_hash", None)  # 绝不导出密钥
+            out.append(d)
+        return out
+
+    return _chroma_op(op)
+
+
+def quiz_list_all() -> list[dict]:
+    """列出全部测验批次（含 session_id 与生成时间），供教师导出。"""
+
+    def op() -> list[dict]:
+        c = _col("quiz_batches")
+        r = c.get(include=["documents", "metadatas"])
+        out: list[dict] = []
+        for i, qid in enumerate(r.get("ids") or []):
+            try:
+                payload = json.loads(r["documents"][i])
+            except (json.JSONDecodeError, TypeError):
+                payload = {}
+            meta = r["metadatas"][i] if r.get("metadatas") else {}
+            out.append(
+                {
+                    "quiz_id": qid,
+                    "session_id": (meta or {}).get("session_id"),
+                    "created_at": float((meta or {}).get("created_at") or 0),
+                    "payload": payload,
+                }
+            )
+        return out
+
+    return _chroma_op(op)
+
+
+def quiz_answer_save(
+    quiz_id: str,
+    session_id: Optional[str],
+    payload: dict,
+    created_at: float,
+) -> None:
+    """保存学生对某次测验的作答与判分结果（供教师导出）。
+
+    以 quiz_id 为主键做 upsert：仅保留该测验最近一次提交。
+    """
+
+    def op() -> None:
+        c = _col("quiz_answers")
+        doc = json.dumps(payload, ensure_ascii=False)
+        meta: dict[str, Any] = {"created_at": created_at}
+        if session_id:
+            meta["session_id"] = session_id
+        c.upsert(ids=[quiz_id], documents=[doc], metadatas=[meta])
+
+    _chroma_op(op)
+
+
+def quiz_answers_map() -> dict[str, dict]:
+    """quiz_id -> 最近一次作答/判分结果。"""
+
+    def op() -> dict[str, dict]:
+        c = _col("quiz_answers")
+        r = c.get(include=["documents", "metadatas"])
+        out: dict[str, dict] = {}
+        for i, qid in enumerate(r.get("ids") or []):
+            try:
+                payload = json.loads(r["documents"][i])
+            except (json.JSONDecodeError, TypeError):
+                payload = {}
+            meta = r["metadatas"][i] if r.get("metadatas") else {}
+            payload["created_at"] = float((meta or {}).get("created_at") or 0)
+            out[qid] = payload
+        return out
+
+    return _chroma_op(op)

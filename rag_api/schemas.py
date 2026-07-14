@@ -163,3 +163,56 @@ class QuizGenerateRequest(BaseModel):
             self.segments = [QuizSegmentSpec(message_id=m, count=1) for m in self.message_ids]
             return self
         raise ValueError("请提供 segments 或 message_ids")
+
+
+# ---------------- 师生账号鉴权 ----------------
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+    display_name: str = ""
+    student_no: str = ""
+    code: str = ""
+
+
+class UserPublic(BaseModel):
+    id: str
+    username: str
+    role: str
+    display_name: str = ""
+    student_no: str = ""
+    is_active: bool = True
+    created_at: float = 0
+
+
+class LoginResponse(BaseModel):
+    token: str
+    expires_at: float
+    user: UserPublic
+
+
+class CreateUserRequest(BaseModel):
+    username: str
+    password: str
+    display_name: str = ""
+    student_no: str = ""
+    role: str = "student"
+
+
+class RegistrationCodeResponse(BaseModel):
+    code: str
+
+
+class ExportRequest(BaseModel):
+    start: Optional[float] = None
+    end: Optional[float] = None
+    course_ids: Optional[list[str]] = None
+    include_questions: bool = True
+    include_answers: bool = False
+    include_quiz: bool = True
+    format: str = "xlsx"  # xlsx | csv

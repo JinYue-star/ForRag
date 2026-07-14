@@ -1,0 +1,230 @@
+[
+  {
+    "question": "What are the three electrophysiological signals emphasized in ELEC6081, and what does each measure?",
+    "ground_truth": "ECG (electrocardiography) measures the electrical activity of the heart; EMG (electromyography) measures the electrical activity of skeletal muscles; EEG (electroencephalography) measures the electrical activity of the brain."
+  },
+  {
+    "question": "How is the ELEC6081 course assessed and what are the weightings?",
+    "ground_truth": "One computer-based assignment (10%), one written assignment (30%, a Moodle multiple-choice exercise), and a two-hour examination (60%, multiple-choice and short questions)."
+  },
+  {
+    "question": "What is an action potential and why is it important for biomedical signals?",
+    "ground_truth": "An action potential is a transient event in which the electrical membrane potential of a cell rapidly rises and falls following a consistent trajectory, caused by the flow of ions across the cell membrane. It is the origin of all electrophysiological signals."
+  },
+  {
+    "question": "Define deterministic versus stochastic signals, and stationary versus non-stationary signals.",
+    "ground_truth": "A deterministic signal can be described exactly mathematically; a stochastic signal exhibits randomness that can be analysed statistically but not predicted precisely. Stationary means the statistical properties do not change over time; non-stationary means they change over time."
+  },
+  {
+    "question": "What do the P wave, QRS complex, and T wave of the ECG represent?",
+    "ground_truth": "The P wave is the sequential depolarization of the right and left atria; the QRS complex is the depolarization of the right and left ventricles; the T wave is ventricular repolarization (extending about 300 ms after the QRS complex)."
+  },
+  {
+    "question": "In the standard 12-lead ECG system, what is a 'lead'?",
+    "ground_truth": "A lead is the difference in electric potential between two electrodes. The 12-lead system is the most widely used clinical ECG recording system, although over 90% of the heart's electrical activity can be explained with a single lead."
+  },
+  {
+    "question": "List the main types of biomedical signals classified by the physical quantity recorded.",
+    "ground_truth": "Electrical, magnetic, acoustic, mechanical, impedance, optical, and chemical signals (plus others such as observations/annotations/alarms). For example electrical signals are recorded with electrodes, magnetic with magnetometers, acoustic with microphones, optical with fibre-optic technology."
+  },
+  {
+    "question": "What are the four main types of noise and artifacts in ECG signals?",
+    "ground_truth": "Baseline drift (wander), electrode motion artifacts, EMG artifacts, and powerline interference."
+  },
+  {
+    "question": "What is baseline wander (drift) in ECG, what is its frequency characteristic, and how is it removed?",
+    "ground_truth": "Baseline drift is extraneous low-frequency activity (below about 1 Hz) that affects analysis of the PQ and ST segments; it can be removed by high-pass filtering."
+  },
+  {
+    "question": "What is powerline interference in ECG and at what frequencies does it appear? How is it removed?",
+    "ground_truth": "Powerline interference is caused by improper grounding or nearby equipment and appears at 50 Hz or 60 Hz plus harmonics (e.g., 100/150/200 Hz or 120/180/300 Hz). It is removed with a notch filter or comb filter."
+  },
+  {
+    "question": "What is a notch filter and how is the Q factor defined?",
+    "ground_truth": "A notch filter is a band-stop filter with a narrow stopband (high Q factor). The Q factor equals fc/Δf; the higher the Q factor, the narrower and sharper the notch. (MATLAB function: iirnotch.)"
+  },
+  {
+    "question": "What is a comb filter and what is it used for?",
+    "ground_truth": "A comb filter has a series of deep notches in its frequency response spaced at multiples of the lowest notch frequency; it is used to remove powerline interference and its harmonics. (MATLAB function: iircomb.)"
+  },
+  {
+    "question": "Describe the steps of wavelet filtering for denoising a signal such as ECG.",
+    "ground_truth": "Apply the discrete wavelet transform (DWT) to the signal; remove (zero out) the coefficients whose magnitude is below a threshold; then reconstruct the signal using the inverse DWT (IDWT)."
+  },
+  {
+    "question": "How does Wiener filtering remove noise, and what prior knowledge does it require?",
+    "ground_truth": "Wiener filtering minimizes the mean square error (MSE) between the estimated signal and the desired signal; it requires prior knowledge of the power spectral density (PSD) of both the input signal and the desired signal."
+  },
+  {
+    "question": "How is a matched filter used in QRS detection?",
+    "ground_truth": "A matched filter detects and extracts the QRS complex from the ECG by correlating the signal with a QRS template."
+  },
+  {
+    "question": "List signal and noise problems that make QRS detection difficult.",
+    "ground_truth": "Changes in QRS morphology (of physiological origin or due to technical problems) and the occurrence of noise (of myoelectric/muscle origin or transient electrode artifacts), including large P or T waves that must be treated as noise."
+  },
+  {
+    "question": "What is heart rate variability (HRV) and how is it measured?",
+    "ground_truth": "HRV is the physiological variation in the time interval between consecutive heartbeats; it is measured from the R-R intervals (often displayed as a tachogram, a plot of RR interval against time)."
+  },
+  {
+    "question": "Why is the Lomb periodogram useful for analysing R-R interval signals compared with the ordinary periodogram?",
+    "ground_truth": "R-R intervals are unevenly (non-uniformly) sampled. The ordinary DFT-based periodogram supports only uniformly sampled data and detects frequencies only below the Nyquist rate, whereas the Lomb periodogram uses least-squares curve fitting, supports non-uniformly sampled data, and can detect frequencies above the Nyquist rate."
+  },
+  {
+    "question": "Name two approaches for spectral analysis of unevenly sampled RR intervals.",
+    "ground_truth": "(1) Interpolate and resample the interval function at evenly spaced times so conventional methods such as the periodogram can be used; (2) operate directly on the unevenly spaced times using the Lomb periodogram."
+  },
+  {
+    "question": "What are the three types of data redundancy exploited in ECG data compression?",
+    "ground_truth": "Intersample redundancy (samples change continuously and smoothly), interbeat redundancy (successive similar-looking heartbeats within a lead), and interlead redundancy (a heartbeat viewed concurrently in different leads)."
+  },
+  {
+    "question": "Distinguish lossless from lossy compression for ECG.",
+    "ground_truth": "In lossless compression the reconstructed signal is an exact replica of the original; in lossy compression the reconstructed signal is allowed to differ (e.g., PCA-based), accepting small distortion that must not modify the diagnostic content of the ECG."
+  },
+  {
+    "question": "What noise and artifacts commonly affect EMG signals, and what is the nature of the EMG signal?",
+    "ground_truth": "EMG is a stochastic, non-stationary signal. It is affected by baseline shifts (sweat, body movement, wire movement), other electrophysiological signals such as ECG, cross-talk from underlying muscles, and powerline interference."
+  },
+  {
+    "question": "Define root mean square (RMS), mean frequency (MNF), and median frequency (MDF) in EMG signal processing.",
+    "ground_truth": "RMS is the square root of the arithmetic mean of the squares of the values. Mean frequency (MNF) is the sum of the product of the spectrum and the frequency divided by the sum of the spectrum. Median frequency (MDF) is the frequency that divides the spectrum into two regions of equal amplitude (power)."
+  },
+  {
+    "question": "How can ECG contamination be removed from a surface EMG recording?",
+    "ground_truth": "By using an adaptive noise canceller (ANC / adaptive filter), with a separate ECG lead used as the reference signal."
+  },
+  {
+    "question": "Why is EMG spectral analysis used as an index of muscle fatigue?",
+    "ground_truth": "As a muscle fatigues, the spectral centroid (the mean frequency, MNF) progressively moves toward lower frequencies; the rate of this change can be taken as an index of fatigue."
+  },
+  {
+    "question": "Explain the relationship between time-domain convolution and the frequency domain, and how it enables FIR filtering via the FFT.",
+    "ground_truth": "Discrete-time convolution is equivalent to multiplication in the frequency domain (Y(z)=X(z)H(z)). Therefore FIR filtering can be computed using the FFT; zero-padding is used to append zeros so the length N is a power of 2."
+  },
+  {
+    "question": "Compare the computational complexity of the DFT and the FFT.",
+    "ground_truth": "The direct DFT has complexity O(N^2), while the FFT computes the DFT in O(N log N); the number of samples is preferably a power of 2."
+  },
+  {
+    "question": "What is the difference between non-parametric and parametric spectral estimation methods? Give an example of each.",
+    "ground_truth": "Non-parametric methods estimate the spectrum purely from the observed data without assuming any model (examples: short-time Fourier transform/periodogram, Welch's method, eigenanalysis methods). Parametric methods describe the process with a model and estimate the spectrum from the model parameters (example: AR/ARMA models)."
+  },
+  {
+    "question": "What is the fundamental limitation of the STFT, and how can it be addressed?",
+    "ground_truth": "The STFT uses a fixed-length window, giving fixed time-frequency resolution. It can be addressed by using an adaptive, variable-length time window that is short at high frequencies and long at low frequencies (e.g., wavelet transforms)."
+  },
+  {
+    "question": "In windowing for the STFT/periodogram, what are the mainlobe and sidelobes, and how does the choice of window trade off resolution and sidelobes?",
+    "ground_truth": "The mainlobe represents the actual signal frequency; sidelobes are undesirable outputs due to windowing. A rectangular window gives the narrowest mainlobe (higher resolution) but more sidelobes, whereas non-rectangular windows give a wider mainlobe (lower resolution) but fewer sidelobes."
+  },
+  {
+    "question": "Describe Bartlett's method for improving the periodogram.",
+    "ground_truth": "Divide the N-sample signal into L non-overlapping segments of M samples, compute the periodogram (via DFT) of each segment, and average them. This reduces the variance of the PSD estimate by a factor of 1/L."
+  },
+  {
+    "question": "How does Welch's method differ from Bartlett's method?",
+    "ground_truth": "Welch's method is based on Bartlett's but differs in two ways: the segments may overlap (e.g., 50% overlap when D = M/2), and a window is applied to each (overlapping) segment before computing the periodograms, which are then averaged. (MATLAB function: pwelch.)"
+  },
+  {
+    "question": "What is the idea behind eigenanalysis-based spectral estimation, and name one such method.",
+    "ground_truth": "Eigenanalysis methods use eigen-decomposition to divide the data into a signal subspace and a noise subspace, and the PSD can be computed from either. Examples include MUSIC (Multiple Signal Classification), minimum variance spectral estimation (MVSE), and Pisarenko harmonic decomposition."
+  },
+  {
+    "question": "Name three time-frequency signal decomposition methods suitable for non-stationary signals.",
+    "ground_truth": "Continuous(-time) wavelet transform (CWT/CTWT), discrete wavelet transform (DWT), and empirical mode decomposition (EMD)."
+  },
+  {
+    "question": "Distinguish supervised learning from traditional rule-based programming, giving one pro and one con of each.",
+    "ground_truth": "Supervised learning trains a model from labelled (X, Y) samples and only needs a classifier library, but requires training data. Traditional programming implements hard-coded logic and needs no training data, but requires writing complicated programs and it is hard to find a library."
+  },
+  {
+    "question": "What are the three major types of machine-learning problems described, and how do they differ?",
+    "ground_truth": "Classification (predict a discrete label from input X), regression (predict a continuous output Y from input X), and clustering (divide samples into categories without being given labels)."
+  },
+  {
+    "question": "For a 4-class problem, how many classifiers are required for the One-vs-All (OVA) and One-vs-One (OVO) approaches?",
+    "ground_truth": "OVA requires 4 classifiers (each class fitted against all the remaining classes). OVO requires 6 classifiers (all pairwise combinations, i.e., C(4,2) = 6)."
+  },
+  {
+    "question": "What is feature extraction in a machine-learning pipeline?",
+    "ground_truth": "Feature extraction transforms raw data (such as an image or signal) into a meaningful numerical feature vector that is used as the input to the model."
+  },
+  {
+    "question": "What makes a model 'logistic regression', and what does it output?",
+    "ground_truth": "When the activation function applied to the weighted sum of the inputs is the sigmoid, the model becomes logistic regression. It returns the probability of the 'True' class for a binary (True/False) problem."
+  },
+  {
+    "question": "Describe K-fold and leave-one-out cross-validation, and what must be true of the testing data.",
+    "ground_truth": "K-fold cross-validation divides the samples into training and testing sets across K folds; leave-one-out cross-validation is equivalent to N-fold cross-validation. In cross-validation the testing data must be unseen during the training stage."
+  },
+  {
+    "question": "A medical test gives TP=25, FP=15, FN=15, TN=35. Compute the sensitivity, specificity, and accuracy.",
+    "ground_truth": "Sensitivity = TP/(TP+FN) = 25/40 = 62.5%; Specificity = TN/(TN+FP) = 35/50 = 70%; Accuracy = (TP+TN)/(TP+TN+FP+FN) = 60/90 ≈ 66.7%."
+  },
+  {
+    "question": "Why are multiple-trial biomedical signals used in research and clinical practice?",
+    "ground_truth": "Because biomedical signals are random—each trial is one realization—so using multiple trials lets us approximate the overall probability density function of the random process; multiple trials (samples) are also needed to train a classifier."
+  },
+  {
+    "question": "What are the two main approaches for analysing multivariate biomedical signals?",
+    "ground_truth": "(1) Dependence and correlation: estimating the relationship between signals to infer connections between recording sites (correlation, coherence, causality). (2) Blind source separation: identifying latent variables/sources to represent the underlying processes (PCA, ICA)."
+  },
+  {
+    "question": "Distinguish correlation, coherence, and causality as measures of dependence among signals.",
+    "ground_truth": "Correlation is estimated from time-domain signals and captures linear dependence with no direction; coherence is estimated from signals in the frequency domain; causality infers a directional (causal) relationship between signals."
+  },
+  {
+    "question": "Why is partial correlation used instead of ordinary correlation?",
+    "ground_truth": "Ordinary correlation can produce spurious correlation (e.g., an apparent correlation between X1 and X3 when both are correlated with X2). The partial correlation between X and Y given Z is the correlation of the residuals after removing the linear effect of Z, which removes such spurious correlation."
+  },
+  {
+    "question": "How is Granger causality tested, and what does it conclude?",
+    "ground_truth": "Granger causality is tested with a linear (autoregressive) regression model of Y that also includes past values of X; if including the past X(n−i) terms significantly improves the prediction accuracy of Y(n), then X is said to cause Y (used to infer effective connectivity)."
+  },
+  {
+    "question": "Explain the difference between 'uncorrelated' and 'independent' random variables.",
+    "ground_truth": "X and Y are independent if their joint density factorizes, f_{X,Y}(x,y)=f_X(x)f_Y(y), meaning X gives no information about Y; they are uncorrelated if cov(X,Y)=0, meaning X gives no information about Y by linear prediction. Independence implies uncorrelatedness, but uncorrelated variables are not necessarily independent, because correlation only captures linear dependence."
+  },
+  {
+    "question": "What is PCA, and how do you decide how many principal components to retain?",
+    "ground_truth": "PCA uses an orthogonal transformation to convert correlated variables into linearly uncorrelated principal components, where the 1st PC has the largest variance and each subsequent PC is orthogonal to the previous ones. The number of components is chosen using a scree plot (looking for a breakpoint in eigenvalue vs component number) or by retaining enough components so that the kept eigenvalues account for a target percentage (e.g., 90%) of the total variance."
+  },
+  {
+    "question": "On what basis do PCA and ICA separate sources in blind source separation, and how is independence detected in ICA?",
+    "ground_truth": "PCA separates sources based on uncorrelatedness, while ICA separates them based on statistical independence. ICA detects statistical independence via non-Gaussianity (FastICA) or by minimizing mutual information (InfoMax)."
+  },
+  {
+    "question": "Rank EEG, ECoG, LFP, and neural spikes by tissue invasiveness and spatial resolution, and give the approximate frequency range of each.",
+    "ground_truth": "From least invasive/lowest spatial resolution to most invasive/highest: EEG (non-invasive scalp, 0.1–200 Hz) → ECoG (electrodes on the cortex, bandwidth up to at least 1 kHz) → LFP (higher-impedance microelectrodes, 0.1–200 Hz) → neural spikes (microelectrode arrays near the cell body, 300 Hz–7 kHz)."
+  },
+  {
+    "question": "In the international 10-20 EEG system, what do the '10' and '20' refer to, and what do the letters (F, T, P, O, C) and the suffix 'z' and even/odd numbers denote?",
+    "ground_truth": "The 10 and 20 refer to the inter-electrode distances being 10% or 20% of the total front–back or right–left distance of the skull. F = frontal lobe, T = temporal lobe, P = parietal lobe, O = occipital lobe, C = central area; the suffix 'z' denotes an electrode on the midline; even numbers (2,4,6,8) are on the right hemisphere and odd numbers (1,3,5,7) on the left."
+  },
+  {
+    "question": "List the five EEG frequency bands with their approximate ranges and the states they are associated with.",
+    "ground_truth": "Delta (<4 Hz, deep sleep, large amplitude, often indicative of brain disease); Theta (4–7/8 Hz, drowsiness and certain sleep stages); Alpha (about 8–13 Hz, awake with eyes closed, largest in occipital regions, suppressed when eyes open); Beta (about 13–30 Hz, frontal and central regions, e.g., certain sleep stages); Gamma (>30 Hz, active information processing of the cortex)."
+  },
+  {
+    "question": "Why is ICA often preferred over adaptive noise cancellation (ANC) for removing EEG artifacts, and what are its pros and cons?",
+    "ground_truth": "Many EEG noise sources (e.g., muscle noise, powerline noise) have no clear reference channel, so ANC cannot remove them; ICA decomposes multichannel EEG into temporally independent components so artifact components can be removed. Pros: high performance removing EOG/EMG artifacts and many mature toolkits (EEGLAB, FieldTrip, SPM). Cons: automated identification of signal-related components is difficult (laborious manual work is still required), and it cannot reveal the sources of cortical activity."
+  },
+  {
+    "question": "What EEG temporal features indicate epileptic seizures and sleep, respectively?",
+    "ground_truth": "Spike-and-wave discharges indicate epileptic seizures; K-complexes and spindles indicate sleep."
+  },
+  {
+    "question": "How is baseline correction performed for EEG/ERP signals?",
+    "ground_truth": "Subtract the mean pre-stimulus signal (or the signal over some other specified baseline range) from the entire waveform, for each channel in each trial."
+  },
+  {
+    "question": "When measuring ERS/ERD from multiple trials, why should one not take the ensemble average in the time domain?",
+    "ground_truth": "ERS/ERD is time-locked but non-phase-locked, so averaging across trials in the time domain would smooth out (cancel) the ERS/ERD signal. Instead one repeats the event, removes artifacts and filters, segments into trials by event onset, performs time-frequency analysis, and then averages across trials with baseline correction."
+  },
+  {
+    "question": "List three challenges commonly encountered in processing biomedical signals.",
+    "ground_truth": "Any three of: the signal can be difficult to acquire directly; the signal is affected by interactions among physiological systems that may not be isolated; variability among subjects and across time/situations; lack of a gold standard/ground truth; artifact or interference present within the signal."
+  }
+]

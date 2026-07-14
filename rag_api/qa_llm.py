@@ -110,7 +110,8 @@ def build_strategy_prompt(question: str, hits: list[tuple[float, object]]) -> st
         "【输出格式】必须严格按下述结构书写：单独一行以 Answer: 开头；"
         "随后每条证据单独一行，以 - Evidence k 开头（k 为正整数，与检索证据块序号一致）。\n"
         "Answer:\n"
-        "<先写学术化核心结论或首句；关键命题或分句后附半角 [1]、[2] 等，编号与下方 Evidence 的 k 一致，且仅标实际用到的证据>\n"
+        "<先写学术化核心结论或首句。**每一个事实性句子/分句结尾都必须紧跟其依据的证据编号**，如「……结论[1]。」「……条件[2][3]。」"
+        "编号与下方 Evidence 的 k 一致，仅标实际用到的证据；纯过渡句可不标。不要把多句合并后只在段末标一次。>\n"
         "\n"
         "- Evidence 1 (与检索块「来源」一致的文件名, 与「位置」一致的位置描述): "
         "简要说明该段如何支持 Answer，避免大段照抄；行末再写 [1]。\n"
@@ -118,7 +119,7 @@ def build_strategy_prompt(question: str, hits: list[tuple[float, object]]) -> st
         "依此类推；仅列出在 Answer 中实际引用过的证据。\n"
         "若连续两条来自同一文件、仅位置不同，从第二条起可将括号内写为：(same file, 与「位置」字段一致)，仍以英文 same file 开头。\n\n"
         "【规则】\n"
-        "1. Evidence 序号 k 与证据块 [k] 须一致，方括号为半角。\n"
+        "1. Evidence 序号 k 与证据块 [k] 须一致，方括号为半角；句级引用要覆盖 Answer 中每条事实性陈述。\n"
         "2. 文件名、位置须与证据块中来源、位置一致，不得编造。\n"
         "3. 证据不足时，在 Answer 中直陈不确定性或无法从所给材料完全确认，并说明缺口；Evidence 可列相关但不足的片段。\n"
         "4. 勿复述全段原文，勿编造引文、数据、结论。\n\n"
@@ -192,15 +193,74 @@ def generate_strategy_answer(
     return fb, "fallback"
 
 
-def hits_are_relevant(hits: list[tuple[float, object]]) -> bool:
+def _grounding_thresholds() -> tuple[float, float, float]:
+    """按当前评分口径返回 (multi_min, single_min, strong)。
+
+    重排开启时命中分是 0~1 概率，用 RERANK_* 阈值；否则用余弦 KB_* 阈值。
+    """
+    if rag_pipeline.rerank_active():
+        return (
+            settings.RERANK_MIN_SCORE,
+            settings.RERANK_SINGLE_HIT_MIN_SCORE,
+            settings.RERANK_STRONG_SCORE,
+        )
+    return (settings.KB_MIN_SCORE, settings.KB_SINGLE_HIT_MIN_SCORE, settings.KB_SINGLE_HIT_MIN_SCORE)
+
+
+def classify_grounding(hits: list[tuple[float, object]]) -> str:
+    """CRAG 风格的检索质量评估（Yan et al., 2024 的轻量实现）。
+
+    返回 "grounded" | "weak" | "none"：
+    - none：置信度不足 → 走通识回答，避免把不相关材料硬套成 RAG 结论。
+    - weak：有相关但偏低 → 仍依据材料，但附"依据有限"提示（对应 CRAG 的 Ambiguous）。
+    - grounded：足够可信。
+    """
     if not hits:
-        return False
+        return "none"
     top = float(hits[0][0])
-    if top < settings.KB_MIN_SCORE:
-        return False
-    if len(hits) == 1 and top < settings.KB_SINGLE_HIT_MIN_SCORE:
-        return False
-    return True
+    multi_min, single_min, strong = _grounding_thresholds()
+    if top < multi_min:
+        return "none"
+    if len(hits) == 1 and top < single_min:
+        return "none"
+    if top < strong:
+        return "weak"
+    return "grounded"
+
+
+def hits_are_relevant(hits: list[tuple[float, object]]) -> bool:
+    return classify_grounding(hits) != "none"
+
+
+def refine_evidence(hits: list[tuple[float, object]]) -> list[tuple[float, object]]:
+    """CRAG 知识精炼：丢弃相对最高分过低的候选块，减少喂给 LLM 的噪声证据。
+
+    始终至少保留 1 条；对相关度接近最高分的块全部保留。
+    """
+    if len(hits) <= 1:
+        return list(hits)
+    top = float(hits[0][0])
+    if top <= 0:
+        return list(hits)
+    floor = top * max(0.0, min(0.95, settings.EVIDENCE_KEEP_RATIO))
+    kept = [h for h in hits if float(h[0]) >= floor]
+    return kept or [hits[0]]
+
+
+def reorder_lost_in_the_middle(
+    hits: list[tuple[float, object]],
+) -> list[tuple[float, object]]:
+    """Lost-in-the-Middle（Liu et al., 2023）：把最相关证据放在首尾，最弱的放中间。
+
+    输入需按相关度降序。输出示例（按秩）：0,2,4,…,5,3,1。
+    """
+    if len(hits) <= 2:
+        return list(hits)
+    left: list[tuple[float, object]] = []
+    right: list[tuple[float, object]] = []
+    for i, h in enumerate(hits):
+        (left if i % 2 == 0 else right).append(h)
+    return left + right[::-1]
 
 
 def build_no_kb_prompt(question: str) -> str:
@@ -384,6 +444,16 @@ def normalize_quiz_items_flexible(data: dict, n: int, forbidden_questions: set[s
             if len(cis) < 2:
                 return None
             row["correct_indices"] = cis
+        # 可选教学元数据（Bloom 认知层级/难度/解析）——存在即透传，缺失不报错。
+        bloom = str(it.get("bloom", "") or "").strip().lower()
+        if bloom in ("remember", "understand", "apply", "analyze", "evaluate", "create"):
+            row["bloom"] = bloom
+        diff = str(it.get("difficulty", "") or "").strip().lower()
+        if diff in ("easy", "medium", "hard"):
+            row["difficulty"] = diff
+        expl = str(it.get("explanation", "") or "").strip()
+        if expl:
+            row["explanation"] = expl[:500]
         out.append(row)
     return out
 
@@ -405,18 +475,28 @@ def build_quiz_generation_prompt_v3(
     forbid = "\n".join(f"- {line[:200]}" for line in forbidden_lines[:80]) if forbidden_lines else "(none)"
     return (
         "You are an expert educator. Design a quiz that helps learners **understand concepts**, not just memorize phrases. "
-        "Use clear English. Each question should have a concise stem, test one main idea, and include a short "
-        "explanation-worthy distractor rationale (implicitly, via plausible wrong options).\n\n"
+        "Use clear English. Each question should have a concise stem and test one main idea.\n\n"
+        "### Cognitive level (Bloom's taxonomy)\n"
+        "Spread items across Bloom levels and TAG each item with a \"bloom\" field "
+        '(one of: "remember","understand","apply","analyze","evaluate"). '
+        "At least half of the choice items must be higher-order (apply/analyze/evaluate), not mere recall. "
+        'Also tag each item with a "difficulty" field ("easy","medium","hard") and a one-sentence "explanation" '
+        "of why the correct answer is correct.\n\n"
+        "### Distractor quality (over-generate, then filter)\n"
+        "For every choice item, FIRST internally brainstorm 5–6 candidate distractors that target common student "
+        "misconceptions or partial understanding, THEN keep only the most plausible, discriminating ones as the "
+        "final options. Distractors must be homogeneous in length/style with the key and must not be obviously wrong, "
+        "joke, or 'all/none of the above' options.\n\n"
         f"You MUST output exactly {total_n} items in total, matching the per-segment counts in the segment block below.\n"
         "Question type counts (must match exactly):\n"
         f'- type "tf" (True/False): {tf_n} items\n'
         f'- type "single" (single-choice): {single_n} items — provide exactly 4 options unless only 2 are pedagogically justified; prefer 4.\n'
         f'- type "multi" (multiple-select): {multi_n} items — provide 4–6 options and field "correct_indices": a sorted JSON array '
         "of distinct 0-based indices (at least two correct options).\n\n"
-        "JSON schema per item:\n"
-        '- tf: {"type":"tf","question":"...","options":["True","False"],"correct_index":0 or 1}\n'
-        '- single: {"type":"single","question":"...","options":["A","B","C","D"],"correct_index":0..3}\n'
-        '- multi: {"type":"multi","question":"...","options":[...],"correct_indices":[0,2]}\n\n'
+        "JSON schema per item (bloom/difficulty/explanation are required tags):\n"
+        '- tf: {"type":"tf","question":"...","options":["True","False"],"correct_index":0 or 1,"bloom":"understand","difficulty":"easy","explanation":"..."}\n'
+        '- single: {"type":"single","question":"...","options":["A","B","C","D"],"correct_index":0..3,"bloom":"apply","difficulty":"medium","explanation":"..."}\n'
+        '- multi: {"type":"multi","question":"...","options":[...],"correct_indices":[0,2],"bloom":"analyze","difficulty":"hard","explanation":"..."}\n\n'
         "Rules: Ground every question in the segment text and retrieval evidence; avoid duplicate or near-duplicate stems; "
         "do not repeat any question similar to these prior stems:\n"
         f"{forbid}\n\n"
@@ -599,18 +679,26 @@ def run_qa_pipeline(
     hits: list[tuple[float, object]],
     max_new_tokens: Optional[int],
 ) -> QAResponse:
-    kb_rel = hits_are_relevant(hits)
+    label = classify_grounding(hits)
+    kb_rel = label != "none"
     no_kb_notice: Optional[str] = None
 
     if not kb_rel:
+        used_hits = reorder_lost_in_the_middle(list(hits))
         answer, route = generate_general_knowledge_answer(question, max_new_tokens)
         no_kb_notice = (
             "未据上传材料检索作答；下述为通识性学术表述，非文献原文结论，引用课程材料时请以自行核对为准。"
         )
     else:
-        answer, route = generate_strategy_answer(question, hits, max_new_tokens)
+        # CRAG 知识精炼 + Lost-in-the-Middle 排序后再进 prompt。
+        used_hits = reorder_lost_in_the_middle(refine_evidence(list(hits)))
+        answer, route = generate_strategy_answer(question, used_hits, max_new_tokens)
+        if label == "weak":
+            no_kb_notice = (
+                "检索到的材料与问题相关度偏低，下述回答依据有限，请结合课程原文核对。"
+            )
 
-    raw_scores = [float(s) for s, _ in hits]
+    raw_scores = [float(s) for s, _ in used_hits]
     pct_scores = _normalize_hit_scores_to_pct(raw_scores)
     hit_items = [
         HitItem(
@@ -624,10 +712,10 @@ def run_qa_pipeline(
             kb_attachment_id=(getattr(chunk, "kb_attachment_id", "") or None),
             session_file_id=(getattr(chunk, "session_file_id", "") or None),
         )
-        for i, (_, chunk) in enumerate(hits)
+        for i, (_, chunk) in enumerate(used_hits)
     ]
 
-    cite_raw = rag_pipeline.build_citations(answer, hits) if kb_rel else []
+    cite_raw = rag_pipeline.build_citations(answer, used_hits) if kb_rel else []
     pct_by_ref = {idx + 1: pct_scores[idx] for idx in range(len(pct_scores))}
     for row in cite_raw:
         r = int(row.get("ref", 0))

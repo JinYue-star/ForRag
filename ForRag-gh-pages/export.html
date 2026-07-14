@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HKU SOLO Bot — Export</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/x-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23006B54'><path d='M12 2L2 7l10 5 10-5-10-5z'/></svg>">
+</head>
+<body data-hku-role="teacher">
+    <main class="hku-teacher-body">
+        <h1 data-i18n="export.title">Export</h1>
+        <p class="hku-teacher-sub" data-i18n="export.subtitle">Filter, preview, then download as CSV or Excel.</p>
+
+        <section class="hku-panel">
+            <h2 data-i18n="export.filters">Filters</h2>
+
+            <div class="hku-form-row">
+                <div class="hku-field">
+                    <label data-i18n="export.range">Time range</label>
+                    <select id="rangePreset" class="composer-select" style="height:42px;border-radius:10px;border:1px solid var(--gem-line);padding:0 10px;">
+                        <option value="all" data-i18n="export.range.all">All time</option>
+                        <option value="today" data-i18n="export.range.today">Today</option>
+                        <option value="7" data-i18n="export.range.7">Last 7 days</option>
+                        <option value="30" data-i18n="export.range.30">Last 30 days</option>
+                        <option value="custom" data-i18n="export.range.custom">Custom</option>
+                    </select>
+                </div>
+                <div class="hku-field" id="customStartWrap" style="display:none">
+                    <label data-i18n="export.start">Start</label>
+                    <input type="date" id="startDate">
+                </div>
+                <div class="hku-field" id="customEndWrap" style="display:none">
+                    <label data-i18n="export.end">End</label>
+                    <input type="date" id="endDate">
+                </div>
+            </div>
+
+            <div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:18px;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:14px;">
+                    <input type="checkbox" id="incQuestions" checked>
+                    <span data-i18n="export.mod.questions">Student questions</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:14px;">
+                    <input type="checkbox" id="incAnswers">
+                    <span data-i18n="export.mod.answers">System answer summaries (optional)</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;font-size:14px;">
+                    <input type="checkbox" id="incQuiz" checked>
+                    <span data-i18n="export.mod.quiz">Quiz</span>
+                </label>
+            </div>
+
+            <div style="margin-top:18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+                <button type="button" class="hku-inline-btn" id="previewBtn" data-i18n="export.preview">Preview</button>
+                <label style="display:flex;align-items:center;gap:8px;font-size:14px;">
+                    <span data-i18n="export.format">Format</span>
+                    <select id="formatSelect" class="composer-select" style="height:38px;border-radius:8px;border:1px solid var(--gem-line);padding:0 10px;">
+                        <option value="xlsx">Excel (.xlsx)</option>
+                        <option value="csv">CSV (.csv)</option>
+                    </select>
+                </label>
+                <button type="button" class="hku-btn-primary" style="width:auto;padding:0 22px;height:38px;" id="downloadBtn" data-i18n="export.download">Export</button>
+            </div>
+            <div class="hku-auth-error" id="exportError"></div>
+        </section>
+
+        <section class="hku-panel" id="previewPanel" style="display:none">
+            <h2 data-i18n="export.previewTitle">Preview</h2>
+            <div id="previewArea"></div>
+        </section>
+    </main>
+
+    <div class="toast" id="toast" role="status"><span class="toast-message"></span></div>
+
+    <script src="auth.js"></script>
+    <script src="brand.js"></script>
+    <script>
+    (function () {
+        var errorEl = document.getElementById("exportError");
+        function showError(msg) { errorEl.textContent = msg; errorEl.classList.add("show"); setTimeout(function(){errorEl.classList.remove("show");}, 4500); }
+        function T(k) { return (window.HKU && window.HKU.t) ? window.HKU.t(k) : k; }
+        function esc(s) { var d = document.createElement("div"); d.textContent = String(s == null ? "" : s); return d.innerHTML; }
+
+        var rangePreset = document.getElementById("rangePreset");
+        rangePreset.addEventListener("change", function () {
+            var custom = rangePreset.value === "custom";
+            document.getElementById("customStartWrap").style.display = custom ? "block" : "none";
+            document.getElementById("customEndWrap").style.display = custom ? "block" : "none";
+        });
+
+        function computeRange() {
+            var now = Date.now() / 1000;
+            var v = rangePreset.value;
+            if (v === "all") return { start: null, end: null };
+            if (v === "today") {
+                var d = new Date(); d.setHours(0, 0, 0, 0);
+                return { start: d.getTime() / 1000, end: null };
+            }
+            if (v === "7") return { start: now - 7 * 86400, end: null };
+            if (v === "30") return { start: now - 30 * 86400, end: null };
+            // custom
+            var s = document.getElementById("startDate").value;
+            var e = document.getElementById("endDate").value;
+            var start = s ? new Date(s + "T00:00:00").getTime() / 1000 : null;
+            var end = e ? new Date(e + "T23:59:59").getTime() / 1000 : null;
+            return { start: start, end: end };
+        }
+
+        function buildBody() {
+            var r = computeRange();
+            return {
+                start: r.start,
+                end: r.end,
+                include_questions: document.getElementById("incQuestions").checked,
+                include_answers: document.getElementById("incAnswers").checked,
+                include_quiz: document.getElementById("incQuiz").checked,
+                format: document.getElementById("formatSelect").value
+            };
+        }
+
+        function authHeaders() {
+            return { "Content-Type": "application/json", Authorization: "Bearer " + window.HKUAuth.token() };
+        }
+
+        document.getElementById("previewBtn").addEventListener("click", async function () {
+            var body = buildBody();
+            if (!body.include_questions && !body.include_answers && !body.include_quiz) {
+                showError(T("export.pickModule")); return;
+            }
+            try {
+                var res = await fetch(window.HKUAuth.API_BASE + "/api/v1/admin/export/preview", {
+                    method: "POST", headers: authHeaders(), body: JSON.stringify(body)
+                });
+                var data = await res.json();
+                if (!res.ok) throw new Error(data.detail || "Preview failed");
+                renderPreview(data);
+            } catch (e) { showError(e.message || "Preview failed"); }
+        });
+
+        function renderPreview(data) {
+            var area = document.getElementById("previewArea");
+            area.innerHTML = "";
+            var titles = { questions: T("export.mod.questions"), answers: T("export.mod.answers"), quiz: T("export.mod.quiz") };
+            Object.keys(data).forEach(function (mod) {
+                var block = data[mod];
+                var h = document.createElement("h3");
+                h.style.cssText = "margin:16px 0 8px;color:var(--hku-green-dark);font-size:15px;";
+                h.textContent = titles[mod] + " (" + block.total + ")";
+                area.appendChild(h);
+                var wrap = document.createElement("div");
+                wrap.style.cssText = "overflow-x:auto;";
+                var t = document.createElement("table");
+                t.className = "hku-table";
+                var thead = "<thead><tr>" + block.columns.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") + "</tr></thead>";
+                var rows = block.rows.map(function (row) {
+                    return "<tr>" + block.columns.map(function (c) { return "<td>" + esc(row[c]) + "</td>"; }).join("") + "</tr>";
+                }).join("");
+                t.innerHTML = thead + "<tbody>" + rows + "</tbody>";
+                wrap.appendChild(t);
+                area.appendChild(wrap);
+                if (block.total > block.rows.length) {
+                    var more = document.createElement("p");
+                    more.style.cssText = "color:#5a6b65;font-size:12.5px;margin:6px 0 0;";
+                    more.textContent = T("export.moreRows").replace("{n}", block.total - block.rows.length);
+                    area.appendChild(more);
+                }
+            });
+            document.getElementById("previewPanel").style.display = "block";
+        }
+
+        document.getElementById("downloadBtn").addEventListener("click", async function () {
+            var body = buildBody();
+            if (!body.include_questions && !body.include_answers && !body.include_quiz) {
+                showError(T("export.pickModule")); return;
+            }
+            try {
+                var res = await fetch(window.HKUAuth.API_BASE + "/api/v1/admin/export/file", {
+                    method: "POST", headers: authHeaders(), body: JSON.stringify(body)
+                });
+                if (!res.ok) {
+                    var d = null; try { d = await res.json(); } catch (e) {}
+                    throw new Error((d && d.detail) || "Export failed");
+                }
+                var blob = await res.blob();
+                var disposition = res.headers.get("Content-Disposition") || "";
+                var m = /filename="?([^"]+)"?/.exec(disposition);
+                var fname = m ? m[1] : (body.format === "csv" ? "solo-export.csv" : "solo-export.xlsx");
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement("a");
+                a.href = url; a.download = fname; document.body.appendChild(a); a.click();
+                a.remove(); URL.revokeObjectURL(url);
+            } catch (e) { showError(e.message || "Export failed"); }
+        });
+
+        window.HKUAuth.requireRole("teacher");
+    })();
+    </script>
+</body>
+</html>

@@ -8,6 +8,7 @@ uvicorn[standard]>=0.30.0
 python-multipart>=0.0.9
 pydantic>=2.0.0
 starlette>=0.37.0
+python-dotenv>=1.0.0
 
 # ---------- 持久化与向量库 ----------
 chromadb>=0.4.24

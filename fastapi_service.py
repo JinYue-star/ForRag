@@ -37,7 +37,7 @@
 
 from __future__ import annotations
 
-from rag_api import settings
+from rag_api import settings  # noqa: F401
 from rag_api.main import app
 
 # 测试与运维脚本兼容：与历史 fastapi_service._DATA_DIR 一致

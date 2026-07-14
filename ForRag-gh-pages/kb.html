@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Knowledge Base</title>
+    <title>HKU SOLO Bot — Knowledge Base</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/x-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234285f4'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z'/></svg>">
 </head>
@@ -15,19 +15,19 @@
                 <span class="nav-link-icon" aria-hidden="true">
                     <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
                 </span>
-                <span class="nav-link-text">AI Assistant</span>
+                <span class="nav-link-text" data-i18n="nav.assistant">AI Assistant</span>
             </a>
             <a href="kb.html" class="nav-link active">
                 <span class="nav-link-icon" aria-hidden="true">
                     <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
                 </span>
-                <span class="nav-link-text">Knowledge Base</span>
+                <span class="nav-link-text" data-i18n="nav.kb">Knowledge Base</span>
             </a>
             <a href="quiz.html" class="nav-link">
                 <span class="nav-link-icon" aria-hidden="true">
                     <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.3" cy="11.2" r="1" fill="currentColor" stroke="none"/><circle cx="14.7" cy="11.2" r="1" fill="currentColor" stroke="none"/><path d="M9.5 14.2c.7.9 1.6 1.4 2.5 1.4s1.9-.5 2.6-1.4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
                 </span>
-                <span class="nav-link-text">Quiz</span>
+                <span class="nav-link-text" data-i18n="nav.quiz">Quiz</span>
             </a>
         </nav>
 
@@ -38,8 +38,8 @@
     <div class="workspace">
         <header class="workspace-header">
             <div class="workspace-header-text">
-                <h1 class="workspace-title">Knowledge Base</h1>
-                <p class="workspace-subtitle">Categories, Markdown notes, and attachments (bound to your session)</p>
+                <h1 class="workspace-title" data-i18n="kb.title">Knowledge Base</h1>
+                <p class="workspace-subtitle" data-i18n="kb.subtitle.student">Course materials shared by your teacher (read-only). These are included in retrieval.</p>
             </div>
         </header>
 
@@ -72,6 +72,9 @@
     </div>
 
     <div class="toast" id="toast" role="status"><span class="toast-message"></span></div>
+    <script src="auth.js"></script>
+    <script>window.HKUAuth && window.HKUAuth.requireRole();</script>
+    <script src="brand.js"></script>
     <script src="kb.js"></script>
     <script>
         document.getElementById('btnPickFile').addEventListener('click', function () {

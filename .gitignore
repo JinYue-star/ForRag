@@ -6,3 +6,13 @@ __pycache__/
 
 # 忽略所有 Python 编译好的字节码文件（全局匹配）
 *.py[cod]
+
+# 环境变量与密钥（切勿提交）
+.env
+.env.*
+!.env.example
+
+# 运行时数据与缓存（容器卷挂载，不入库）
+.uploads/
+.hf/
+.data/vector_cache/

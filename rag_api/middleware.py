@@ -9,6 +9,7 @@ from typing import Optional
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from rag_api import settings
@@ -40,6 +41,29 @@ class PrivateNetworkAccessMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class LoginRequiredMiddleware(BaseHTTPMiddleware):
+    """当启用鉴权时，/api/v1/* 需携带有效登录令牌（放行 /api/v1/auth/* 与预检）。"""
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        if (
+            request.method != "OPTIONS"
+            and path.startswith("/api/v1/")
+            and not path.startswith("/api/v1/auth/")
+        ):
+            # 延迟导入，避免与 settings 初始化顺序冲突
+            from rag_api.auth import auth_required, resolve_current_user
+
+            if auth_required():
+                try:
+                    resolve_current_user(request.headers.get("authorization"))
+                except Exception as exc:  # HTTPException -> JSON 401/403
+                    status = getattr(exc, "status_code", 401)
+                    detail = getattr(exc, "detail", "请先登录")
+                    return JSONResponse({"detail": detail}, status_code=status)
+        return await call_next(request)
+
+
 def setup_middleware(app: FastAPI) -> None:
     app.add_middleware(
         CORSMiddleware,
@@ -50,3 +74,4 @@ def setup_middleware(app: FastAPI) -> None:
         allow_headers=["Authorization", "Content-Type", "X-Session-Secret", "Accept", "Origin"],
     )
     app.add_middleware(PrivateNetworkAccessMiddleware)
+    app.add_middleware(LoginRequiredMiddleware)

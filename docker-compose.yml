@@ -1,0 +1,20 @@
+services:
+  solo-bot:
+    build: .
+    image: hku-solo-bot:latest
+    container_name: hku-solo-bot
+    ports:
+      - "${HOST_PORT:-8000}:8000"
+    env_file:
+      - .env
+    volumes:
+      # Persisted state: users, sessions, knowledge base, quizzes, vector cache
+      - ./.data:/app/.data
+      # Uploaded course materials & session attachments
+      - ./.uploads:/app/.uploads
+      # HuggingFace embedding model cache (avoids re-download on restart)
+      - hf-cache:/app/.hf
+    restart: unless-stopped
+
+volumes:
+  hf-cache:
