@@ -1,0 +1,56 @@
+{
+  "passed": 10,
+  "total": 10,
+  "results": [
+    {
+      "name": "health",
+      "pass": true,
+      "detail": "{\"status\":\"ok\"}"
+    },
+    {
+      "name": "auth.login",
+      "pass": true,
+      "detail": "status=200"
+    },
+    {
+      "name": "auth.me",
+      "pass": true,
+      "detail": "role=teacher"
+    },
+    {
+      "name": "session.create",
+      "pass": true,
+      "detail": "status=200"
+    },
+    {
+      "name": "kb.categories",
+      "pass": true,
+      "detail": "n=4"
+    },
+    {
+      "name": "session.upload",
+      "pass": true,
+      "detail": "status=200"
+    },
+    {
+      "name": "exercises.list",
+      "pass": true,
+      "detail": "n=2"
+    },
+    {
+      "name": "exercises.template",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "export.preview",
+      "pass": true,
+      "detail": "keys=['questions', 'quiz']"
+    },
+    {
+      "name": "session.qa",
+      "pass": true,
+      "detail": "status=200"
+    }
+  ]
+}

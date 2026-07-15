@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 
 from rag_api import settings
 from rag_api.auth_routes import router_admin, router_auth
+from rag_api.exercise_routes import router_exercises, router_quiz_public
 from rag_api.export_routes import router_export
 from rag_api.middleware import setup_middleware
 from rag_api.routes import router_health, router_v1
@@ -55,6 +56,8 @@ def create_app() -> FastAPI:
     application.include_router(router_auth)
     application.include_router(router_admin)
     application.include_router(router_export)
+    application.include_router(router_exercises)
+    application.include_router(router_quiz_public)
     application.include_router(router_v1)
 
     frontend_dir = settings.resolve_frontend_static_dir()

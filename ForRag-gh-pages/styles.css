@@ -2667,6 +2667,74 @@ body {
     color: var(--gem-text-secondary, #5f6368);
 }
 
+.kb-exercises-panel {
+    margin: 0 0 var(--spacing-lg);
+    padding: 16px 18px;
+    border: 1px solid var(--gem-line, #dadce0);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.72);
+}
+.kb-exercises-head {
+    margin-bottom: 12px;
+}
+.kb-exercises-title {
+    margin: 0 0 4px;
+    font-size: 1.05rem;
+    color: var(--gem-text, #202124);
+}
+.kb-exercises-sub {
+    margin: 0;
+    font-size: 13px;
+    color: var(--gem-text-secondary, #5f6368);
+}
+.kb-exercises-teacher {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.kb-exercise-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.kb-exercise-empty {
+    color: var(--gem-text-secondary, #5f6368);
+    font-size: 13px;
+    padding: 6px 0;
+}
+.kb-exercise-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--gem-line, #e8eaed);
+    background: #fff;
+}
+.kb-exercise-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+.kb-exercise-meta span {
+    font-size: 12px;
+    color: var(--gem-text-secondary, #5f6368);
+}
+.kb-exercise-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
 @media (max-width: 900px) {
     .kb-layout {
         grid-template-columns: 1fr;

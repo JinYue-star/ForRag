@@ -51,6 +51,11 @@ def _conn(data_dir: Path) -> sqlite3.Connection:
         return c
 
 
+def db_conn(data_dir: Path) -> sqlite3.Connection:
+    """公开连接句柄（课堂练习等扩展表复用同一 kb.sqlite）。"""
+    return _conn(data_dir)
+
+
 def _ensure_schema(conn: sqlite3.Connection) -> None:
     # 初始表结构仍保留历史 session_id 列，以兼容旧数据；读写逻辑以 kb_id 为准。
     conn.executescript(
@@ -97,6 +102,23 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_kb_nf_note ON kb_note_files(note_id);
         CREATE INDEX IF NOT EXISTS idx_kb_nf_session ON kb_note_files(session_id);
+
+        CREATE TABLE IF NOT EXISTS class_exercises (
+            id TEXT PRIMARY KEY,
+            quiz_id TEXT NOT NULL UNIQUE,
+            kb_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            status TEXT NOT NULL,
+            item_count INTEGER NOT NULL DEFAULT 0,
+            source_filename TEXT,
+            source_note_id TEXT,
+            created_by TEXT,
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_class_ex_kb ON class_exercises(kb_id);
+        CREATE INDEX IF NOT EXISTS idx_class_ex_status ON class_exercises(kb_id, status);
+        CREATE INDEX IF NOT EXISTS idx_class_ex_quiz ON class_exercises(quiz_id);
         """
     )
 

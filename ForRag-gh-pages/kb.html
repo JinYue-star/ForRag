@@ -44,6 +44,21 @@
         </header>
 
         <main class="main-panel kb-page">
+            <section class="kb-exercises-panel" id="classExercisesPanel" aria-label="Class exercises">
+                <div class="kb-exercises-head">
+                    <h2 class="kb-exercises-title">Class exercises</h2>
+                    <p class="kb-exercises-sub" id="exercisesHint">Published practice quizzes from your teacher.</p>
+                </div>
+                <div class="kb-exercises-teacher" id="exercisesTeacherBar" style="display:none">
+                    <input type="text" id="exerciseTitle" class="kb-title-input" placeholder="Exercise title" style="max-width:240px">
+                    <input type="file" id="exerciseFile" accept=".csv,.xlsx,.xlsm" hidden>
+                    <button type="button" class="chat-toolbar-btn" id="btnExercisePick">Upload CSV/Excel</button>
+                    <a class="chat-toolbar-btn" id="btnTplCsv" href="#">Template CSV</a>
+                    <a class="chat-toolbar-btn" id="btnTplXlsx" href="#">Template Excel</a>
+                    <button type="button" class="chat-toolbar-btn" id="btnAiFromNote" title="Generate quiz from current Student questions note">AI from note</button>
+                </div>
+                <ul id="exerciseList" class="kb-exercise-list"></ul>
+            </section>
             <div class="kb-layout">
                 <section class="kb-sidebar-panel">
                     <div class="kb-toolbar">

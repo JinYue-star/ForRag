@@ -78,3 +78,36 @@ def export_file(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="solo-export-{stamp}.xlsx"'},
     )
+
+
+@router_export.post("/save-to-kb")
+def export_save_to_kb(
+    request: Request,
+    body: ExportRequest,
+    authorization: Optional[str] = Header(default=None),
+) -> dict[str, Any]:
+    """将筛选后的学生提问写入课程知识库（分类 Student questions + 附件）。"""
+    user = require_teacher(resolve_current_user(authorization))
+    check_rate_limit(client_ip(request))
+    data = export_service.gather(
+        body.start, body.end, body.course_ids,
+        True, False, False,
+    )
+    rows = data.get("questions") or []
+    if not rows:
+        raise HTTPException(status_code=400, detail="当前筛选条件下没有学生提问可保存")
+    from rag_api import exercise_service
+
+    try:
+        return exercise_service.save_questions_to_kb(
+            rows,
+            fmt=body.format or "xlsx",
+            owner_id=str(user.get("id") or "") or None,
+        )
+    except ModuleNotFoundError as e:
+        raise HTTPException(
+            status_code=503,
+            detail="缺少 openpyxl，请改用 CSV 格式保存到知识库",
+        ) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e

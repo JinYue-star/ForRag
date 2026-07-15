@@ -105,10 +105,10 @@
 | 落地页 | `/` · `landing.html` | 全部 | 选 Teacher / Student |
 | 登录 / 注册 | `login.html?role=…` | 全部 | 教师仅登录；学生可注册 |
 | 教师控制台 | `teacher.html` | 教师 | 入口卡片、注册码、用户管理 |
-| 课程知识库 | `kb.html` | 师生 | 教师可写；学生只读 |
-| 导出中心 | `export.html` | 教师 | 筛选 → 预览 → 下载 |
+| 课程知识库 | `kb.html` | 师生 | 教师可写；学生只读；**课堂练习**上下架 / 答题入口 |
+| 导出中心 | `export.html` | 教师 | 筛选 → 预览 → 下载；**保存学生提问到知识库** |
 | 问答助手 | `index.html` | 学生为主 | 会话问答、临时上传、出题入口 |
-| 测验页 | `quiz.html` | 学生 | 作答与查看判分结果 |
+| 测验页 | `quiz.html` | 学生 | 作答与查看判分；支持 `?quiz_id=` 打开课堂练习 |
 
 ### 3.0 默认账号与注册码（演示 / 开课速查）
 
@@ -145,25 +145,33 @@
 2. 在问答页提问；系统检索课程 KB（及可选会话临时文件），返回答案与引用。  
 3. 选中助手回答 → 生成测验 → 作答 → 查看判分。  
 
-#### 场景 C — 教师复盘
+#### 场景 C — 教师复盘与课堂练习回流
 
 1. 教师打开导出中心。  
 2. 选时间范围（今天 / 7 天 / 30 天 / 自定义），勾选模块（提问默认开、回答摘要可选、测验默认开）。  
-3. 预览确认 → 下载 Excel 或 CSV。  
+3. 预览确认 → 下载 Excel 或 CSV；或点击 **Save questions to KB**，将学生提问写入课程知识库分类 `Student questions`（笔记正文 + 附件）。  
+4. 在知识库打开该笔记 → **AI from note** 整理生成带答案题库 → 自动发布为课堂练习，并下载 Excel/CSV 题库文件。  
+5. 也可直接在知识库「Class exercises」上传模板格式的 CSV/Excel 题库并发布；学生从知识库列表或 `quiz.html?quiz_id=…` 进入作答。  
 
 ```mermaid
 flowchart LR
   subgraph teacher [教师]
     A[维护知识库] --> B[分享注册码]
     B --> C[导出学习数据]
+    C --> C2[学生提问入库]
+    C2 --> C3[AI生成题库]
+    C3 --> C4[发布课堂练习]
+    A --> C4
   end
   subgraph student [学生]
     D[浏览资料] --> E[RAG 提问]
     E --> F[生成测验并作答]
+    D --> G[打开课堂练习]
   end
   A -.->|同一份课程 KB| D
   E -.->|会话归因| C
   F -.->|测验记录| C
+  C4 -.->|quiz_id 链接| G
 ```
 
 ---
@@ -177,6 +185,9 @@ flowchart LR
 | 浏览课程知识库 | ✓ | ✓ 只读 |
 | 创建/编辑/删除类目、笔记、附件 | ✓ | ✗ |
 | 上传资料到课程 KB | ✓ | ✗ |
+| 课堂练习：上传题库 / 上下架 / AI 出题 | ✓ | ✗ |
+| 课堂练习：查看已发布并作答 | ✓ | ✓ |
+| 导出学生提问到知识库 | ✓ | ✗ |
 | 会话内临时上传（不进课程 KB） | 可（非主流程） | ✓ |
 | RAG 提问 / 看引用 | 可进学生页（非主推） | ✓ |
 | 生成测验 / 作答 / 判分 | — | ✓ |
@@ -231,10 +242,14 @@ flowchart LR
 
 | 项 | 要求 |
 |---|---|
-| 生成 | 学生选中一条或多条助手消息片段 → 生成测验 |
-| 题量上限 | `RAG_MAX_QUIZ_QUESTIONS`（代码侧硬顶 ≤40） |
-| 作答页 | 不展示标准答案；提交后 LLM 判分并返回解析 |
-| 持久化 | 题目批次与作答写入服务端，供教师导出 |
+| 生成（会话） | 学生选中一条或多条助手消息片段 → 生成测验 |
+| 课堂练习 | 教师上传 CSV/XLSX 题库（含答案）或由「学生提问」笔记 AI 生成；发布后全体学生可见 |
+| 题库模板列 | `type, question, option1…option6, correct`（`tf`/`single`/`multi`） |
+| 链接 | 一份题库 = 一套练习 = 一个 `quiz_id`；打开 `quiz.html?quiz_id=…` |
+| 上下架 | 教师可 `published` / `unpublished`；下架后学生不可打开 |
+| 题量上限（会话生成） | `RAG_MAX_QUIZ_QUESTIONS`（代码侧硬顶 ≤40） |
+| 作答页 | 与生成测验同一套 Kahoot UI；不展示标准答案；提交后 LLM 判分 |
+| 持久化 | 题目批次与作答写入服务端；课堂练习按 `{quiz_id}__{user_id}` 存多人作答，供教师导出 |
 
 ### 4.6 教师导出
 
@@ -245,7 +260,14 @@ flowchart LR
 | 测验汇总 | 开 | 时间、学生标识、题干、题型、选项、标准答案、学生作答、正误 |
 
 **流程：** 筛选（时间预设 / 自定义）→ 勾选模块 → **预览** → 选 `xlsx` 或 `csv` → 下载。  
+**回流知识库：** 「Save questions to KB」将当前筛选下的学生提问写入分类 `Student questions`（Markdown 列表 + 原导出附件），供 AI 整理出题。  
 预览与导出范围、字段一致（所见即所得）。学生调用导出 API → 403。  
+
+### 4.7 课堂练习与 AI 出题闭环
+
+1. 教师导出学生提问 → 入库知识库。  
+2. 在知识库打开该笔记 → AI 生成带答案题目 → 下载 Excel/CSV 题库，并/或直接发布为课堂练习。  
+3. 学生在知识库「Class exercises」开始练习 → 判分结果可供再次导出。  
 
 > 注：请求体中的 `course_ids` 为多课程预留字段，**当前忽略**（单课程 `default`）。
 
@@ -416,6 +438,20 @@ For_RAG/
 | GET/POST | `/admin/registration-code` | 查看 / 轮换注册码 |
 | POST | `/admin/export/preview` | 导出预览 |
 | POST | `/admin/export/file` | 下载 CSV / XLSX |
+| POST | `/admin/export/save-to-kb` | 将学生提问写入课程 KB（`Student questions`） |
+
+### 6.2b 课堂练习
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/kb/exercises` | 列表（学生仅 published） |
+| POST | `/kb/exercises/import` | 教师上传 CSV/XLSX 题库 |
+| PATCH/DELETE | `/kb/exercises/{id}` | 上下架 / 改标题 / 删除 |
+| GET | `/kb/exercises/template.csv` / `template.xlsx` | 题库模板 |
+| POST | `/kb/exercises/generate-from-note` | 从学生提问笔记 AI 出题（可 publish） |
+| POST | `/kb/exercises/export-bank` | 题库导出为 CSV/XLSX |
+| GET | `/quiz/{quiz_id}` | 取公开题包（课堂练习） |
+| POST | `/quiz/{quiz_id}/grade` | 课堂练习判分（按用户存答） |
 
 ### 6.3 会话与学习
 
@@ -446,6 +482,7 @@ For_RAG/
 **kb.sqlite**
 
 - `kb_categories` / `kb_notes` / `kb_note_files`，按 `kb_id` 作用域  
+- `class_exercises`：课堂练习元数据（`quiz_id`, `title`, `status`, `item_count`, …）  
 
 **Chroma**
 

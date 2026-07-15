@@ -985,6 +985,8 @@ def grade_session_quiz(
         raise HTTPException(status_code=400, detail=f"请提交恰好 {expected} 条答案")
 
     result = grade_quiz_with_llm(payload, body.answers)
+    user = resolve_current_user(authorization)
+    uid = str((user or {}).get("id") or "").strip() or None
     try:
         chroma_store.quiz_answer_save(
             qid,
@@ -994,33 +996,12 @@ def grade_session_quiz(
                 "grade": result.model_dump(),
             },
             time.time(),
+            user_id=uid,
         )
     except Exception:
         traceback.print_exc()
     return result
 
 
-@router_v1.post("/quiz/{quiz_id}/grade", response_model=QuizGradeResponse)
-def grade_standalone_quiz(
-    request: Request,
-    quiz_id: str,
-    body: QuizGradeRequest,
-    authorization: Optional[str] = Header(default=None),
-) -> QuizGradeResponse:
-    require_access_token(authorization)
-    check_rate_limit(client_ip(request))
-    qid = quiz_id.strip()
-
-    got = chroma_store.quiz_get(qid)
-    if not got:
-        raise HTTPException(status_code=404, detail="测验不存在或已过期")
-    db_sid, payload = got
-    if db_sid is not None:
-        raise HTTPException(status_code=400, detail="请使用会话判分接口")
-    expected = len(payload.get("items") or [])
-    if expected <= 0:
-        raise HTTPException(status_code=400, detail="测验数据无效")
-    if len(body.answers) != expected:
-        raise HTTPException(status_code=400, detail=f"请提交恰好 {expected} 条答案")
-
-    return grade_quiz_with_llm(payload, body.answers)
+# Standalone / class-exercise grade lives in rag_api.exercise_routes
+# (POST /api/v1/quiz/{quiz_id}/grade).

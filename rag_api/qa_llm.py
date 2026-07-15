@@ -637,6 +637,85 @@ def generate_quiz_bundle_for_segments(
     return None, last_fail
 
 
+def generate_quiz_bundle_from_student_questions(
+    student_questions: list[str],
+    total_n: int,
+) -> tuple[Optional[dict], str]:
+    """根据教师知识库中保存的学生提问，整理生成带答案的测验题。"""
+    qs = [str(q).strip() for q in student_questions if str(q).strip()]
+    if total_n <= 0:
+        return None, "bad_total"
+    if not qs:
+        return None, "bad_total"
+
+    tf_n, single_n, multi_n = quiz_type_counts_tf_single_multi(total_n)
+    listed = "\n".join(f"{i}. {compact_text(q, limit=400)}" for i, q in enumerate(qs[:40], start=1))
+    prompt = (
+        "You are an expert course assessment designer. Using the STUDENT QUESTIONS below as themes "
+        "(misconceptions, hard topics, and what students asked), write a mixed quiz with clear answer keys.\n"
+        f"Produce exactly {total_n} items: tf={tf_n}, single={single_n}, multi={multi_n}.\n"
+        "Rules:\n"
+        '- type "tf": options must be ["True","False"] and "correct_index" 0 or 1.\n'
+        '- type "single": 4 options, "correct_index" 0..3.\n'
+        '- type "multi": 4–6 options, "correct_indices" sorted unique ints (at least 2).\n'
+        "Ground questions in the academic themes of the student questions; do NOT copy them verbatim as stems when possible—"
+        "rewrite into clear exam items. English preferred if source is English; match the source language otherwise.\n"
+        'Output ONE JSON object only: {"items":[...]} with no markdown.\n\n'
+        f"STUDENT QUESTIONS:\n{listed}\n"
+    )
+    max_tok = min(12000, max(512, settings.QUIZ_GEN_MAX_TOKENS, 400 + total_n * 320))
+    last_fail = "llm_empty"
+    if llm_available():
+        for attempt in range(3):
+            extra = ""
+            if attempt:
+                extra = (
+                    f'\n\n[Retry] Output only {{"items":[...]}} length {total_n}. '
+                    "Types tf|single|multi only; multi needs correct_indices."
+                )
+            text, _route = invoke_llm(prompt + extra, max_tok, json_object=(attempt == 0))
+            if not (text or "").strip():
+                last_fail = "llm_empty"
+                continue
+            data = extract_json_object(text) or extract_json_items_loose(text)
+            if not isinstance(data, dict):
+                last_fail = "bad_json"
+                continue
+            items = normalize_quiz_items_flexible(data, total_n, set())
+            if not items:
+                last_fail = "bad_items"
+                continue
+            return {"items": items}, "ok"
+
+    # Offline / LLM-failure fallback: simple single-choice from student stems
+    items = []
+    for i in range(total_n):
+        stem = qs[i % len(qs)]
+        items.append(
+            {
+                "type": "single",
+                "question": (
+                    f"[{i + 1}] Which statement best matches this student topic: "
+                    f"{compact_text(stem, limit=160)}?"
+                ),
+                "options": [
+                    "A precise course-aligned statement of the concept",
+                    "An unrelated definition from another chapter",
+                    "A claim that contradicts the lecture notes",
+                    "A purely anecdotal personal opinion",
+                ],
+                "correct_index": 0,
+            }
+        )
+    normalized = normalize_quiz_items_flexible({"items": items}, total_n, set())
+    if normalized:
+        logging.warning("quiz/generate-from-questions: using fallback items (LLM unavailable or invalid)")
+        return {"items": normalized}, "ok"
+    if not llm_available():
+        return None, "no_llm"
+    return None, last_fail
+
+
 def quiz_generation_fail_detail(code: str) -> str:
     if code == "no_llm":
         return "无法生成测验：未配置可用的语言模型（请设置 DASHSCOPE_API_KEY 或 RAG_ENABLE_LOCAL_LLM=1）。"

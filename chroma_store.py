@@ -407,43 +407,115 @@ def quiz_list_all() -> list[dict]:
     return _chroma_op(op)
 
 
+def quiz_delete(quiz_id: str) -> bool:
+    """删除单个测验批次。"""
+
+    def op() -> bool:
+        c = _col("quiz_batches")
+        r = c.get(ids=[quiz_id])
+        if not r.get("ids"):
+            return False
+        c.delete(ids=[quiz_id])
+        return True
+
+    try:
+        return bool(_chroma_op(op))
+    except Exception:
+        return False
+
+
 def quiz_answer_save(
     quiz_id: str,
     session_id: Optional[str],
     payload: dict,
     created_at: float,
+    *,
+    user_id: Optional[str] = None,
 ) -> None:
     """保存学生对某次测验的作答与判分结果（供教师导出）。
 
-    以 quiz_id 为主键做 upsert：仅保留该测验最近一次提交。
+    有 user_id 时用 ``{quiz_id}__{user_id}`` 作主键，支持同一套课堂题多人提交；
+    无 user_id 时仍以 quiz_id 为主键（兼容会话生成测验）。
     """
 
     def op() -> None:
         c = _col("quiz_answers")
+        uid = (user_id or "").strip()
+        record_id = f"{quiz_id}__{uid}" if uid else quiz_id
         doc = json.dumps(payload, ensure_ascii=False)
-        meta: dict[str, Any] = {"created_at": created_at}
+        meta: dict[str, Any] = {"created_at": created_at, "quiz_id": quiz_id}
         if session_id:
             meta["session_id"] = session_id
-        c.upsert(ids=[quiz_id], documents=[doc], metadatas=[meta])
+        if uid:
+            meta["user_id"] = uid
+        c.upsert(ids=[record_id], documents=[doc], metadatas=[meta])
 
     _chroma_op(op)
 
 
-def quiz_answers_map() -> dict[str, dict]:
-    """quiz_id -> 最近一次作答/判分结果。"""
+def quiz_answers_delete_for_quiz(quiz_id: str) -> int:
+    """删除某 quiz_id 下全部作答记录（含复合键）。"""
 
-    def op() -> dict[str, dict]:
+    def op() -> int:
+        c = _col("quiz_answers")
+        r = c.get(include=["metadatas"])
+        ids: list[str] = []
+        for i, rid in enumerate(r.get("ids") or []):
+            meta = (r.get("metadatas") or [None])[i] or {}
+            qid = str(meta.get("quiz_id") or "")
+            if qid == quiz_id or rid == quiz_id or str(rid).startswith(f"{quiz_id}__"):
+                ids.append(rid)
+        if not ids:
+            return 0
+        c.delete(ids=ids)
+        return len(ids)
+
+    try:
+        return int(_chroma_op(op) or 0)
+    except Exception:
+        return 0
+
+
+def quiz_answers_map() -> dict[str, dict]:
+    """兼容旧导出：quiz_id -> 最近一次作答（同 quiz 多人时取最新）。"""
+
+    submissions = quiz_answers_list()
+    out: dict[str, dict] = {}
+    for sub in submissions:
+        qid = str(sub.get("quiz_id") or "")
+        if not qid:
+            continue
+        prev = out.get(qid)
+        if not prev or float(sub.get("created_at") or 0) >= float(prev.get("created_at") or 0):
+            out[qid] = sub
+    return out
+
+
+def quiz_answers_list() -> list[dict]:
+    """全部作答记录列表（含 quiz_id / user_id / session_id）。"""
+
+    def op() -> list[dict]:
         c = _col("quiz_answers")
         r = c.get(include=["documents", "metadatas"])
-        out: dict[str, dict] = {}
-        for i, qid in enumerate(r.get("ids") or []):
+        out: list[dict] = []
+        for i, rid in enumerate(r.get("ids") or []):
             try:
                 payload = json.loads(r["documents"][i])
             except (json.JSONDecodeError, TypeError):
                 payload = {}
             meta = r["metadatas"][i] if r.get("metadatas") else {}
-            payload["created_at"] = float((meta or {}).get("created_at") or 0)
-            out[qid] = payload
+            meta = meta or {}
+            qid = str(meta.get("quiz_id") or "")
+            if not qid:
+                # legacy rows used quiz_id as document id
+                qid = str(rid).split("__", 1)[0] if "__" in str(rid) else str(rid)
+            row = dict(payload)
+            row["record_id"] = rid
+            row["quiz_id"] = qid
+            row["user_id"] = str(meta.get("user_id") or "")
+            row["session_id"] = meta.get("session_id")
+            row["created_at"] = float(meta.get("created_at") or 0)
+            out.append(row)
         return out
 
     return _chroma_op(op)

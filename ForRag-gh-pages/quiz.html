@@ -166,6 +166,7 @@
     }
 
     var currentQuiz = null;
+    var quizMode = 'session'; // 'session' | 'class'
 
     var KAHOOT_COLOR_CLASSES = ['kahoot-tile--red', 'kahoot-tile--blue', 'kahoot-tile--yellow', 'kahoot-tile--green'];
     var KAHOOT_SHAPES_HTML = [
@@ -405,7 +406,11 @@
     }
 
     async function submitGrade() {
-        if (!currentQuiz || !localStorage.getItem(SID_KEY)) {
+        if (!currentQuiz) {
+            showToast('No quiz to submit.', true);
+            return;
+        }
+        if (quizMode === 'session' && !localStorage.getItem(SID_KEY)) {
             showToast('No quiz to submit.', true);
             return;
         }
@@ -435,8 +440,11 @@
         el.submitBtn.innerHTML = '<span class="btn-loading"><svg class="spinner" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" stroke-dasharray="60" stroke-linecap="round"/></svg></span>';
 
         try {
+            var gradeUrl = quizMode === 'class'
+                ? (API_BASE + '/api/v1/quiz/' + encodeURIComponent(currentQuiz.quiz_id) + '/grade')
+                : (API_BASE + '/api/v1/sessions/' + encodeURIComponent(localStorage.getItem(SID_KEY)) + '/quiz/' + encodeURIComponent(currentQuiz.quiz_id) + '/grade');
             var res = await fetch(
-                API_BASE + '/api/v1/sessions/' + encodeURIComponent(localStorage.getItem(SID_KEY)) + '/quiz/' + encodeURIComponent(currentQuiz.quiz_id) + '/grade',
+                gradeUrl,
                 {
                     method: 'POST',
                     headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
@@ -446,7 +454,12 @@
 
             if (!res.ok) {
                 var t = await res.text();
-                throw new Error(t || 'Grading failed');
+                var msg = t || 'Grading failed';
+                try {
+                    var j = JSON.parse(t);
+                    if (j && j.detail) msg = typeof j.detail === 'string' ? j.detail : t;
+                } catch (_) {}
+                throw new Error(msg);
             }
 
             var data = await res.json();
@@ -469,6 +482,12 @@
     }
 
     function restartQuiz() {
+        if (quizMode === 'class') {
+            if (window.confirm('Return to Knowledge Base?')) {
+                window.location.href = 'kb.html';
+            }
+            return;
+        }
         if (window.confirm('Start over? You’ll return to AI Assistant to generate a new quiz.')) {
             sessionStorage.removeItem(LAST_QUIZ_KEY);
             window.location.href = 'index.html';
@@ -490,18 +509,53 @@
         }
     });
 
-    try {
-        var raw = sessionStorage.getItem(LAST_QUIZ_KEY);
-        if (raw) {
-            var quiz = JSON.parse(raw);
-            if (quiz && quiz.quiz_id && quiz.items && quiz.items.length > 0) {
-                renderQuiz(quiz);
+    async function boot() {
+        var params = new URLSearchParams(window.location.search);
+        var qid = (params.get('quiz_id') || '').trim();
+        if (qid) {
+            quizMode = 'class';
+            try {
+                var res = await fetch(API_BASE + '/api/v1/quiz/' + encodeURIComponent(qid), {
+                    headers: authHeaders()
+                });
+                if (!res.ok) {
+                    var errText = await res.text();
+                    var detail = errText;
+                    try {
+                        var ej = JSON.parse(errText);
+                        if (ej && ej.detail) detail = ej.detail;
+                    } catch (_) {}
+                    throw new Error(detail || 'Failed to load class exercise');
+                }
+                var quiz = await res.json();
+                if (quiz && quiz.quiz_id && quiz.items && quiz.items.length > 0) {
+                    renderQuiz(quiz);
+                    if (el.restartBtn) el.restartBtn.textContent = '← Back to KB';
+                    return;
+                }
+                throw new Error('Empty quiz');
+            } catch (e) {
+                console.error(e);
+                showToast(e.message || 'Failed to load class exercise.', true);
+                return;
             }
         }
-    } catch (e) {
-        console.error(e);
-        showToast('Failed to load quiz.', true);
+        try {
+            var raw = sessionStorage.getItem(LAST_QUIZ_KEY);
+            if (raw) {
+                var quiz2 = JSON.parse(raw);
+                if (quiz2 && quiz2.quiz_id && quiz2.items && quiz2.items.length > 0) {
+                    quizMode = 'session';
+                    renderQuiz(quiz2);
+                }
+            }
+        } catch (e) {
+            console.error(e);
+            showToast('Failed to load quiz.', true);
+        }
     }
+
+    boot();
 
 })();
     </script>

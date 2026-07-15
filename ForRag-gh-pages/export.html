@@ -61,6 +61,7 @@
                     </select>
                 </label>
                 <button type="button" class="hku-btn-primary" style="width:auto;padding:0 22px;height:38px;" id="downloadBtn" data-i18n="export.download">Export</button>
+                <button type="button" class="hku-inline-btn" id="saveToKbBtn">Save questions to KB</button>
             </div>
             <div class="hku-auth-error" id="exportError"></div>
         </section>
@@ -191,6 +192,25 @@
                 a.href = url; a.download = fname; document.body.appendChild(a); a.click();
                 a.remove(); URL.revokeObjectURL(url);
             } catch (e) { showError(e.message || "Export failed"); }
+        });
+
+        document.getElementById("saveToKbBtn").addEventListener("click", async function () {
+            var body = buildBody();
+            body.include_questions = true;
+            try {
+                var res = await fetch(window.HKUAuth.API_BASE + "/api/v1/admin/export/save-to-kb", {
+                    method: "POST", headers: authHeaders(), body: JSON.stringify(body)
+                });
+                var data = await res.json().catch(function () { return {}; });
+                if (!res.ok) throw new Error((data && data.detail) || "Save to KB failed");
+                var toast = document.getElementById("toast");
+                if (toast) {
+                    toast.querySelector(".toast-message").textContent =
+                        "Saved " + (data.question_count || 0) + " questions to KB: " + (data.title || "");
+                    toast.className = "toast show success";
+                    setTimeout(function () { toast.classList.remove("show"); }, 4000);
+                }
+            } catch (e) { showError(e.message || "Save to KB failed"); }
         });
 
         window.HKUAuth.requireRole("teacher");

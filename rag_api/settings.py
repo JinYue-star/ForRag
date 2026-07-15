@@ -40,6 +40,12 @@ else:
     chroma_store.init_chroma(DATA_DIR)
 kb_store.init_kb_db(DATA_DIR)
 auth_store.init_auth_db(DATA_DIR)
+try:
+    import exercise_store
+
+    exercise_store.init_exercises(DATA_DIR)
+except Exception:
+    pass
 
 
 def parse_allowed_origins() -> list[str]:

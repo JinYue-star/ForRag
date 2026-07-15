@@ -85,6 +85,9 @@ async function getErrorMessage(response) {
         if (data && typeof data.detail === 'string' && data.detail.trim()) {
             return data.detail;
         }
+        if (data && Array.isArray(data.detail)) {
+            return data.detail.map((d) => (d && d.msg) || JSON.stringify(d)).join('; ');
+        }
     } catch (_) {
         /* ignore */
     }
@@ -310,6 +313,14 @@ function applyRoleGating() {
         sub.setAttribute('data-i18n', isTeacher() ? 'kb.subtitle.teacher' : 'kb.subtitle.student');
         if (window.HKU && window.HKU.apply) window.HKU.apply(document);
     }
+    const teacherBar = document.getElementById('exercisesTeacherBar');
+    const hint = document.getElementById('exercisesHint');
+    if (teacherBar) teacherBar.style.display = isTeacher() ? 'flex' : 'none';
+    if (hint) {
+        hint.textContent = isTeacher()
+            ? 'Upload a question bank (CSV/Excel), publish for students, or generate from a Student questions note.'
+            : 'Published practice quizzes from your teacher.';
+    }
     if (isTeacher()) return;
     // Student: read-only knowledge base — hide all write controls.
     const hideIds = ['btnNewCategory', 'btnNewNote', 'btnSaveNote', 'btnPickFile'];
@@ -325,6 +336,203 @@ function applyRoleGating() {
     });
     const attachLabel = document.querySelector('.kb-attach-label');
     if (attachLabel) attachLabel.style.display = 'none';
+}
+
+function exercisesApi(path) {
+    return `${CONFIG.API_BASE}/api/v1/kb/exercises${path || ''}`;
+}
+
+function quizOpenUrl(quizId) {
+    return `quiz.html?quiz_id=${encodeURIComponent(quizId)}`;
+}
+
+async function loadExercises() {
+    const res = await fetch(exercisesApi(''), { headers: authHeaders() });
+    if (!res.ok) {
+        showToast(document.getElementById('toast'), await getErrorMessage(res), true);
+        return;
+    }
+    const rows = await res.json();
+    const list = document.getElementById('exerciseList');
+    if (!list) return;
+    list.innerHTML = '';
+    if (!rows.length) {
+        const empty = document.createElement('li');
+        empty.className = 'kb-exercise-empty';
+        empty.textContent = isTeacher()
+            ? 'No class exercises yet. Upload a CSV/Excel bank or generate from a note.'
+            : 'No published exercises yet.';
+        list.appendChild(empty);
+        return;
+    }
+    rows.forEach((ex) => {
+        const li = document.createElement('li');
+        li.className = 'kb-exercise-row';
+        const status = ex.status === 'published' ? 'Published' : 'Unpublished';
+        const meta = `${ex.item_count || 0} Q · ${status}`;
+        const title = document.createElement('div');
+        title.className = 'kb-exercise-meta';
+        title.innerHTML = `<strong>${escapeHtml(ex.title || 'Untitled')}</strong><span>${escapeHtml(meta)}</span>`;
+        const actions = document.createElement('div');
+        actions.className = 'kb-exercise-actions';
+        const openBtn = document.createElement('a');
+        openBtn.className = 'chat-toolbar-btn';
+        openBtn.href = quizOpenUrl(ex.quiz_id);
+        openBtn.textContent = isTeacher() ? 'Open' : 'Start';
+        actions.appendChild(openBtn);
+        if (isTeacher()) {
+            const copyBtn = document.createElement('button');
+            copyBtn.type = 'button';
+            copyBtn.className = 'chat-toolbar-btn';
+            copyBtn.textContent = 'Copy link';
+            copyBtn.addEventListener('click', async () => {
+                const url = new URL(quizOpenUrl(ex.quiz_id), window.location.href).href;
+                try {
+                    await navigator.clipboard.writeText(url);
+                    showToast(document.getElementById('toast'), 'Link copied.');
+                } catch (_) {
+                    showToast(document.getElementById('toast'), url);
+                }
+            });
+            const toggleBtn = document.createElement('button');
+            toggleBtn.type = 'button';
+            toggleBtn.className = 'chat-toolbar-btn';
+            toggleBtn.textContent = ex.status === 'published' ? 'Unpublish' : 'Publish';
+            toggleBtn.addEventListener('click', () => patchExercise(ex.id, {
+                status: ex.status === 'published' ? 'unpublished' : 'published'
+            }));
+            const delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'chat-toolbar-btn';
+            delBtn.textContent = 'Delete';
+            delBtn.addEventListener('click', () => deleteExercise(ex.id));
+            actions.appendChild(copyBtn);
+            actions.appendChild(toggleBtn);
+            actions.appendChild(delBtn);
+        }
+        li.appendChild(title);
+        li.appendChild(actions);
+        list.appendChild(li);
+    });
+}
+
+function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = String(s == null ? '' : s);
+    return d.innerHTML;
+}
+
+async function patchExercise(id, body) {
+    const res = await fetch(exercisesApi(`/${encodeURIComponent(id)}`), {
+        method: 'PATCH',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+    if (!res.ok) {
+        showToast(document.getElementById('toast'), await getErrorMessage(res), true);
+        return;
+    }
+    await loadExercises();
+    showToast(document.getElementById('toast'), 'Updated.');
+}
+
+async function deleteExercise(id) {
+    if (!confirm('Delete this class exercise?')) return;
+    const res = await fetch(exercisesApi(`/${encodeURIComponent(id)}`), {
+        method: 'DELETE',
+        headers: authHeaders()
+    });
+    if (!res.ok) {
+        showToast(document.getElementById('toast'), await getErrorMessage(res), true);
+        return;
+    }
+    await loadExercises();
+    showToast(document.getElementById('toast'), 'Deleted.');
+}
+
+async function uploadExercise(file) {
+    const title = (document.getElementById('exerciseTitle')?.value || '').trim() || file.name;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('title', title);
+    fd.append('status', 'published');
+    const res = await fetch(exercisesApi('/import'), {
+        method: 'POST',
+        headers: authHeaders(),
+        body: fd
+    });
+    if (!res.ok) {
+        showToast(document.getElementById('toast'), await getErrorMessage(res), true);
+        return;
+    }
+    document.getElementById('exerciseTitle').value = '';
+    await loadExercises();
+    showToast(document.getElementById('toast'), 'Exercise published.');
+}
+
+async function downloadTemplate(kind) {
+    const path = kind === 'xlsx' ? '/template.xlsx' : '/template.csv';
+    const res = await fetch(exercisesApi(path), { headers: authHeaders() });
+    if (!res.ok) {
+        showToast(document.getElementById('toast'), await getErrorMessage(res), true);
+        return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = kind === 'xlsx' ? 'class-exercise-template.xlsx' : 'class-exercise-template.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
+async function aiFromCurrentNote() {
+    if (!state.currentNoteId) {
+        showToast(document.getElementById('toast'), 'Open a Student questions note first.', true);
+        return;
+    }
+    const n = prompt('How many questions to generate?', '5');
+    if (n == null) return;
+    const count = Math.max(1, Math.min(20, parseInt(n, 10) || 5));
+    const res = await fetch(exercisesApi('/generate-from-note'), {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            note_id: state.currentNoteId,
+            n: count,
+            publish: true,
+            title: (document.getElementById('noteTitle')?.value || '').trim() || undefined
+        })
+    });
+    if (!res.ok) {
+        showToast(document.getElementById('toast'), await getErrorMessage(res), true);
+        return;
+    }
+    const data = await res.json();
+    await loadExercises();
+    showToast(document.getElementById('toast'), `Generated ${data.item_count || count} questions and published.`);
+    // Also offer bank downloads
+    if (data.items && data.items.length) {
+        for (const fmt of ['csv', 'xlsx']) {
+            const er = await fetch(exercisesApi('/export-bank'), {
+                method: 'POST',
+                headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ format: fmt, items: data.items })
+            });
+            if (!er.ok) continue;
+            const blob = await er.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `quiz-bank.${fmt === 'xlsx' ? 'xlsx' : 'csv'}`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+    }
 }
 
 function init() {
@@ -344,9 +552,27 @@ function init() {
     document.getElementById('noteFile')?.addEventListener('change', (e) => {
         uploadAttach(e.target).catch((err) => showToast(toast, err.message, true));
     });
+    document.getElementById('btnExercisePick')?.addEventListener('click', () => document.getElementById('exerciseFile')?.click());
+    document.getElementById('exerciseFile')?.addEventListener('change', (e) => {
+        const f = e.target.files && e.target.files[0];
+        e.target.value = '';
+        if (f) uploadExercise(f).catch((err) => showToast(toast, err.message, true));
+    });
+    document.getElementById('btnTplCsv')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        downloadTemplate('csv').catch((err) => showToast(toast, err.message, true));
+    });
+    document.getElementById('btnTplXlsx')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        downloadTemplate('xlsx').catch((err) => showToast(toast, err.message, true));
+    });
+    document.getElementById('btnAiFromNote')?.addEventListener('click', () => {
+        aiFromCurrentNote().catch((err) => showToast(toast, err.message, true));
+    });
 
     loadCategories()
         .then(() => loadNotes())
+        .then(() => loadExercises())
         .catch((e) => showToast(toast, e.message || 'Failed to load.', true));
 }
 

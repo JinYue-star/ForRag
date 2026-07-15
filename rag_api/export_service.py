@@ -129,40 +129,77 @@ def gather(
                     data["answers"].append(row)
 
     if include_quiz:
-        answers_map = chroma_store.quiz_answers_map()
+        # Multi-student submissions: one export row set per (quiz, submission)
+        submissions_by_quiz: dict[str, list[dict[str, Any]]] = {}
+        for sub in chroma_store.quiz_answers_list():
+            qid = str(sub.get("quiz_id") or "")
+            if not qid:
+                continue
+            submissions_by_quiz.setdefault(qid, []).append(sub)
+
         for quiz in chroma_store.quiz_list_all():
             ts = float(quiz.get("created_at") or 0)
             if not _in_range(ts, start, end):
                 continue
             sid = quiz.get("session_id") or ""
-            owner = _owner_fields(owners.get(sid))
             qid = quiz.get("quiz_id")
             items = (quiz.get("payload") or {}).get("items") or []
-            submission = answers_map.get(qid) or {}
-            grade_items = (submission.get("grade") or {}).get("items") or []
-            for idx, it in enumerate(items):
-                g = grade_items[idx] if idx < len(grade_items) else {}
-                correct = _correct_answer_from_item(it) or str(g.get("correct_answer") or "")
-                student_answer = str(g.get("user_answer") or "") if g else ""
-                is_correct = ""
-                if g:
-                    try:
-                        is_correct = "yes" if float(g.get("score", 0)) >= float(g.get("max_score", 0)) and float(g.get("max_score", 0)) > 0 else "no"
-                    except (TypeError, ValueError):
-                        is_correct = ""
-                row = {
-                    "time": _fmt_time(ts),
-                    "quiz_id": qid,
-                    "q_index": idx + 1,
-                    "type": str(it.get("type") or ""),
-                    "question": str(it.get("question") or ""),
-                    "options": " | ".join(str(x) for x in (it.get("options") or [])),
-                    "correct_answer": correct,
-                    "student_answer": student_answer,
-                    "is_correct": is_correct,
-                }
-                row.update(owner)
-                data["quiz"].append(row)
+            subs = submissions_by_quiz.get(str(qid) or "", [])
+            if not subs:
+                # No submissions yet — still export question bank rows with empty student fields
+                owner = _owner_fields(owners.get(sid))
+                for idx, it in enumerate(items):
+                    row = {
+                        "time": _fmt_time(ts),
+                        "quiz_id": qid,
+                        "q_index": idx + 1,
+                        "type": str(it.get("type") or ""),
+                        "question": str(it.get("question") or ""),
+                        "options": " | ".join(str(x) for x in (it.get("options") or [])),
+                        "correct_answer": _correct_answer_from_item(it),
+                        "student_answer": "",
+                        "is_correct": "",
+                    }
+                    row.update(owner)
+                    data["quiz"].append(row)
+                continue
+
+            for submission in subs:
+                owner_blob = submission.get("owner") if isinstance(submission.get("owner"), dict) else None
+                if owner_blob:
+                    owner = _owner_fields(owner_blob)
+                else:
+                    owner = _owner_fields(owners.get(sid or submission.get("session_id") or ""))
+                sub_ts = float(submission.get("created_at") or ts)
+                grade_items = (submission.get("grade") or {}).get("items") or []
+                for idx, it in enumerate(items):
+                    g = grade_items[idx] if idx < len(grade_items) else {}
+                    correct = _correct_answer_from_item(it) or str(g.get("correct_answer") or "")
+                    student_answer = str(g.get("user_answer") or "") if g else ""
+                    is_correct = ""
+                    if g:
+                        try:
+                            is_correct = (
+                                "yes"
+                                if float(g.get("score", 0)) >= float(g.get("max_score", 0))
+                                and float(g.get("max_score", 0)) > 0
+                                else "no"
+                            )
+                        except (TypeError, ValueError):
+                            is_correct = ""
+                    row = {
+                        "time": _fmt_time(sub_ts),
+                        "quiz_id": qid,
+                        "q_index": idx + 1,
+                        "type": str(it.get("type") or ""),
+                        "question": str(it.get("question") or ""),
+                        "options": " | ".join(str(x) for x in (it.get("options") or [])),
+                        "correct_answer": correct,
+                        "student_answer": student_answer,
+                        "is_correct": is_correct,
+                    }
+                    row.update(owner)
+                    data["quiz"].append(row)
 
     return data
 
