@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HKU SOLO Bot — Sign in</title>
+    <meta name="description" content="Sign in to HKU Teacher-student Co-learning (SOLO) Bot." data-content-en="Sign in to HKU Teacher-student Co-learning (SOLO) Bot." data-content-zh="登录港大师生共学 (SOLO) 机器人。">
+    <title data-en="HKU SOLO Bot — Sign in" data-zh="港大 SOLO 机器人——登录">HKU SOLO Bot — Sign in</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/x-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23006B54'><path d='M12 2L2 7l10 5 10-5-10-5z'/></svg>">
 </head>
@@ -15,26 +16,26 @@
             <form id="loginForm">
                 <div class="hku-field">
                     <label for="username" data-i18n="auth.username">Username</label>
-                    <input type="text" id="username" autocomplete="username" required>
+                    <input type="text" id="username" autocomplete="username" required data-placeholder-en="Enter your username" data-placeholder-zh="请输入用户名">
                 </div>
                 <div class="hku-field">
                     <label for="password" data-i18n="auth.password">Password</label>
-                    <input type="password" id="password" autocomplete="current-password" required>
+                    <input type="password" id="password" autocomplete="current-password" required data-placeholder-en="Enter your password" data-placeholder-zh="请输入密码">
                 </div>
 
                 <!-- student registration extra fields -->
                 <div id="registerExtra" style="display:none">
                     <div class="hku-field">
                         <label for="displayName" data-i18n="auth.displayname">Display name</label>
-                        <input type="text" id="displayName" autocomplete="name">
+                        <input type="text" id="displayName" autocomplete="name" data-placeholder-en="Enter your display name" data-placeholder-zh="请输入显示名称">
                     </div>
                     <div class="hku-field">
                         <label for="studentNo" data-i18n="auth.studentno">Student number (optional)</label>
-                        <input type="text" id="studentNo">
+                        <input type="text" id="studentNo" data-placeholder-en="Enter your student number" data-placeholder-zh="请输入学号">
                     </div>
                     <div class="hku-field">
                         <label for="regCode" data-i18n="auth.regcode">Course registration code</label>
-                        <input type="text" id="regCode">
+                        <input type="text" id="regCode" data-placeholder-en="Enter the course registration code" data-placeholder-zh="请输入课程注册码">
                     </div>
                 </div>
 
@@ -66,8 +67,11 @@
         var switchWrap = document.getElementById("switchWrap");
         var switchLink = document.getElementById("switchLink");
         var errorEl = document.getElementById("authError");
+        var currentError = null;
 
-        function T(k) { return (window.HKU && window.HKU.t) ? window.HKU.t(k) : k; }
+        function text(en, zh, vars) {
+            return (window.HKU && window.HKU.text) ? window.HKU.text(en, zh, vars) : en;
+        }
 
         function refresh() {
             titleEl.setAttribute("data-i18n", role === "teacher" ? "auth.teacher.title" : "auth.student.title");
@@ -85,8 +89,12 @@
             refresh();
         });
 
-        function showError(msg) { errorEl.textContent = msg; errorEl.classList.add("show"); }
-        function hideError() { errorEl.classList.remove("show"); }
+        function showError(en, zh) {
+            currentError = { en: en, zh: zh };
+            errorEl.textContent = text(en, zh);
+            errorEl.classList.add("show");
+        }
+        function hideError() { currentError = null; errorEl.classList.remove("show"); }
 
         function destForRole(r) { return r === "teacher" ? "teacher.html" : "index.html"; }
 
@@ -112,13 +120,27 @@
                 var r = (data && data.user && data.user.role) || role;
                 window.location.href = destForRole(r);
             } catch (err) {
-                showError(err.message || "Sign in failed");
+                showError(
+                    err.messageEn || err.message || "Sign in failed. Please try again.",
+                    err.messageZh || "登录失败，请重试。"
+                );
                 submitBtn.disabled = false;
             }
         });
 
+        document.addEventListener("hku:langchange", function () {
+            if (currentError) errorEl.textContent = text(currentError.en, currentError.zh);
+        });
+
         // If auth is disabled on the server (no-auth local mode), skip login.
         window.HKUAuth.config().then(function (cfg) {
+            if (cfg.api_base_missing) {
+                showError(
+                    "API base is not configured. On GitHub Pages set localStorage.RAG_API_BASE or window.__API_BASE__.",
+                    "未配置 API 地址。在 GitHub Pages 上请设置 localStorage.RAG_API_BASE 或 window.__API_BASE__。"
+                );
+                return;
+            }
             if (!cfg.auth_required) {
                 try { localStorage.setItem("hku_role", role); } catch (e) {}
                 window.location.href = destForRole(role);

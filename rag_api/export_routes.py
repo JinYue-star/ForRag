@@ -20,8 +20,9 @@ router_export = APIRouter(prefix="/api/v1/admin/export", tags=["export"])
 
 
 def _modules(body: ExportRequest) -> list[str]:
+    # Privacy policy: never export answer/chat transcripts — questions + quiz only.
     mods = export_service.selected_modules(
-        body.include_questions, body.include_answers, body.include_quiz
+        body.include_questions, False, body.include_quiz
     )
     if not mods:
         raise HTTPException(status_code=400, detail="请至少选择一个导出模块")
@@ -39,7 +40,7 @@ def export_preview(
     modules = _modules(body)
     data = export_service.gather(
         body.start, body.end, body.course_ids,
-        body.include_questions, body.include_answers, body.include_quiz,
+        body.include_questions, False, body.include_quiz,
     )
     return export_service.preview(data, modules)
 
@@ -55,7 +56,7 @@ def export_file(
     modules = _modules(body)
     data = export_service.gather(
         body.start, body.end, body.course_ids,
-        body.include_questions, body.include_answers, body.include_quiz,
+        body.include_questions, False, body.include_quiz,
     )
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     fmt = (body.format or "xlsx").lower()

@@ -65,7 +65,7 @@ CORS_LAN_ORIGIN_REGEX = (
     r"|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?"
 )
 
-UPLOAD_DIR = Path("./.uploads").resolve()
+UPLOAD_DIR = Path(os.environ.get("RAG_UPLOAD_DIR", str(REPO_ROOT / ".uploads"))).resolve()
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 # 旧版本 KB 文件一次性迁移到全局 KB 目录；失败不阻塞启动
@@ -121,6 +121,8 @@ ALLOWED_SUFFIXES = {
 }
 
 ALLOWED_ORIGINS = parse_allowed_origins()
+# 静态「服务令牌」：仅在未启用用户登录鉴权时由 require_access_token() 校验。
+# 与前端登录令牌（HKU_LOGIN_TOKEN / Bearer login token）无关；启用 RAG_REQUIRE_AUTH 后忽略本项。
 ACCESS_TOKEN = os.environ.get("RAG_ACCESS_TOKEN", "").strip()
 _raw_require_token = os.environ.get("RAG_REQUIRE_ACCESS_TOKEN", "").strip().lower()
 if _raw_require_token in {"0", "false", "no", "off"}:
@@ -192,15 +194,38 @@ MAX_TOP_K = max(1, int(os.environ.get("RAG_MAX_TOP_K", "5")))
 MAX_QUESTION_CHARS = max(50, int(os.environ.get("RAG_MAX_QUESTION_CHARS", "1000")))
 RATE_LIMIT_WINDOW_SECONDS = max(10, int(os.environ.get("RAG_RATE_LIMIT_WINDOW_SECONDS", "60")))
 RATE_LIMIT_MAX_REQUESTS = max(0, int(os.environ.get("RAG_RATE_LIMIT_MAX_REQUESTS", "120")))
-PROMPT_CHUNK_CHAR_LIMIT = max(160, int(os.environ.get("RAG_PROMPT_CHUNK_CHAR_LIMIT", "700")))
+# 单条证据进提示词的字符上限：需容纳一个完整块（480 token，中文约 480 字、英文约 1900 字）
+# 或其展开后的父级页（RAG_PARENT_MAX_CHARS，默认 2400），否则加大块长会被这里截掉。
+PROMPT_CHUNK_CHAR_LIMIT = max(160, int(os.environ.get("RAG_PROMPT_CHUNK_CHAR_LIMIT", "2400")))
 KB_MIN_SCORE = float(os.environ.get("RAG_KB_MIN_SCORE", "0.28"))
 # 仅检索到 1 条时，需达到更高分才走「依据文档」模式，避免单条低相关被硬套成 RAG 答案
 KB_SINGLE_HIT_MIN_SCORE = float(os.environ.get("RAG_KB_SINGLE_HIT_MIN_SCORE", "0.40"))
+# 余弦强阈值按 tools/rag_eval.py --grounding-only 在真实 ELEC6081 语料上的标定结果取值
+# （bge-small-zh-v1.5，16 份课程材料、65 题：57 题应有依据、8 题应走通识）。
+# 判别力主要来自 top2 而非 top1：切题问题通常有多张幻灯片覆盖，跑题问题往往只有一条偶然相似的块。
+# 因此改为"要求两条证据都达到 0.62"（second <= top，故两个阈值取同值即表达该规则），
+# 实测精确率 0.982、召回 0.982；旧值 0.50/0.60/0.35 是 0.905/1.000，单看 top1 的 0.69 是 1.000/0.754。
+KB_STRONG_SCORE = float(os.environ.get("RAG_KB_STRONG_SCORE", "0.62"))
+# top1 极高时单条即可判为有依据；需高于跑题问题的最高 top1（实测 0.72）留出余量。
+KB_SINGLE_HIT_STRONG_SCORE = float(os.environ.get("RAG_KB_SINGLE_HIT_STRONG_SCORE", "0.75"))
+KB_SECOND_HIT_SCORE = float(os.environ.get("RAG_KB_SECOND_HIT_SCORE", "0.62"))
 # 开启重排后，命中分是交叉编码器 sigmoid 概率（0~1），语义与余弦不同，故用独立阈值。
-# CRAG 风格三档门控：< MIN → 判为无依据(走通识)；[MIN, STRONG) → 有依据但弱(附提示)；>= STRONG → 有把握。
+# 标定：e5-small + ms-marco-MiniLM，ELEC6081 65 题（eval_6081_e5_rerank.json）。
+# 0.80/0.80/0.60 → grounded 精确率 1.000、召回 0.877（0 FP）；默认 0.65/0.75/0.40 会放过 1 道通识假阳性（top≈0.79）。
+# 落在 [MIN, STRONG) 的边界命中仍交 LLM 充分性判断补召回。
 RERANK_MIN_SCORE = float(os.environ.get("RAG_RERANK_MIN_SCORE", "0.05"))
 RERANK_SINGLE_HIT_MIN_SCORE = float(os.environ.get("RAG_RERANK_SINGLE_HIT_MIN_SCORE", "0.12"))
-RERANK_STRONG_SCORE = float(os.environ.get("RAG_RERANK_STRONG_SCORE", "0.5"))
+RERANK_STRONG_SCORE = float(os.environ.get("RAG_RERANK_STRONG_SCORE", "0.80"))
+RERANK_SINGLE_HIT_STRONG_SCORE = float(os.environ.get("RAG_RERANK_SINGLE_HIT_STRONG_SCORE", "0.80"))
+RERANK_SECOND_HIT_SCORE = float(os.environ.get("RAG_RERANK_SECOND_HIT_SCORE", "0.60"))
+RERANK_SUFFICIENCY_MARGIN = float(os.environ.get("RAG_RERANK_SUFFICIENCY_MARGIN", "0.10"))
+KB_SUFFICIENCY_MARGIN = float(os.environ.get("RAG_KB_SUFFICIENCY_MARGIN", "0.08"))
+ENABLE_SUFFICIENCY_JUDGE = os.environ.get(
+    "RAG_ENABLE_SUFFICIENCY_JUDGE", "1"
+).strip().lower() in {"1", "true", "yes", "on"}
+MIN_CITATION_COVERAGE = max(
+    0.0, min(1.0, float(os.environ.get("RAG_MIN_CITATION_COVERAGE", "0.95")))
+)
 # 证据精炼（knowledge refinement）：相对最高分的比例阈值，低于此的候选块不进 prompt（至少保留 1 条）。
 EVIDENCE_KEEP_RATIO = float(os.environ.get("RAG_EVIDENCE_KEEP_RATIO", "0.25"))
 QUIZ_GEN_MAX_TOKENS = max(256, int(os.environ.get("RAG_QUIZ_GEN_MAX_TOKENS", "1200")))

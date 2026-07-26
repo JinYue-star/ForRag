@@ -38,7 +38,7 @@
    ```
    未设置令牌且服务端允许匿名时，请求可不带头（取决于后端 `RAG_REQUIRE_ACCESS_TOKEN` 等配置）。
 
-4. **会话**：首次使用会创建会话，`session_id` 与 `X-Session-Secret` 存在 **localStorage**（键名见下节）。同一浏览器内多页（助手 / 知识库 / 测验）共享该会话。
+4. **会话**：首次使用会创建会话，`session_id` 与 `X-Session-Secret` 存在 **localStorage**（键名见下节）。同一浏览器内多页（助手 / 知识库 / 测验）共享该会话。启用登录鉴权时，服务端还会校验当前用户是否为会话 `owner`，不同学生之间的会话互不可见。侧栏多会话列表按登录用户名分区存储。
 
 ---
 
@@ -78,8 +78,9 @@ location.reload();
 | `RAG_API_BASE` | 后端根 URL（可选覆盖默认推断）。 |
 | `RAG_ACCESS_TOKEN` | 与服务器 `RAG_ACCESS_TOKEN` 一致的 Bearer 令牌。 |
 | `RAG_SESSION_ID` / `RAG_SESSION_SECRET` | 当前会话 ID 与密钥。 |
-| `RAG_CONVERSATIONS` | 侧栏多会话列表等本地缓存。 |
+| `RAG_CONVERSATIONS::<username>` | 该用户的侧栏多会话列表（明文含各会话 secret）；无用户名时回退键 `RAG_CONVERSATIONS`（遗留）。 |
 | `RAG_LAST_QUIZ` | 最近一次测验载荷，供 `quiz.html` 使用。 |
+| `hku_username` / `hku_role` 等 | 登录态（见 `auth.js`）；登出时清理当前会话键与遗留全局 `RAG_CONVERSATIONS`。 |
 
 页面也可在构建/注入时设置全局变量 `window.__API_BASE__` 指定 API 根地址（优先级高于部分默认逻辑）。
 

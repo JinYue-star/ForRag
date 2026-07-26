@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HKU SOLO Bot — Export</title>
+    <meta name="description" content="Filter, preview and export student learning data from HKU SOLO Bot." data-content-en="Filter, preview and export student learning data from HKU SOLO Bot." data-content-zh="筛选、预览并导出港大 SOLO 机器人的学生学习数据。">
+    <title data-en="HKU SOLO Bot — Export" data-zh="港大 SOLO 机器人——导出">HKU SOLO Bot — Export</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/x-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23006B54'><path d='M12 2L2 7l10 5 10-5-10-5z'/></svg>">
 </head>
 <body data-hku-role="teacher">
     <main class="hku-teacher-body">
         <h1 data-i18n="export.title">Export</h1>
-        <p class="hku-teacher-sub" data-i18n="export.subtitle">Filter, preview, then download as CSV or Excel.</p>
+        <p class="hku-teacher-sub" data-i18n="export.subtitle">Filter and download student questions and quiz scores.</p>
 
         <section class="hku-panel">
             <h2 data-i18n="export.filters">Filters</h2>
@@ -36,14 +37,11 @@
                 </div>
             </div>
 
+            <p style="margin:12px 0 0;font-size:13px;color:#5a6b65;" data-en="Exports student questions and quiz scores." data-zh="导出学生提问与测验成绩。">Exports student questions and quiz scores.</p>
             <div style="margin-top:16px;display:flex;flex-wrap:wrap;gap:18px;">
                 <label style="display:flex;align-items:center;gap:8px;font-size:14px;">
-                    <input type="checkbox" id="incQuestions" checked>
+                    <input type="checkbox" id="incQuestions">
                     <span data-i18n="export.mod.questions">Student questions</span>
-                </label>
-                <label style="display:flex;align-items:center;gap:8px;font-size:14px;">
-                    <input type="checkbox" id="incAnswers">
-                    <span data-i18n="export.mod.answers">System answer summaries (optional)</span>
                 </label>
                 <label style="display:flex;align-items:center;gap:8px;font-size:14px;">
                     <input type="checkbox" id="incQuiz" checked>
@@ -51,17 +49,14 @@
                 </label>
             </div>
 
-            <div style="margin-top:18px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
-                <button type="button" class="hku-inline-btn" id="previewBtn" data-i18n="export.preview">Preview</button>
-                <label style="display:flex;align-items:center;gap:8px;font-size:14px;">
-                    <span data-i18n="export.format">Format</span>
-                    <select id="formatSelect" class="composer-select" style="height:38px;border-radius:8px;border:1px solid var(--gem-line);padding:0 10px;">
-                        <option value="xlsx">Excel (.xlsx)</option>
-                        <option value="csv">CSV (.csv)</option>
-                    </select>
-                </label>
-                <button type="button" class="hku-btn-primary" style="width:auto;padding:0 22px;height:38px;" id="downloadBtn" data-i18n="export.download">Export</button>
-                <button type="button" class="hku-inline-btn" id="saveToKbBtn">Save questions to KB</button>
+            <div class="export-actions">
+                <button type="button" class="hku-inline-btn export-action" id="previewBtn" data-i18n="export.preview">Preview</button>
+                <select id="formatSelect" class="composer-select export-action" aria-label="Export format" data-aria-label-en="Export format" data-aria-label-zh="导出格式">
+                    <option value="xlsx" data-en="Excel workbook (.xlsx)" data-zh="Excel 工作簿 (.xlsx)">Excel workbook (.xlsx)</option>
+                    <option value="csv" data-en="CSV file (.csv)" data-zh="CSV 文件 (.csv)">CSV file (.csv)</option>
+                </select>
+                <button type="button" class="hku-btn-primary export-action" id="downloadBtn" data-i18n="export.download">Export</button>
+                <button type="button" class="hku-inline-btn export-action" id="saveToKbBtn" data-en="Save questions to knowledge base" data-zh="将问题保存到知识库">Save questions to knowledge base</button>
             </div>
             <div class="hku-auth-error" id="exportError"></div>
         </section>
@@ -79,8 +74,41 @@
     <script>
     (function () {
         var errorEl = document.getElementById("exportError");
-        function showError(msg) { errorEl.textContent = msg; errorEl.classList.add("show"); setTimeout(function(){errorEl.classList.remove("show");}, 4500); }
-        function T(k) { return (window.HKU && window.HKU.t) ? window.HKU.t(k) : k; }
+        var previewCache = null;
+        var currentError = null;
+        var currentToast = null;
+
+        function text(en, zh, vars) {
+            return (window.HKU && window.HKU.text) ? window.HKU.text(en, zh, vars) : en;
+        }
+
+        function errorPair(detail, fallbackEn, fallbackZh) {
+            var messages = {
+                "请至少选择一个导出模块": ["Select at least one module.", "请至少选择一个导出模块。"],
+                "当前筛选条件下没有学生提问可保存": ["There are no student questions to save for the selected filters.", "当前筛选条件下没有学生提问可保存。"],
+                "缺少 openpyxl 依赖，无法导出 Excel。请安装：pip install openpyxl，或改用 CSV 导出。": ["Excel export is unavailable because openpyxl is not installed. Install it with “pip install openpyxl” or export as CSV.", "缺少 openpyxl 依赖，无法导出 Excel。请安装：pip install openpyxl，或改用 CSV 导出。"],
+                "缺少 openpyxl，请改用 CSV 格式保存到知识库": ["Saving as Excel is unavailable because openpyxl is not installed. Select CSV instead.", "缺少 openpyxl，请改用 CSV 格式保存到知识库。"],
+                "请先登录": ["Please sign in first.", "请先登录。"],
+                "登录已过期或无效，请重新登录": ["Your session has expired or is invalid. Please sign in again.", "登录已过期或无效，请重新登录。"],
+                "账号已被禁用": ["This account has been disabled.", "账号已被禁用。"],
+                "仅教师可执行该操作": ["Only teachers can perform this action.", "仅教师可执行该操作。"]
+            };
+            var known = messages[String(detail || "")];
+            return known ? { en: known[0], zh: known[1] } : {
+                en: fallbackEn,
+                zh: detail || fallbackZh
+            };
+        }
+
+        function showError(en, zh) {
+            currentError = { en: en, zh: zh };
+            errorEl.textContent = text(en, zh);
+            errorEl.classList.add("show");
+            setTimeout(function () {
+                errorEl.classList.remove("show");
+                currentError = null;
+            }, 4500);
+        }
         function esc(s) { var d = document.createElement("div"); d.textContent = String(s == null ? "" : s); return d.innerHTML; }
 
         var rangePreset = document.getElementById("rangePreset");
@@ -113,8 +141,9 @@
             return {
                 start: r.start,
                 end: r.end,
+                // Privacy: questions + quiz only; never export chat / answer transcripts.
                 include_questions: document.getElementById("incQuestions").checked,
-                include_answers: document.getElementById("incAnswers").checked,
+                include_answers: false,
                 include_quiz: document.getElementById("incQuiz").checked,
                 format: document.getElementById("formatSelect").value
             };
@@ -126,36 +155,84 @@
 
         document.getElementById("previewBtn").addEventListener("click", async function () {
             var body = buildBody();
-            if (!body.include_questions && !body.include_answers && !body.include_quiz) {
-                showError(T("export.pickModule")); return;
+            if (!body.include_questions && !body.include_quiz) {
+                showError("Select at least one module.", "请至少选择一个模块。"); return;
             }
             try {
                 var res = await fetch(window.HKUAuth.API_BASE + "/api/v1/admin/export/preview", {
                     method: "POST", headers: authHeaders(), body: JSON.stringify(body)
                 });
                 var data = await res.json();
-                if (!res.ok) throw new Error(data.detail || "Preview failed");
+                if (!res.ok) throw errorPair(data && data.detail, "Failed to load the preview.", "加载预览失败。");
                 renderPreview(data);
-            } catch (e) { showError(e.message || "Preview failed"); }
+            } catch (e) { showError(e.en || "Failed to load the preview.", e.zh || "加载预览失败。"); }
         });
 
+        function columnTitle(column) {
+            var columns = {
+                time: ["Time", "时间"],
+                student_name: ["Student name", "学生姓名"],
+                student_no: ["Student number", "学号"],
+                username: ["Username", "用户名"],
+                session_id: ["Session ID", "会话 ID"],
+                question: ["Question", "问题"],
+                answer_summary: ["Answer summary", "回答摘要"],
+                grounded: ["Grounded in knowledge base", "有知识库依据"],
+                quiz_id: ["Quiz ID", "测验 ID"],
+                q_index: ["Question number", "题号"],
+                type: ["Question type", "题型"],
+                options: ["Options", "选项"],
+                correct_answer: ["Correct answer", "正确答案"],
+                student_answer: ["Student answer", "学生答案"],
+                is_correct: ["Correct", "是否正确"]
+            };
+            var label = columns[column];
+            return label ? text(label[0], label[1]) : String(column);
+        }
+
+        function displayValue(column, value) {
+            if (value === "yes") return text("Yes", "是");
+            if (value === "no") return text("No", "否");
+            if (value === true) return text("Yes", "是");
+            if (value === false) return text("No", "否");
+            if (column === "type") {
+                var types = {
+                    single: ["Single choice", "单选题"],
+                    multiple: ["Multiple choice", "多选题"],
+                    true_false: ["True or false", "判断题"],
+                    short_answer: ["Short answer", "简答题"]
+                };
+                var typeLabel = types[String(value || "").toLowerCase()];
+                if (typeLabel) return text(typeLabel[0], typeLabel[1]);
+            }
+            return value;
+        }
+
         function renderPreview(data) {
+            previewCache = data;
             var area = document.getElementById("previewArea");
             area.innerHTML = "";
-            var titles = { questions: T("export.mod.questions"), answers: T("export.mod.answers"), quiz: T("export.mod.quiz") };
+            var titles = {
+                questions: text("Student questions", "学生提问"),
+                answers: text("System answer summaries", "系统回答摘要"),
+                quiz: text("Quiz", "测验")
+            };
             Object.keys(data).forEach(function (mod) {
                 var block = data[mod];
                 var h = document.createElement("h3");
                 h.style.cssText = "margin:16px 0 8px;color:var(--hku-green-dark);font-size:15px;";
-                h.textContent = titles[mod] + " (" + block.total + ")";
+                h.textContent = text("{module} ({count})", "{module}（{count}）", {
+                    module: titles[mod] || mod,
+                    count: block.total
+                });
                 area.appendChild(h);
                 var wrap = document.createElement("div");
                 wrap.style.cssText = "overflow-x:auto;";
                 var t = document.createElement("table");
                 t.className = "hku-table";
-                var thead = "<thead><tr>" + block.columns.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") + "</tr></thead>";
+                var thead = "<thead><tr>" + block.columns.map(function (c) { return "<th>" + esc(columnTitle(c)) + "</th>"; }).join("") + "</tr></thead>";
                 var rows = block.rows.map(function (row) {
-                    return "<tr>" + block.columns.map(function (c) { return "<td>" + esc(row[c]) + "</td>"; }).join("") + "</tr>";
+                    return "<tr>" + block.columns.map(function (c) { return "<td>" + esc(displayValue(c, row[c])) + "</td>"; }).join("") + "</tr>";
                 }).join("");
                 t.innerHTML = thead + "<tbody>" + rows + "</tbody>";
                 wrap.appendChild(t);
@@ -163,7 +240,11 @@
                 if (block.total > block.rows.length) {
                     var more = document.createElement("p");
                     more.style.cssText = "color:#5a6b65;font-size:12.5px;margin:6px 0 0;";
-                    more.textContent = T("export.moreRows").replace("{n}", block.total - block.rows.length);
+                    more.textContent = text(
+                        "…and {count} more rows will be included in the file.",
+                        "……文件中还将包含另外 {count} 行。",
+                        { count: block.total - block.rows.length }
+                    );
                     area.appendChild(more);
                 }
             });
@@ -172,8 +253,8 @@
 
         document.getElementById("downloadBtn").addEventListener("click", async function () {
             var body = buildBody();
-            if (!body.include_questions && !body.include_answers && !body.include_quiz) {
-                showError(T("export.pickModule")); return;
+            if (!body.include_questions && !body.include_quiz) {
+                showError("Select at least one module.", "请至少选择一个模块。"); return;
             }
             try {
                 var res = await fetch(window.HKUAuth.API_BASE + "/api/v1/admin/export/file", {
@@ -181,7 +262,7 @@
                 });
                 if (!res.ok) {
                     var d = null; try { d = await res.json(); } catch (e) {}
-                    throw new Error((d && d.detail) || "Export failed");
+                    throw errorPair(d && d.detail, "Export failed.", "导出失败。");
                 }
                 var blob = await res.blob();
                 var disposition = res.headers.get("Content-Disposition") || "";
@@ -191,7 +272,7 @@
                 var a = document.createElement("a");
                 a.href = url; a.download = fname; document.body.appendChild(a); a.click();
                 a.remove(); URL.revokeObjectURL(url);
-            } catch (e) { showError(e.message || "Export failed"); }
+            } catch (e) { showError(e.en || "Export failed.", e.zh || "导出失败。"); }
         });
 
         document.getElementById("saveToKbBtn").addEventListener("click", async function () {
@@ -202,15 +283,42 @@
                     method: "POST", headers: authHeaders(), body: JSON.stringify(body)
                 });
                 var data = await res.json().catch(function () { return {}; });
-                if (!res.ok) throw new Error((data && data.detail) || "Save to KB failed");
+                if (!res.ok) throw errorPair(data && data.detail, "Failed to save questions to the knowledge base.", "将问题保存到知识库失败。");
                 var toast = document.getElementById("toast");
                 if (toast) {
-                    toast.querySelector(".toast-message").textContent =
-                        "Saved " + (data.question_count || 0) + " questions to KB: " + (data.title || "");
+                    currentToast = {
+                        count: data.question_count || 0,
+                        title: data.title || ""
+                    };
+                    toast.querySelector(".toast-message").textContent = text(
+                        "Saved {count} questions to the knowledge base: {title}",
+                        "已将 {count} 个问题保存到知识库：{title}",
+                        currentToast
+                    );
                     toast.className = "toast show success";
-                    setTimeout(function () { toast.classList.remove("show"); }, 4000);
+                    setTimeout(function () {
+                        toast.classList.remove("show");
+                        currentToast = null;
+                    }, 4000);
                 }
-            } catch (e) { showError(e.message || "Save to KB failed"); }
+            } catch (e) {
+                showError(
+                    e.en || "Failed to save questions to the knowledge base.",
+                    e.zh || "将问题保存到知识库失败。"
+                );
+            }
+        });
+
+        document.addEventListener("hku:langchange", function () {
+            if (previewCache) renderPreview(previewCache);
+            if (currentError) errorEl.textContent = text(currentError.en, currentError.zh);
+            if (currentToast) {
+                document.querySelector("#toast .toast-message").textContent = text(
+                    "Saved {count} questions to the knowledge base: {title}",
+                    "已将 {count} 个问题保存到知识库：{title}",
+                    currentToast
+                );
+            }
         });
 
         window.HKUAuth.requireRole("teacher");

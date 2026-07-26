@@ -49,6 +49,13 @@ class QAResponse(BaseModel):
     route: str
     hits: list[HitItem]
     kb_relevant: bool = True
+    grounding_label: str = "grounded"
+    answer_kind: str = "grounded"
+    service_unavailable: bool = False
+    sufficiency_checked: bool = False
+    sufficiency_sufficient: Optional[bool] = None
+    sufficiency_reason: Optional[str] = None
+    citation_coverage: Optional[float] = None
     no_kb_notice: Optional[str] = None
     quiz: Optional[QuizBundlePublic] = None
     citations: list[CitationItem] = Field(default_factory=list)
@@ -212,7 +219,8 @@ class ExportRequest(BaseModel):
     start: Optional[float] = None
     end: Optional[float] = None
     course_ids: Optional[list[str]] = None
-    include_questions: bool = True
+    include_questions: bool = False
+    # Deprecated / ignored: answer transcripts are never exported (privacy).
     include_answers: bool = False
     include_quiz: bool = True
     format: str = "xlsx"  # xlsx | csv

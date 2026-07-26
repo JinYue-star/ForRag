@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HKU SOLO Bot — Teacher Console</title>
+    <meta name="description" content="Manage course materials, students and exports in the HKU SOLO Bot teacher console." data-content-en="Manage course materials, students and exports in the HKU SOLO Bot teacher console." data-content-zh="在港大 SOLO 机器人教师控制台管理课程资料、学生与数据导出。">
+    <title data-en="HKU SOLO Bot — Teacher Console" data-zh="港大 SOLO 机器人——教师控制台">HKU SOLO Bot — Teacher Console</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/x-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23006B54'><path d='M12 2L2 7l10 5 10-5-10-5z'/></svg>">
 </head>
@@ -20,7 +21,7 @@
             </div>
             <div class="hku-tcard">
                 <div class="hku-tcard__title" data-i18n="teacher.card.export">Export</div>
-                <div class="hku-tcard__desc" data-i18n="teacher.card.export.desc">Export student questions and quiz data as CSV or Excel.</div>
+                <div class="hku-tcard__desc" data-i18n="teacher.card.export.desc">Export student questions and quiz scores.</div>
                 <a class="hku-tcard__btn" href="export.html" data-i18n="teacher.open">Open</a>
             </div>
         </div>
@@ -41,7 +42,7 @@
                         <th data-i18n="common.name">Name</th>
                         <th data-i18n="auth.studentno">Student number</th>
                         <th data-i18n="common.role">Role</th>
-                        <th></th>
+                        <th data-en="Actions" data-zh="操作">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="usersBody"></tbody>
@@ -51,25 +52,25 @@
             <form class="hku-form-row" id="createUserForm">
                 <div class="hku-field">
                     <label data-i18n="auth.username">Username</label>
-                    <input type="text" id="nuUsername" required>
+                    <input type="text" id="nuUsername" required data-placeholder-en="Enter a username" data-placeholder-zh="请输入用户名">
                 </div>
                 <div class="hku-field">
                     <label data-i18n="auth.password">Password</label>
-                    <input type="password" id="nuPassword" required>
+                    <input type="password" id="nuPassword" required data-placeholder-en="At least 6 characters" data-placeholder-zh="至少 6 个字符">
                 </div>
                 <div class="hku-field">
                     <label data-i18n="auth.displayname">Display name</label>
-                    <input type="text" id="nuDisplay">
+                    <input type="text" id="nuDisplay" data-placeholder-en="Enter a display name" data-placeholder-zh="请输入显示名称">
                 </div>
                 <div class="hku-field">
                     <label data-i18n="auth.studentno">Student number</label>
-                    <input type="text" id="nuStudentNo">
+                    <input type="text" id="nuStudentNo" data-placeholder-en="Enter a student number" data-placeholder-zh="请输入学号">
                 </div>
                 <div class="hku-field">
                     <label data-i18n="common.role">Role</label>
                     <select id="nuRole" class="composer-select" style="height:42px;border-radius:10px;border:1px solid var(--gem-line);padding:0 10px;">
-                        <option value="student">student</option>
-                        <option value="teacher">teacher</option>
+                        <option value="student" data-en="Student" data-zh="学生">Student</option>
+                        <option value="teacher" data-en="Teacher" data-zh="教师">Teacher</option>
                     </select>
                 </div>
                 <button type="submit" class="hku-btn-primary" style="width:auto;padding:0 20px;" data-i18n="common.create">Create</button>
@@ -85,8 +86,43 @@
     <script>
     (function () {
         var errorEl = document.getElementById("teacherError");
-        function showError(msg) { errorEl.textContent = msg; errorEl.classList.add("show"); setTimeout(function(){errorEl.classList.remove("show");}, 4000); }
-        function T(k) { return (window.HKU && window.HKU.t) ? window.HKU.t(k) : k; }
+        var currentError = null;
+        var usersCache = [];
+
+        function text(en, zh, vars) {
+            return (window.HKU && window.HKU.text) ? window.HKU.text(en, zh, vars) : en;
+        }
+
+        function errorPair(detail, fallbackEn, fallbackZh) {
+            var messages = {
+                "请先登录": ["Please sign in first.", "请先登录。"],
+                "登录已过期或无效，请重新登录": ["Your session has expired or is invalid. Please sign in again.", "登录已过期或无效，请重新登录。"],
+                "账号已被禁用": ["This account has been disabled.", "账号已被禁用。"],
+                "仅教师可执行该操作": ["Only teachers can perform this action.", "仅教师可执行该操作。"],
+                "请输入用户名": ["Enter a username.", "请输入用户名。"],
+                "密码至少 6 位": ["The password must be at least 6 characters.", "密码至少需要 6 个字符。"],
+                "用户名已被占用": ["That username is already in use.", "用户名已被占用。"],
+                "非法角色": ["The selected role is invalid.", "所选角色无效。"],
+                "创建用户失败": ["Failed to create the user.", "创建用户失败。"],
+                "不能删除当前登录账号": ["You cannot delete the account currently signed in.", "不能删除当前登录账号。"],
+                "用户不存在": ["The user does not exist.", "用户不存在。"]
+            };
+            var known = messages[String(detail || "")];
+            return known ? { en: known[0], zh: known[1] } : {
+                en: fallbackEn,
+                zh: detail || fallbackZh
+            };
+        }
+
+        function showError(en, zh) {
+            currentError = { en: en, zh: zh };
+            errorEl.textContent = text(en, zh);
+            errorEl.classList.add("show");
+            setTimeout(function () {
+                errorEl.classList.remove("show");
+                currentError = null;
+            }, 4000);
+        }
 
         async function loadCode() {
             try {
@@ -108,9 +144,41 @@
                     headers: { Authorization: "Bearer " + window.HKUAuth.token() }
                 });
                 var d = await res.json();
-                if (res.ok) document.getElementById("regCode").textContent = d.code;
-            } catch (e) { showError("Failed"); }
+                if (!res.ok) {
+                    var pair = errorPair(d && d.detail, "Failed to regenerate the registration code.", "重新生成注册码失败。");
+                    throw pair;
+                }
+                document.getElementById("regCode").textContent = d.code;
+            } catch (e) {
+                showError(e.en || "Failed to regenerate the registration code.", e.zh || "重新生成注册码失败。");
+            }
         });
+
+        function renderUsers() {
+            var body = document.getElementById("usersBody");
+            body.innerHTML = "";
+            document.getElementById("usersEmpty").style.display = usersCache.length ? "none" : "block";
+            usersCache.forEach(function (u) {
+                var tr = document.createElement("tr");
+                [u.username, u.display_name || "", u.student_no || ""].forEach(function (value) {
+                    var td = document.createElement("td");
+                    td.textContent = value == null ? "" : String(value);
+                    tr.appendChild(td);
+                });
+                var roleCell = document.createElement("td");
+                roleCell.textContent = u.role === "teacher" ? text("Teacher", "教师") :
+                    (u.role === "student" ? text("Student", "学生") : String(u.role || ""));
+                tr.appendChild(roleCell);
+                var actionCell = document.createElement("td");
+                var del = document.createElement("button");
+                del.className = "hku-inline-btn";
+                del.textContent = text("Delete", "删除");
+                del.addEventListener("click", function () { deleteUser(u.id); });
+                actionCell.appendChild(del);
+                tr.appendChild(actionCell);
+                body.appendChild(tr);
+            });
+        }
 
         async function loadUsers() {
             try {
@@ -118,29 +186,11 @@
                     headers: { Authorization: "Bearer " + window.HKUAuth.token() }
                 });
                 var users = await res.json();
-                if (!res.ok) throw new Error((users && users.detail) || "Failed");
-                var body = document.getElementById("usersBody");
-                body.innerHTML = "";
-                document.getElementById("usersEmpty").style.display = users.length ? "none" : "block";
-                users.forEach(function (u) {
-                    var tr = document.createElement("tr");
-                    tr.innerHTML =
-                        "<td>" + esc(u.username) + "</td>" +
-                        "<td>" + esc(u.display_name || "") + "</td>" +
-                        "<td>" + esc(u.student_no || "") + "</td>" +
-                        "<td>" + esc(u.role) + "</td>" +
-                        "<td></td>";
-                    var del = document.createElement("button");
-                    del.className = "hku-inline-btn";
-                    del.textContent = T("common.delete");
-                    del.addEventListener("click", function () { deleteUser(u.id); });
-                    tr.lastChild.appendChild(del);
-                    body.appendChild(tr);
-                });
-            } catch (e) { showError(e.message || "Failed to load users"); }
+                if (!res.ok) throw errorPair(users && users.detail, "Failed to load users.", "加载用户失败。");
+                usersCache = users;
+                renderUsers();
+            } catch (e) { showError(e.en || "Failed to load users.", e.zh || "加载用户失败。"); }
         }
-
-        function esc(s) { var d = document.createElement("div"); d.textContent = String(s == null ? "" : s); return d.innerHTML; }
 
         async function deleteUser(id) {
             try {
@@ -148,9 +198,12 @@
                     method: "DELETE",
                     headers: { Authorization: "Bearer " + window.HKUAuth.token() }
                 });
-                if (!res.ok) { var d = await res.json(); throw new Error(d.detail || "Failed"); }
+                if (!res.ok) {
+                    var d = await res.json();
+                    throw errorPair(d && d.detail, "Failed to delete the user.", "删除用户失败。");
+                }
                 loadUsers();
-            } catch (e) { showError(e.message || "Delete failed"); }
+            } catch (e) { showError(e.en || "Failed to delete the user.", e.zh || "删除用户失败。"); }
         }
 
         document.getElementById("createUserForm").addEventListener("submit", async function (e) {
@@ -169,10 +222,15 @@
                     body: JSON.stringify(payload)
                 });
                 var d = await res.json();
-                if (!res.ok) throw new Error(d.detail || "Failed");
+                if (!res.ok) throw errorPair(d && d.detail, "Failed to create the user.", "创建用户失败。");
                 e.target.reset();
                 loadUsers();
-            } catch (err) { showError(err.message || "Create failed"); }
+            } catch (err) { showError(err.en || "Failed to create the user.", err.zh || "创建用户失败。"); }
+        });
+
+        document.addEventListener("hku:langchange", function () {
+            renderUsers();
+            if (currentError) errorEl.textContent = text(currentError.en, currentError.zh);
         });
 
         // Guard: must be a teacher.

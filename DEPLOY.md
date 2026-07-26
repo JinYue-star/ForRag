@@ -45,10 +45,12 @@ Open `http://<server-ip>:8000/` in a browser:
 - **Teacher** signs in with the admin account, then:
   - manages the shared **Course Knowledge Base** (upload materials/questions),
   - creates student accounts or shares the **registration code**,
-  - **exports** student questions / answer summaries / quiz data as Excel or CSV.
+  - **exports** student questions and/or quiz scores as Excel or CSV
+    (quiz checked by default; full chat / answer transcripts are not exported).
 - **Students** register with the course code (or an account created by the
   teacher) and can ask questions, upload temporary session files, and generate
-  quizzes. The knowledge base is **read-only** for students.
+  quizzes. Sessions are **owned per user** (another student cannot open yours).
+  The knowledge base is **read-only** for students.
 
 ## 5. Data & persistence
 

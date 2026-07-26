@@ -1,21 +1,17 @@
 /**
  * RAG chat UI: sidebar, chat history, async Q&A, quiz handoff.
  *
- * If the API requires an access token, run in the console:
- *   localStorage.setItem('RAG_ACCESS_TOKEN', '<same value as server RAG_ACCESS_TOKEN>')
- * then reload. If unset, requests omit Authorization (server must allow anonymous access).
+ * Login Bearer comes from HKUAuth (HKU_LOGIN_TOKEN). Server env RAG_ACCESS_TOKEN is
+ * a separate machine gate used only when login auth is disabled — do not paste it here.
+ * On GitHub Pages set: localStorage.RAG_API_BASE or window.__API_BASE__.
  */
 
-const isGitHubPages = window.location.hostname.endsWith('github.io');
-
-/** Same origin as the API when served together; dev front-end ports default to localhost:8000. */
 function resolveDefaultApiBase() {
-    if (isGitHubPages) {
-        return 'https://kitty-collapse-ivory-vol.trycloudflare.com';
+    if (window.HKUAuth && typeof window.HKUAuth.resolveApiBase === 'function') {
+        return window.HKUAuth.resolveApiBase();
     }
-    if (window.location.protocol === 'file:') {
-        return 'http://127.0.0.1:8000';
-    }
+    if (window.location.hostname.endsWith('github.io')) return '';
+    if (window.location.protocol === 'file:') return 'http://127.0.0.1:8000';
     const port = window.location.port;
     const devFrontendPorts = new Set(['5500', '5501', '3000', '5173', '4173', '8080']);
     if (port && devFrontendPorts.has(port)) {
@@ -24,17 +20,9 @@ function resolveDefaultApiBase() {
     return window.location.origin;
 }
 
-const DEFAULT_API_BASE = resolveDefaultApiBase();
-const storedApiBase = localStorage.getItem('RAG_API_BASE');
-const staleApiBases = new Set([
-    'http://35.77.38.184:8000',
-    'http://35.77.38.184:8001',
-    'https://kitty-collapse-ivory-vol.trycloudflare.com'
-]);
-const runtimeApiBase =
-    window.__API_BASE__ ||
-    (storedApiBase && !staleApiBases.has(storedApiBase) ? storedApiBase : DEFAULT_API_BASE);
-const normalizedApiBase = String(runtimeApiBase).replace(/\/+$/, '');
+const normalizedApiBase = String(
+    (window.HKUAuth && window.HKUAuth.API_BASE) || resolveDefaultApiBase()
+).replace(/\/+$/, '');
 
 const CONFIG = {
     API_BASE: normalizedApiBase,
@@ -73,15 +61,31 @@ const state = {
     isUploading: false,
     chatMutating: false,
     messages: [],
-    historyMenuAnchorSid: null
+    historyMenuAnchorSid: null,
+    toastCopy: null
 };
+
+function text(en, zh, vars) {
+    return window.HKU && typeof window.HKU.text === 'function'
+        ? window.HKU.text(en, zh, vars)
+        : en.replace(/\{([^}]+)\}/g, (match, key) =>
+            vars && Object.prototype.hasOwnProperty.call(vars, key) ? String(vars[key]) : match
+        );
+}
+
+function isDefaultChatTitle(title) {
+    return !title || title === 'New chat' || title === '新对话' || title === '新建对话';
+}
+
+function localizedChatTitle(title) {
+    return isDefaultChatTitle(title) ? text('New chat', '新建对话') : title;
+}
 
 const elements = {
     uploadZone: document.getElementById('uploadZone'),
     fileInput: document.getElementById('fileInput'),
     fileList: document.getElementById('fileList'),
     questionInput: document.getElementById('questionInput'),
-    topKSelect: document.getElementById('topKSelect'),
     submitBtn: document.getElementById('submitBtn'),
     chatMessages: document.getElementById('chatMessages'),
     newChatBtn: document.getElementById('newChatBtn'),
@@ -92,7 +96,6 @@ const elements = {
     composerMicBtn: document.getElementById('composerMicBtn'),
     composerFileInput: document.getElementById('composerFileInput'),
     composerImageInput: document.getElementById('composerImageInput'),
-    generateBar: document.getElementById('generateBar'),
     generateQuizBtn: document.getElementById('generateQuizBtn'),
     toast: document.getElementById('toast'),
     sessionFilesTrigger: document.getElementById('sessionFilesTrigger'),
@@ -101,10 +104,11 @@ const elements = {
     sessionFilesPreview: document.getElementById('sessionFilesPreview')
 };
 
-function showToast(message, isError = false, isSuccess = false) {
+function showToast(message, isError = false, isSuccess = false, copy = null) {
     const toast = elements.toast;
     const messageEl = toast.querySelector('.toast-message');
     messageEl.textContent = message;
+    state.toastCopy = copy;
     
     // Reset toast styles
     toast.className = 'toast';
@@ -116,7 +120,15 @@ function showToast(message, isError = false, isSuccess = false) {
     }
     
     toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 3500);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        state.toastCopy = null;
+    }, 3500);
+}
+
+function showTextToast(en, zh, isError = false, isSuccess = false, vars) {
+    const copy = { en, zh, vars };
+    showToast(text(en, zh, vars), isError, isSuccess, copy);
 }
 
 function getSessionId() {
@@ -134,9 +146,17 @@ function clearSession() {
     renderChat();
 }
 
+function conversationsStorageKey() {
+    const u =
+        (window.HKUAuth && typeof window.HKUAuth.username === 'function' && window.HKUAuth.username()) ||
+        '';
+    const name = String(u || '').trim().toLowerCase();
+    return name ? `${CONFIG.CONVERSATIONS_KEY}::${name}` : CONFIG.CONVERSATIONS_KEY;
+}
+
 function loadConversations() {
     try {
-        const raw = localStorage.getItem(CONFIG.CONVERSATIONS_KEY);
+        const raw = localStorage.getItem(conversationsStorageKey());
         if (!raw) return [];
         const data = JSON.parse(raw);
         return Array.isArray(data) ? data : [];
@@ -146,7 +166,7 @@ function loadConversations() {
 }
 
 function saveConversations(list) {
-    localStorage.setItem(CONFIG.CONVERSATIONS_KEY, JSON.stringify(list));
+    localStorage.setItem(conversationsStorageKey(), JSON.stringify(list));
 }
 
 function sortConversations(list) {
@@ -157,6 +177,21 @@ function sortConversations(list) {
 }
 
 function migrateConversations() {
+    // One-time: move legacy global RAG_CONVERSATIONS into the current user's namespace.
+    const namespaced = conversationsStorageKey();
+    if (namespaced !== CONFIG.CONVERSATIONS_KEY) {
+        try {
+            const legacy = localStorage.getItem(CONFIG.CONVERSATIONS_KEY);
+            if (legacy && !localStorage.getItem(namespaced)) {
+                localStorage.setItem(namespaced, legacy);
+                localStorage.removeItem(CONFIG.CONVERSATIONS_KEY);
+            } else if (legacy) {
+                localStorage.removeItem(CONFIG.CONVERSATIONS_KEY);
+            }
+        } catch (_) {
+            /* ignore */
+        }
+    }
     const sid = getSessionId();
     const sec = getSessionSecret();
     if (!sid || !sec) return;
@@ -182,8 +217,7 @@ function touchCurrentConversation() {
     list[i].updated_at = Date.now();
     const firstUser = state.messages.find((m) => m.role === 'user');
     const t = firstUser ? String(firstUser.content || '').trim() : '';
-    const defaultChatTitles = new Set(['新对话', 'New chat']);
-    if (t && (!list[i].title || defaultChatTitles.has(list[i].title))) {
+    if (t && isDefaultChatTitle(list[i].title)) {
         list[i].title = t.length > 36 ? `${t.slice(0, 36)}…` : t;
     }
     saveConversations(list);
@@ -214,28 +248,38 @@ function renderHistoryList() {
     if (list.length === 0) {
         const p = document.createElement('p');
         p.className = 'chat-history-empty';
-        p.textContent = 'No chats yet. Click New chat to begin.';
+        p.textContent = text(
+            'No chats yet. Click New chat to begin.',
+            '暂无对话。点击“新建对话”即可开始。'
+        );
         el.appendChild(p);
         return;
     }
     list.forEach((c) => {
+        const isActive = c.session_id === sid;
         const row = document.createElement('div');
-        row.className = `chat-history-item${c.session_id === sid ? ' is-active' : ''}`;
+        row.className = `chat-history-item${isActive ? ' is-active' : ''}`;
         row.dataset.sessionId = c.session_id;
         row.setAttribute('role', 'listitem');
+        if (isActive) {
+            row.setAttribute('aria-current', 'true');
+        }
 
         const titleBtn = document.createElement('button');
         titleBtn.type = 'button';
         titleBtn.className = 'chat-history-title';
-        titleBtn.title = c.title || 'Chat';
-        titleBtn.textContent = c.title || 'New chat';
+        titleBtn.title = localizedChatTitle(c.title) || text('Chat', '对话');
+        titleBtn.textContent = localizedChatTitle(c.title);
+        if (isActive) {
+            titleBtn.setAttribute('aria-current', 'page');
+        }
 
         const menuWrap = document.createElement('div');
         menuWrap.className = 'chat-history-menu-wrap';
         const menuBtn = document.createElement('button');
         menuBtn.type = 'button';
         menuBtn.className = 'chat-history-menu-btn';
-        menuBtn.setAttribute('aria-label', 'Chat actions');
+        menuBtn.setAttribute('aria-label', text('Chat actions', '对话操作'));
         menuBtn.dataset.sessionId = c.session_id;
         menuBtn.innerHTML =
             '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
@@ -245,8 +289,17 @@ function renderHistoryList() {
         row.appendChild(menuWrap);
         el.appendChild(row);
 
-        titleBtn.addEventListener('click', () => {
+        const onSelect = () => {
             switchConversation(c.session_id);
+        };
+        // Whole row is clickable (not only the title text).
+        row.addEventListener('click', (e) => {
+            if (e.target.closest('.chat-history-menu-btn')) return;
+            onSelect();
+        });
+        titleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            onSelect();
         });
         menuBtn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -270,6 +323,7 @@ function ensureHistoryMenuEl() {
 function closeHistoryMenu() {
     const el = ensureHistoryMenuEl();
     el.hidden = true;
+    el.style.visibility = '';
     el.innerHTML = '';
     state.historyMenuAnchorSid = null;
 }
@@ -278,9 +332,9 @@ function openHistoryMenu(anchorBtn, conv) {
     const el = ensureHistoryMenuEl();
     state.historyMenuAnchorSid = conv.session_id;
     el.innerHTML = `
-        <button type="button" data-action="pin">${conv.pinned ? 'Unpin' : 'Pin'}</button>
-        <button type="button" data-action="rename">Rename</button>
-        <button type="button" data-action="delete" class="is-danger">Delete</button>
+        <button type="button" data-action="pin">${conv.pinned ? text('Unpin', '取消置顶') : text('Pin', '置顶')}</button>
+        <button type="button" data-action="rename">${text('Rename', '重命名')}</button>
+        <button type="button" data-action="delete" class="is-danger">${text('Delete', '删除')}</button>
     `;
     el.querySelectorAll('button').forEach((b) => {
         b.addEventListener('click', (e) => {
@@ -293,12 +347,27 @@ function openHistoryMenu(anchorBtn, conv) {
         });
     });
 
-    const r = anchorBtn.getBoundingClientRect();
-    const desiredTop = r.bottom + 6;
-    const desiredLeft = Math.min(r.right - 160, window.innerWidth - 12 - 160);
-    el.style.top = `${Math.min(desiredTop, window.innerHeight - 12)}px`;
-    el.style.left = `${Math.max(12, desiredLeft)}px`;
+    // Position after paint so we can measure height and flip upward near the bottom.
+    el.style.visibility = 'hidden';
     el.hidden = false;
+    const r = anchorBtn.getBoundingClientRect();
+    const menuH = el.offsetHeight || 120;
+    const menuW = el.offsetWidth || 160;
+    const gap = 6;
+    const pad = 12;
+    let top = r.bottom + gap;
+    if (top + menuH > window.innerHeight - pad) {
+        top = r.top - gap - menuH; // open above the anchor
+    }
+    if (top < pad) {
+        top = Math.max(pad, window.innerHeight - pad - menuH);
+    }
+    let left = r.right - menuW;
+    left = Math.min(left, window.innerWidth - pad - menuW);
+    left = Math.max(pad, left);
+    el.style.top = `${Math.round(top)}px`;
+    el.style.left = `${Math.round(left)}px`;
+    el.style.visibility = '';
 }
 
 function togglePinConversation(sessionId) {
@@ -314,7 +383,7 @@ function renameConversation(sessionId) {
     const list = loadConversations();
     const entry = list.find((x) => x.session_id === sessionId);
     if (!entry) return;
-    const n = window.prompt('Chat title', entry.title || '');
+    const n = window.prompt(text('Chat title', '对话标题'), localizedChatTitle(entry.title));
     if (n == null) return;
     const t = n.trim();
     if (!t) return;
@@ -324,7 +393,10 @@ function renameConversation(sessionId) {
 }
 
 async function deleteConversation(sessionId) {
-    if (!window.confirm('Delete this chat? Session uploads, messages, and related data will be removed. This cannot be undone.')) {
+    if (!window.confirm(text(
+        'Delete this chat? Session uploads, messages, and related data will be removed. This cannot be undone.',
+        '删除此对话？本会话上传的文件、消息及相关数据都将被移除，且无法撤销。'
+    ))) {
         return;
     }
     const list = loadConversations();
@@ -347,7 +419,7 @@ async function deleteConversation(sessionId) {
         }
     } catch (err) {
         console.error(err);
-        showToast(err.message || 'Delete failed.', true);
+        showToast(err.message || text('Delete failed.', '删除失败。'), true);
         return;
     }
     const newList = list.filter((x) => x.session_id !== sessionId);
@@ -360,7 +432,7 @@ async function deleteConversation(sessionId) {
         }
     }
     renderHistoryList();
-    showToast('Chat deleted.', false, true);
+    showTextToast('Chat deleted.', '对话已删除。', false, true);
 }
 
 function applyConversation(entry) {
@@ -395,7 +467,7 @@ async function switchConversation(sessionId) {
 
 async function startNewConversation() {
     if (state.isLoading || state.isUploading || state.chatMutating) {
-        showToast('Please wait for the current action to finish.', true);
+        showTextToast('Please wait for the current action to finish.', '请等待当前操作完成。', true);
         return;
     }
     try {
@@ -421,16 +493,19 @@ async function startNewConversation() {
         await refreshServerFiles();
         await loadChatMessages();
         renderHistoryList();
-        showToast('New chat started.', false, true);
+        showTextToast('New chat started.', '已开始新对话。', false, true);
     } catch (err) {
         console.error(err);
-        showToast(err.message || 'Could not create session.', true);
+        showToast(err.message || text('Could not create session.', '无法创建会话。'), true);
     }
 }
 
 function authHeaders() {
     const h = {};
-    const access = (localStorage.getItem('RAG_ACCESS_TOKEN') || '').trim();
+    const access =
+        (window.HKUAuth && typeof window.HKUAuth.token === 'function' && window.HKUAuth.token()) ||
+        (localStorage.getItem('HKU_LOGIN_TOKEN') || '').trim() ||
+        (localStorage.getItem('RAG_ACCESS_TOKEN') || '').trim();
     if (access) {
         h['Authorization'] = `Bearer ${access}`;
     }
@@ -458,7 +533,11 @@ async function getErrorMessage(response) {
     } catch (_) {
         /* ignore */
     }
-    return `Request failed (${response.status})`;
+    return text(
+        'Request failed ({status})',
+        '请求失败（{status}）',
+        { status: response.status }
+    );
 }
 
 async function ensureSession() {
@@ -471,7 +550,7 @@ async function ensureSession() {
             return;
         }
         if (check.status === 401) {
-            throw new Error('Invalid access token.');
+            throw new Error(text('Invalid access token.', '访问令牌无效。'));
         }
         clearSession();
     }
@@ -568,10 +647,10 @@ async function deleteChatMessage(messageId) {
             throw new Error(await getErrorMessage(res));
         }
         await loadChatMessages();
-        showToast('Message deleted.', false, true);
+        showTextToast('Message deleted.', '消息已删除。', false, true);
     } catch (err) {
         console.error(err);
-        showToast(err.message || 'Delete failed.', true);
+        showToast(err.message || text('Delete failed.', '删除失败。'), true);
     } finally {
         state.chatMutating = false;
         updateNewChatButton();
@@ -584,7 +663,10 @@ async function clearAllChatMessages() {
     if (!getSessionId() || !getSessionSecret() || state.messages.length === 0) {
         return;
     }
-    if (!window.confirm('Clear all messages in this chat? This cannot be undone.')) {
+    if (!window.confirm(text(
+        'Clear all messages in this chat? This cannot be undone.',
+        '清除此对话中的全部消息？此操作无法撤销。'
+    ))) {
         return;
     }
     state.chatMutating = true;
@@ -600,10 +682,10 @@ async function clearAllChatMessages() {
             throw new Error(await getErrorMessage(res));
         }
         await loadChatMessages();
-        showToast('Chat cleared.', false, true);
+        showTextToast('Chat cleared.', '对话已清空。', false, true);
     } catch (err) {
         console.error(err);
-        showToast(err.message || 'Could not clear chat.', true);
+        showToast(err.message || text('Could not clear chat.', '无法清空对话。'), true);
     } finally {
         state.chatMutating = false;
         updateNewChatButton();
@@ -692,18 +774,28 @@ function updateSessionFilesPreview() {
         badge.hidden = false;
         trigger.setAttribute(
             'aria-label',
-            `本会话已上传 ${count} 个文件，悬停可查看全部文件名。`
+            text(
+                '{count} file(s) uploaded in this session. Hover to view all file names.',
+                '本会话已上传 {count} 个文件，悬停可查看全部文件名。',
+                { count }
+            )
         );
     } else {
         badge.hidden = true;
-        trigger.setAttribute('aria-label', '本会话尚未上传文件。');
+        trigger.setAttribute(
+            'aria-label',
+            text('No files have been uploaded in this session.', '本会话尚未上传文件。')
+        );
     }
 
     listEl.innerHTML = '';
     if (state.serverFiles.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'session-files-popover-empty';
-        empty.textContent = '本会话尚未上传文件。';
+        empty.textContent = text(
+            'No files have been uploaded in this session.',
+            '本会话尚未上传文件。'
+        );
         listEl.appendChild(empty);
         return;
     }
@@ -720,8 +812,10 @@ function updateSessionFilesPreview() {
             file.name ||
             file.filename ||
             String(file.stored_name || file.stored_rel || '').split(/[/\\]/).pop() ||
-            '（未命名）';
-        li.textContent = pending ? `${name}（上传中…）` : name;
+            text('(untitled)', '（未命名）');
+        li.textContent = pending
+            ? text('{name} (uploading…)', '{name}（上传中…）', { name })
+            : name;
         li.title = name;
         list.appendChild(li);
     });
@@ -741,7 +835,7 @@ function updateFileList() {
             emptyState.style.background = 'transparent';
             emptyState.style.border = 'none';
             emptyState.style.boxShadow = 'none';
-            emptyState.textContent = 'No files uploaded yet.';
+            emptyState.textContent = text('No files uploaded yet.', '尚未上传文件。');
             elements.fileList.appendChild(emptyState);
         } else {
             state.serverFiles.forEach((file) => {
@@ -751,7 +845,7 @@ function updateFileList() {
             <span class="file-icon">${getFileIcon(file.original_name)}</span>
             <span class="file-name" title="${file.original_name}">${file.original_name}</span>
             <span class="file-size">${formatBytes(file.size_bytes)}</span>
-            <button type="button" class="remove-btn" data-file-id="${file.id}" title="Remove file">
+            <button type="button" class="remove-btn" data-file-id="${file.id}" title="${text('Remove file', '移除文件')}" aria-label="${text('Remove file', '移除文件')}">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <line x1="18" y1="6" x2="6" y2="18"/>
                     <line x1="6" y1="6" x2="18" y2="18"/>
@@ -780,16 +874,46 @@ function updateNewChatButton() {
 
 const ASSISTANT_AVATAR_SVG = `<svg class="chat-avatar-icon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>`;
 
+function captureQuizSelections() {
+    const selections = new Map();
+    elements.chatMessages.querySelectorAll('.quiz-pick-cb').forEach((cb) => {
+        const row = cb.closest('.chat-msg');
+        const count = row && row.querySelector('.quiz-count-input');
+        selections.set(cb.dataset.messageId, {
+            checked: cb.checked,
+            count: count ? count.value : '1'
+        });
+    });
+    return selections;
+}
+
+function restoreQuizSelections(selections) {
+    elements.chatMessages.querySelectorAll('.quiz-pick-cb').forEach((cb) => {
+        const saved = selections.get(cb.dataset.messageId);
+        if (!saved) return;
+        cb.checked = saved.checked;
+        const count = cb.closest('.chat-msg')?.querySelector('.quiz-count-input');
+        if (count) count.value = saved.count;
+    });
+}
+
 function renderChat() {
+    const quizSelections = captureQuizSelections();
     if (state.messages.length === 0) {
         elements.chatMessages.innerHTML = `
-            <div class="chat-msg chat-msg--assistant">
+            <div class="chat-msg chat-msg--assistant chat-msg--welcome">
                 <div class="chat-msg-inner chat-msg-inner--assistant">
                     <div class="chat-avatar" aria-hidden="true">${ASSISTANT_AVATAR_SVG}</div>
                     <div class="chat-msg-main">
-                        <div class="chat-bubble">
-                            <p class="welcome-lead">Hi — type a question below to get started.</p>
-                            <p class="welcome-muted">We retrieve over this session’s uploads and your Knowledge Base notes. Attach files from the toolbar, tune how many chunks to fetch, and turn assistant replies into a quiz.</p>
+                        <div class="chat-bubble chat-welcome">
+                            <p class="welcome-lead">${text(
+                                'Hi — type a question below to get started.',
+                                '你好——请在下方输入问题开始使用。'
+                            )}</p>
+                            <p class="welcome-muted">${text(
+                                'We search the course Knowledge Base first (session uploads are optional supplements). Ask a question, then turn selected assistant replies into a quiz.',
+                                '检索以课程知识库为主，会话附件为可选补充。提问后，可勾选助手回复生成测验。'
+                            )}</p>
                         </div>
                     </div>
                 </div>
@@ -823,15 +947,82 @@ function renderChat() {
         const main = document.createElement('div');
         main.className = 'chat-msg-main';
 
+        const messageExtra = m.extra && typeof m.extra === 'object' ? m.extra : {};
+        if (m.role === 'assistant' && messageExtra.answer_kind) {
+            const status = document.createElement('div');
+            status.className = `answer-status answer-status--${messageExtra.answer_kind}`;
+            if (messageExtra.answer_kind === 'grounded') {
+                status.textContent = text('Course-evidence answer', '课程证据回答');
+            } else if (messageExtra.answer_kind === 'general') {
+                status.textContent = text('AI general-knowledge answer', 'AI 通识回答');
+            } else if (messageExtra.answer_kind === 'unavailable') {
+                status.textContent = text('AI service unavailable', 'AI 服务不可用');
+            } else if (messageExtra.answer_kind === 'verification_failed') {
+                // Legacy blocked answers; new pipeline no longer emits this kind.
+                status.textContent = text('Citation verification failed', '引用校验未通过');
+            }
+            main.appendChild(status);
+        }
+
+        const answerBlocked = messageExtra.answer_kind === 'unavailable';
         const bubble = document.createElement('div');
-        bubble.className = 'chat-bubble';
-        bubble.textContent = m.content || '';
+        bubble.className = 'chat-bubble'
+            + (answerBlocked ? ' chat-bubble--unavailable' : '');
+        if (messageExtra.answer_kind === 'unavailable') {
+            bubble.textContent = messageExtra.kb_relevant
+                ? text(
+                    'Potentially relevant course material was found, but the AI service is unavailable, so no evidence-constrained answer was generated. Please try again later.',
+                    '已检索到可能相关的课程资料，但 AI 服务当前不可用，因此未生成经过证据约束的可靠答案。请稍后重试。'
+                )
+                : text(
+                    'The course material does not provide enough evidence, and the AI service is unavailable, so no reliable answer can be generated. Please add more relevant material or try again later.',
+                    '课程资料不足以可靠回答该问题，且 AI 服务当前不可用，因此无法生成可靠答案。请补充更相关的资料或稍后重试。'
+                );
+        } else {
+            bubble.textContent = m.content || '';
+        }
         main.appendChild(bubble);
+
+        if (
+            m.role === 'assistant'
+            && answerBlocked
+            && Array.isArray(messageExtra.sources)
+            && messageExtra.sources.length
+        ) {
+            const sources = document.createElement('div');
+            sources.className = 'answer-candidate-sources';
+            const heading = document.createElement('div');
+            heading.className = 'answer-candidate-sources__title';
+            heading.textContent = text(
+                'Possibly related sources (not sufficient to support a conclusion)',
+                '可能相关的来源（不足以单独支持结论）'
+            );
+            sources.appendChild(heading);
+            const list = document.createElement('ul');
+            messageExtra.sources.forEach((source) => {
+                const item = document.createElement('li');
+                item.textContent = `${source.source || text('Unknown source', '未知来源')} · ${source.page_label || ''}`;
+                list.appendChild(item);
+            });
+            sources.appendChild(list);
+            main.appendChild(sources);
+        }
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.title = text('Delete this message', '删除此消息');
+        delBtn.setAttribute('aria-label', text('Delete this message', '删除此消息'));
+        delBtn.dataset.messageId = m.id;
+        delBtn.dataset.action = 'delete-message';
+        delBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
 
         if (m.role === 'assistant') {
             const fb = getFeedbackMap()[m.id];
             const toolbar = document.createElement('div');
             toolbar.className = 'assistant-msg-toolbar';
+            delBtn.className = 'msg-tb-btn msg-tb-btn--icon';
+            toolbar.appendChild(delBtn);
+
             const mkBtn = (label, icon, fbVal) => {
                 const b = document.createElement('button');
                 b.type = 'button';
@@ -847,71 +1038,35 @@ function renderChat() {
                 });
                 return b;
             };
-            toolbar.appendChild(mkBtn('Helpful', '👍', 'up'));
-            toolbar.appendChild(mkBtn('Needs work', '👎', 'down'));
+            toolbar.appendChild(mkBtn(text('Helpful', '有帮助'), '👍', 'up'));
+            toolbar.appendChild(mkBtn(text('Needs work', '需要改进'), '👎', 'down'));
 
             const copyB = document.createElement('button');
             copyB.type = 'button';
             copyB.className = 'msg-tb-btn';
-            copyB.textContent = 'Copy';
-            copyB.title = 'Copy reply';
+            copyB.textContent = text('Copy', '复制');
+            copyB.title = text('Copy reply', '复制回复');
+            copyB.setAttribute('aria-label', text('Copy reply', '复制回复'));
             copyB.addEventListener('click', async () => {
                 const text = m.content || '';
                 try {
                     await navigator.clipboard.writeText(text);
-                    showToast('Reply copied.', false, true);
+                    showTextToast('Reply copied.', '回复已复制。', false, true);
                 } catch (err) {
                     console.error(err);
-                    showToast('Copy failed.', true);
+                    showTextToast('Copy failed.', '复制失败。', true);
                 }
             });
             toolbar.appendChild(copyB);
-
-            const shareB = document.createElement('button');
-            shareB.type = 'button';
-            shareB.className = 'msg-tb-btn';
-            shareB.textContent = 'Share';
-            shareB.title = 'Share or copy';
-            shareB.addEventListener('click', async () => {
-                const text = m.content || '';
-                if (navigator.share) {
-                    try {
-                        await navigator.share({ text, title: 'Assistant reply' });
-                    } catch (e) {
-                        if (e && e.name !== 'AbortError') {
-                            try {
-                                await navigator.clipboard.writeText(text);
-                                showToast('Copied to clipboard.', false, true);
-                            } catch (_) {
-                                showToast('Share canceled.', false, false);
-                            }
-                        }
-                    }
-                } else {
-                    try {
-                        await navigator.clipboard.writeText(text);
-                        showToast('Copied to clipboard.', false, true);
-                    } catch (err) {
-                        showToast('Could not copy.', true);
-                    }
-                }
-            });
-            toolbar.appendChild(shareB);
             main.appendChild(toolbar);
+        } else {
+            delBtn.className = 'chat-msg-delete';
+            main.appendChild(delBtn);
         }
-
-        const delBtn = document.createElement('button');
-        delBtn.type = 'button';
-        delBtn.className = 'chat-msg-delete';
-        delBtn.title = 'Delete this message';
-        delBtn.setAttribute('aria-label', 'Delete this message');
-        delBtn.dataset.messageId = m.id;
-        delBtn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>`;
-        main.appendChild(delBtn);
         inner.appendChild(main);
         row.appendChild(inner);
 
-        if (m.role === 'assistant') {
+        if (m.role === 'assistant' && !answerBlocked) {
             const pick = document.createElement('label');
             pick.className = 'quiz-pick';
             const cb = document.createElement('input');
@@ -920,15 +1075,22 @@ function renderChat() {
             cb.dataset.messageId = m.id;
             cb.checked = false;
             pick.appendChild(cb);
-            pick.appendChild(document.createTextNode(' Include in quiz'));
+            pick.appendChild(document.createTextNode(text(' Include in quiz', ' 纳入测验')));
             const countInput = document.createElement('input');
             countInput.type = 'number';
             countInput.className = 'quiz-count-input';
             countInput.min = '1';
             countInput.max = '20';
             countInput.value = '1';
-            countInput.title = 'Number of questions from this reply';
-            pick.appendChild(document.createTextNode(' Questions '));
+            countInput.title = text(
+                'Number of questions from this reply',
+                '根据此回复生成的题目数量'
+            );
+            countInput.setAttribute(
+                'aria-label',
+                text('Number of questions from this reply', '根据此回复生成的题目数量')
+            );
+            pick.appendChild(document.createTextNode(text(' Questions ', ' 题目数 ')));
             pick.appendChild(countInput);
             row.appendChild(pick);
         }
@@ -937,11 +1099,12 @@ function renderChat() {
     });
 
     elements.chatMessages.appendChild(frag);
+    restoreQuizSelections(quizSelections);
     elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
     updateGenerateButtonState();
     updateNewChatButton();
 
-    elements.chatMessages.querySelectorAll('.chat-msg-delete').forEach((btn) => {
+    elements.chatMessages.querySelectorAll('[data-action="delete-message"]').forEach((btn) => {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             deleteChatMessage(btn.dataset.messageId);
@@ -977,7 +1140,7 @@ async function pollQaJob(jobId) {
             return j;
         }
         if (j.status === 'error') {
-            throw new Error(j.detail || 'Q&A failed.');
+            throw new Error(j.detail || text('Q&A failed.', '问答失败。'));
         }
         await sleep(CONFIG.POLL_MS);
     }
@@ -986,13 +1149,19 @@ async function pollQaJob(jobId) {
 async function submitQuestion() {
     const question = elements.questionInput.value.trim();
     if (!question) {
-        showToast('Please enter a question.', true);
+        showTextToast('Please enter a question.', '请输入问题。', true);
         return;
     }
     state.isLoading = true;
     elements.submitBtn.classList.add('loading');
     elements.submitBtn.disabled = true;
     updateGenerateButtonState();
+
+    // Clear composer immediately on send (restore on failure so the user can retry).
+    elements.questionInput.value = '';
+    if (typeof elements.questionInput.dispatchEvent === 'function') {
+        elements.questionInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
 
     // Show user message immediately
     const userMessage = {
@@ -1009,7 +1178,6 @@ async function submitQuestion() {
 
         const formData = new FormData();
         formData.append('question', question);
-        formData.append('top_k', parseInt(elements.topKSelect.value, 10));
 
         const start = await fetch(
             `${CONFIG.API_BASE}${CONFIG.API_SESSIONS}/${encodeURIComponent(getSessionId())}/qa/async`,
@@ -1022,11 +1190,24 @@ async function submitQuestion() {
         const job = await pollQaJob(jobId);
         const result = job.result;
         if (!result) {
-            throw new Error('No answer received.');
+            throw new Error(text('No answer received.', '未收到回答。'));
         }
 
         if (result.no_kb_notice) {
-            showToast(result.no_kb_notice, false, false);
+            if (result.service_unavailable) {
+                showTextToast(
+                    'AI service is unavailable, so no reliable answer was generated.',
+                    'AI 服务当前不可用，系统未生成不可靠的答案。',
+                    true
+                );
+            } else if (result.answer_kind === 'general') {
+                showTextToast(
+                    'Course evidence was insufficient; the response uses general AI knowledge (not a course conclusion).',
+                    '课程资料证据不足；以下为 AI 通识回答，不代表课程材料结论。'
+                );
+            } else {
+                showToast(result.no_kb_notice, false, false);
+            }
         }
         await loadChatMessages();
 
@@ -1041,14 +1222,17 @@ async function submitQuestion() {
         }
         updateGenerateButtonState();
 
-        elements.questionInput.value = '';
-        showToast('Answer ready.', false, true);
+        showTextToast('Answer ready.', '回答已生成。', false, true);
     } catch (err) {
         console.error(err);
-        showToast(err.message || 'Request failed.', true);
-        // Remove optimistic user bubble
+        showToast(err.message || text('Request failed.', '请求失败。'), true);
+        // Remove optimistic user bubble and put the question back for retry
         state.messages = state.messages.filter(m => !m.id.startsWith('temp-'));
         renderChat();
+        if (!elements.questionInput.value.trim()) {
+            elements.questionInput.value = question;
+            elements.questionInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
     } finally {
         state.isLoading = false;
         elements.submitBtn.classList.remove('loading');
@@ -1059,7 +1243,11 @@ async function submitQuestion() {
 async function generateQuizNavigate() {
     const checked = Array.from(elements.chatMessages.querySelectorAll('.quiz-pick-cb:checked'));
     if (checked.length === 0) {
-        showToast('Select at least one assistant message.', true);
+        showTextToast(
+            'Select at least one assistant message.',
+            '请至少选择一条助手消息。',
+            true
+        );
         return;
     }
     const segments = checked.map((cb) => {
@@ -1098,9 +1286,9 @@ async function generateQuizNavigate() {
         window.location.href = 'quiz.html';
     } catch (err) {
         console.error(err);
-        showToast(err.message || 'Could not generate quiz.', true);
+        showToast(err.message || text('Could not generate quiz.', '无法生成测验。'), true);
     } finally {
-        elements.generateQuizBtn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19.5A2.5 2.5 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 014 19.5v-15A2.5 2.5 016.5 2z"/></svg><span>Generate quiz</span>`;
+        elements.generateQuizBtn.textContent = text('Generate quiz', '生成测验');
         updateGenerateButtonState();
     }
 }
@@ -1110,13 +1298,19 @@ async function addFiles(fileList) {
     const validFiles = fileArray.filter(isValidFile);
     
     if (fileArray.length - validFiles.length > 0) {
-        showToast('Some file types were skipped.', false, false);
+        showTextToast('Some file types were skipped.', '已跳过部分不支持的文件类型。');
     }
     if (validFiles.length === 0) {
         return;
     }
     if (state.serverFiles.length + validFiles.length > CONFIG.MAX_FILES) {
-        showToast(`You can upload at most ${CONFIG.MAX_FILES} files.`, true);
+        showTextToast(
+            'You can upload at most {count} files.',
+            '最多可上传 {count} 个文件。',
+            true,
+            false,
+            { count: CONFIG.MAX_FILES }
+        );
         return;
     }
 
@@ -1145,10 +1339,10 @@ async function addFiles(fileList) {
             throw new Error(await getErrorMessage(res));
         }
         await refreshServerFiles();
-        showToast('Upload complete.', false, true);
+        showTextToast('Upload complete.', '上传完成。', false, true);
     } catch (err) {
         console.error(err);
-        showToast(err.message || 'Upload failed.', true);
+        showToast(err.message || text('Upload failed.', '上传失败。'), true);
         // Restore file list from server
         await refreshServerFiles();
     } finally {
@@ -1162,7 +1356,7 @@ async function deleteServerFile(fileId) {
         return;
     }
     if (!getSessionId() || !getSessionSecret()) {
-        showToast('Session invalid or expired.', true);
+        showTextToast('Session invalid or expired.', '会话无效或已过期。', true);
         return;
     }
     state.isUploading = true;
@@ -1176,10 +1370,10 @@ async function deleteServerFile(fileId) {
             throw new Error(await getErrorMessage(res));
         }
         await refreshServerFiles();
-        showToast('File removed.', false, true);
+        showTextToast('File removed.', '文件已移除。', false, true);
     } catch (err) {
         console.error(err);
-        showToast(err.message || 'Delete failed.', true);
+        showToast(err.message || text('Delete failed.', '删除失败。'), true);
     } finally {
         state.isUploading = false;
         updateSubmitButton();
@@ -1235,8 +1429,38 @@ function initSessionFilesPopover() {
     });
 }
 
+function rerenderLocalizedUi() {
+    const openMenuSid = state.historyMenuAnchorSid;
+    const scrollArea = elements.chatMessages.closest('.chat-scroll-area');
+    const previousScrollTop = scrollArea ? scrollArea.scrollTop : 0;
+    renderHistoryList();
+    updateFileList();
+    renderChat();
+    if (scrollArea) scrollArea.scrollTop = previousScrollTop;
+
+    if (state.toastCopy && elements.toast.classList.contains('show')) {
+        const { en, zh, vars } = state.toastCopy;
+        elements.toast.querySelector('.toast-message').textContent = text(en, zh, vars);
+    }
+
+    const generateLoading = elements.generateQuizBtn.querySelector('.btn-loading');
+    if (!generateLoading) {
+        elements.generateQuizBtn.textContent = text('Generate quiz', '生成测验');
+        updateGenerateButtonState();
+    }
+
+    if (openMenuSid) {
+        const conv = loadConversations().find((item) => item.session_id === openMenuSid);
+        const anchor = Array.from(
+            elements.chatHistoryList.querySelectorAll('.chat-history-menu-btn')
+        ).find((button) => button.dataset.sessionId === openMenuSid);
+        if (conv && anchor) openHistoryMenu(anchor, conv);
+    }
+}
+
 function initEventListeners() {
     initSessionFilesPopover();
+    document.addEventListener('hku:langchange', rerenderLocalizedUi);
     if (elements.uploadZone && elements.fileInput) {
         elements.uploadZone.addEventListener('click', () => {
             if (!state.isLoading && !state.isUploading) {
@@ -1305,23 +1529,35 @@ function initEventListeners() {
         elements.composerMicBtn.addEventListener('click', () => {
             const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SR) {
-                showToast('Voice input is not supported in this browser.', true);
+                showTextToast(
+                    'Voice input is not supported in this browser.',
+                    '此浏览器不支持语音输入。',
+                    true
+                );
                 return;
             }
             const rec = new SR();
-            rec.lang = 'en-US';
+            rec.lang = window.HKU && window.HKU.lang() === 'zh' ? 'zh-CN' : 'en-US';
             rec.onresult = (ev) => {
                 const t = ev.results[0][0].transcript;
                 const q = elements.questionInput;
                 q.value = `${q.value} ${t}`.trim();
                 updateSubmitButton();
             };
-            rec.onerror = () => showToast('Speech recognition error.', true);
+            rec.onerror = () => showTextToast(
+                'Speech recognition error.',
+                '语音识别出错。',
+                true
+            );
             try {
                 rec.start();
-                showToast('Listening…', false, false);
+                showTextToast('Listening…', '正在聆听……');
             } catch (err) {
-                showToast('Could not start speech recognition.', true);
+                showTextToast(
+                    'Could not start speech recognition.',
+                    '无法启动语音识别。',
+                    true
+                );
             }
         });
     }
@@ -1359,7 +1595,7 @@ async function checkApiHealth() {
     try {
         const res = await fetch(`${CONFIG.API_BASE}${CONFIG.API_HEALTH}`);
         if (!res.ok) {
-            showToast('The API may be unreachable.', true);
+            showTextToast('The API may be unreachable.', 'API 可能无法访问。', true);
         }
     } catch (err) {
         console.warn('API health check failed:', err);

@@ -3,42 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Practice quiz — exercises generated from your AI Assistant chats.">
-    <title>HKU SOLO Bot — Quiz</title>
+    <meta name="description" content="Practice quiz — exercises generated from your AI Assistant chats." data-content-en="Practice quiz — exercises generated from your AI Assistant chats." data-content-zh="练习测验——根据您的 AI 助手对话生成题目。">
+    <title data-en="HKU SOLO Bot — Quiz" data-zh="HKU SOLO Bot — 测验">HKU SOLO Bot — Quiz</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/x-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23006B54'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z'/></svg>">
 </head>
 <body class="app-shell app-shell--gemini">
-    <aside class="sidebar" id="appSidebar" aria-label="Navigation">
-        <nav class="sidebar-nav" aria-label="Main navigation">
+    <aside class="sidebar" id="appSidebar" aria-label="Navigation" data-aria-label-en="Navigation" data-aria-label-zh="导航">
+        <nav class="sidebar-nav" aria-label="Main navigation" data-aria-label-en="Main navigation" data-aria-label-zh="主导航">
             <a href="index.html" class="nav-link">
                 <span class="nav-link-icon" aria-hidden="true">
                     <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
                 </span>
-                <span class="nav-link-text" data-i18n="nav.assistant">AI Assistant</span>
+                <span class="nav-link-text" data-en="AI Assistant" data-zh="AI 助手">AI Assistant</span>
             </a>
             <a href="kb.html" class="nav-link">
                 <span class="nav-link-icon" aria-hidden="true">
                     <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
                 </span>
-                <span class="nav-link-text" data-i18n="nav.kb">Knowledge Base</span>
+                <span class="nav-link-text" data-en="Knowledge Base" data-zh="知识库">Knowledge Base</span>
             </a>
             <a href="quiz.html" class="nav-link active">
                 <span class="nav-link-icon" aria-hidden="true">
                     <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9.3" cy="11.2" r="1" fill="currentColor" stroke="none"/><circle cx="14.7" cy="11.2" r="1" fill="currentColor" stroke="none"/><path d="M9.5 14.2c.7.9 1.6 1.4 2.5 1.4s1.9-.5 2.6-1.4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
                 </span>
-                <span class="nav-link-text" data-i18n="nav.quiz">Quiz</span>
+                <span class="nav-link-text" data-en="Quiz" data-zh="测验">Quiz</span>
             </a>
         </nav>
-        <div class="sidebar-section-label">Docs</div>
-        <p class="sidebar-doc-hint">Generate a quiz on AI Assistant, then you’ll land here with the questions.</p>
+        <div class="sidebar-section-label" data-en="Guide" data-zh="指南">Guide</div>
+        <p class="sidebar-doc-hint" data-en="Generate a quiz in AI Assistant, and the questions will open here." data-zh="在 AI 助手中生成测验后，题目将在此处打开。">Generate a quiz in AI Assistant, and the questions will open here.</p>
     </aside>
 
     <div class="workspace">
         <header class="workspace-header">
             <div class="workspace-header-text">
-                <h1 class="workspace-title" data-i18n="quiz.title">Quiz</h1>
-                <p class="workspace-subtitle">Answer and get scored</p>
+                <h1 class="workspace-title" data-en="Quiz" data-zh="测验">Quiz</h1>
+                <p class="workspace-subtitle" data-en="Answer the questions and get your score" data-zh="完成答题并查看得分">Answer the questions and get your score</p>
             </div>
         </header>
 
@@ -50,28 +50,28 @@
                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                     </svg>
                 </div>
-                <h3 style="color: var(--color-gray-700); margin-bottom: var(--spacing-sm);">No quiz loaded</h3>
-                <p style="color: var(--color-gray-500); line-height: 1.6;">
+                <h3 style="color: var(--color-gray-700); margin-bottom: var(--spacing-sm);" data-en="No quiz loaded" data-zh="尚未加载测验">No quiz loaded</h3>
+                <p style="color: var(--color-gray-500); line-height: 1.6;" data-en="In AI Assistant, select assistant messages, choose the number of questions for each selection, and click Generate quiz. The questions will open here." data-zh="请在 AI 助手中选择助手消息，设置每项所生成的题目数量，然后点击“生成测验”。题目将在此处打开。">
                     On AI Assistant, select assistant messages, set how many questions per selection, then click Generate quiz. Questions will open here.
                 </p>
-                <a href="index.html" class="link-btn">← Back to AI Assistant</a>
+                <a href="index.html" class="link-btn" data-en="← Back to AI Assistant" data-zh="← 返回 AI 助手">← Back to AI Assistant</a>
             </div>
             
             <div id="quizInteractive" class="quiz-interactive-kahoot" style="display:none">
                 <div class="quiz-kahoot-topbar">
-                    <span id="quizTypeHint" class="quiz-kahoot-typehint">Mixed types</span>
+                    <span id="quizTypeHint" class="quiz-kahoot-typehint" data-en="Mixed question types" data-zh="混合题型">Mixed question types</span>
                 </div>
                 <div id="quizBody" class="quiz-body-kahoot"></div>
                 <div class="quiz-actions quiz-actions-kahoot">
-                    <button type="button" id="submitQuizBtn" class="submit-btn quiz-kahoot-submit">Submit for grading</button>
-                    <button type="button" id="resetQuizBtn" class="secondary-btn quiz-kahoot-reset">Clear answers</button>
+                    <button type="button" id="submitQuizBtn" class="submit-btn quiz-kahoot-submit" data-en="Submit for grading" data-zh="提交评分">Submit for grading</button>
+                    <button type="button" id="resetQuizBtn" class="secondary-btn quiz-kahoot-reset" data-en="Clear answers" data-zh="清空答案">Clear answers</button>
                 </div>
             </div>
             
             <div id="gradeCard" class="grade-card" style="display:none;">
                 <div class="card-header">
-                    <h3>🎯 Results</h3>
-                    <button type="button" id="restartQuizBtn" class="secondary-btn">🔄 New quiz</button>
+                    <h3 data-en="🎯 Results" data-zh="🎯 测验结果">🎯 Results</h3>
+                    <button type="button" id="restartQuizBtn" class="secondary-btn" data-en="🔄 New quiz" data-zh="🔄 新测验">🔄 New quiz</button>
                 </div>
                 
                 <div class="card-body">
@@ -88,30 +88,22 @@
         <span class="toast-message"></span>
     </div>
 
+    <script src="auth.js"></script>
+    <script src="brand.js"></script>
     <script>
 (function () {
-    const isGitHubPages = window.location.hostname.endsWith('github.io');
-    function resolveDefaultApiBase() {
-        if (isGitHubPages) {
-            return 'https://kitty-collapse-ivory-vol.trycloudflare.com';
-        }
-        if (window.location.protocol === 'file:') {
-            return 'http://127.0.0.1:8000';
-        }
-        var port = window.location.port;
-        var devPorts = { '5500': 1, '5501': 1, '3000': 1, '5173': 1, '4173': 1, '8080': 1 };
-        if (port && devPorts[port]) {
-            return window.location.protocol + '//' + window.location.hostname + ':8000';
-        }
-        return window.location.origin;
-    }
-    const DEFAULT_API_BASE = resolveDefaultApiBase();
-    const storedApiBase = localStorage.getItem('RAG_API_BASE');
-    const stale = new Set(['http://35.77.38.184:8000', 'http://35.77.38.184:8001', 'https://kitty-collapse-ivory-vol.trycloudflare.com']);
-    const API_BASE = String(window.__API_BASE__ || (storedApiBase && !stale.has(storedApiBase) ? storedApiBase : DEFAULT_API_BASE)).replace(/\/+$/, '');
+    const API_BASE = String(
+        (window.HKUAuth && window.HKUAuth.API_BASE) ||
+        (window.HKUAuth && window.HKUAuth.resolveApiBase && window.HKUAuth.resolveApiBase()) ||
+        ''
+    ).replace(/\/+$/, '');
     const LAST_QUIZ_KEY = 'RAG_LAST_QUIZ';
     const SID_KEY = 'RAG_SESSION_ID';
     const SEC_KEY = 'RAG_SESSION_SECRET';
+
+    function text(en, zh, vars) {
+        return window.HKU.text(en, zh, vars);
+    }
 
     const el = {
         empty: document.getElementById('quizEmpty'),
@@ -144,7 +136,10 @@
 
     function authHeaders() {
         var h = {};
-        var access = (localStorage.getItem('RAG_ACCESS_TOKEN') || '').trim();
+        var access =
+            (window.HKUAuth && window.HKUAuth.token && window.HKUAuth.token()) ||
+            (localStorage.getItem('HKU_LOGIN_TOKEN') || '').trim() ||
+            (localStorage.getItem('RAG_ACCESS_TOKEN') || '').trim();
         if (access) h['Authorization'] = 'Bearer ' + access;
         var sec = (localStorage.getItem(SEC_KEY) || '').trim();
         if (sec) h['X-Session-Secret'] = sec;
@@ -152,10 +147,10 @@
     }
 
     function quizTypeLabel(t) {
-        if (t === 'tf') return 'True / false';
-        if (t === 'single') return 'Single choice';
-        if (t === 'multi') return 'Multiple select';
-        return t || 'Question';
+        if (t === 'tf') return text('True / false', '判断题');
+        if (t === 'single') return text('Single choice', '单选题');
+        if (t === 'multi') return text('Multiple select', '多选题');
+        return t || text('Question', '题目');
     }
 
     function getQuizTypeEmoji(t) {
@@ -167,6 +162,8 @@
 
     var currentQuiz = null;
     var quizMode = 'session'; // 'session' | 'class'
+    var currentGradeData = null;
+    var gradeCompletedAt = null;
 
     var KAHOOT_COLOR_CLASSES = ['kahoot-tile--red', 'kahoot-tile--blue', 'kahoot-tile--yellow', 'kahoot-tile--green'];
     var KAHOOT_SHAPES_HTML = [
@@ -187,6 +184,37 @@
         if (n === 3) return 'kahoot-grid kahoot-grid--cols-3';
         if (n === 4) return 'kahoot-grid kahoot-grid--cols-4';
         return 'kahoot-grid kahoot-grid--flex';
+    }
+
+    function collectAnswers() {
+        if (!currentQuiz) return [];
+        return currentQuiz.items.map(function (item, i) {
+            if (item.type === 'tf' || item.type === 'single') {
+                var selected = el.quizBody.querySelector('input[name="quiz-opt-' + i + '"]:checked');
+                return selected ? selected.value : '';
+            }
+            if (item.type === 'multi') {
+                return Array.from(el.quizBody.querySelectorAll('input[name="quiz-multi-' + i + '"]:checked'))
+                    .map(function (input) { return input.value; });
+            }
+            return '';
+        });
+    }
+
+    function restoreAnswers(answers) {
+        if (!answers || !currentQuiz) return;
+        currentQuiz.items.forEach(function (item, i) {
+            if (item.type === 'tf' || item.type === 'single') {
+                Array.from(el.quizBody.querySelectorAll('input[name="quiz-opt-' + i + '"]')).forEach(function (input) {
+                    input.checked = input.value === answers[i];
+                });
+            } else if (item.type === 'multi') {
+                var selected = new Set(Array.isArray(answers[i]) ? answers[i] : []);
+                Array.from(el.quizBody.querySelectorAll('input[name="quiz-multi-' + i + '"]')).forEach(function (input) {
+                    input.checked = selected.has(input.value);
+                });
+            }
+        });
     }
 
     function renderQuiz(quiz) {
@@ -221,7 +249,11 @@
             var meta = document.createElement('div');
             meta.className = 'kahoot-meta-strip';
             meta.innerHTML =
-                '<span class="kahoot-progress" aria-hidden="true">Question ' + (i + 1) + ' / ' + total + '</span>' +
+                '<span class="kahoot-progress" aria-hidden="true">' +
+                escapeQuizText(text('Question {current} / {total}', '第 {current} / {total} 题', {
+                    current: i + 1,
+                    total: total
+                })) + '</span>' +
                 '<span class="kahoot-type-pill kahoot-type-pill--' + item.type + '">' +
                 escapeQuizText(quizTypeLabel(item.type)) + '</span>';
             wrap.appendChild(meta);
@@ -231,8 +263,8 @@
                 hintTf.className = 'kahoot-hint kahoot-hint--' + item.type;
                 hintTf.setAttribute('role', 'note');
                 hintTf.textContent = item.type === 'tf'
-                    ? 'True/false: tap the tile you believe is correct.'
-                    : 'Single choice: pick one answer — tap a tile.';
+                    ? text('True/false: tap the tile you believe is correct.', '判断题：点击您认为正确的选项。')
+                    : text('Single choice: pick one answer — tap a tile.', '单选题：点击一个选项作答。');
                 wrap.appendChild(hintTf);
 
                 var grid = document.createElement('div');
@@ -266,7 +298,10 @@
                 var multiHint = document.createElement('p');
                 multiHint.className = 'kahoot-hint kahoot-hint--multi';
                 multiHint.setAttribute('role', 'note');
-                multiHint.textContent = 'Multiple select: tap every correct tile; tap again to toggle.';
+                multiHint.textContent = text(
+                    'Multiple select: tap every correct tile; tap again to toggle.',
+                    '多选题：点击所有正确选项；再次点击可取消选择。'
+                );
 
                 var gridM = document.createElement('div');
                 gridM.className = kahootGridClass(item.options.length);
@@ -299,7 +334,11 @@
             } else {
                 var err = document.createElement('div');
                 err.className = 'kahoot-error';
-                err.textContent = 'Unsupported question type: ' + (item.type || '');
+                err.textContent = text(
+                    'Unsupported question type: {type}',
+                    '不支持的题型：{type}',
+                    { type: item.type || '' }
+                );
                 wrap.appendChild(err);
             }
 
@@ -307,7 +346,9 @@
         });
     }
 
-    function renderGrade(data) {
+    function renderGrade(data, announce) {
+        if (data !== currentGradeData) gradeCompletedAt = new Date();
+        currentGradeData = data;
         el.interactive.style.display = 'none';
         el.gradeCard.style.display = 'block';
 
@@ -318,22 +359,25 @@
         let performance = '';
         let performanceClass = '';
         if (accuracy >= 90) {
-            performance = '🎉 Excellent';
+            performance = text('🎉 Excellent', '🎉 优秀');
             performanceClass = 'success';
         } else if (accuracy >= 70) {
-            performance = '👍 Good';
+            performance = text('👍 Good', '👍 良好');
             performanceClass = 'info';
         } else if (accuracy >= 60) {
-            performance = '🔰 Passing';
+            performance = text('🔰 Passing', '🔰 及格');
             performanceClass = 'warning';
         } else {
-            performance = '⚠️ Keep practicing';
+            performance = text('⚠️ Keep practicing', '⚠️ 继续练习');
             performanceClass = 'error';
         }
 
         el.gradeSummary.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-sm);">
-                <span>Score: ${totalScore} / ${maxTotal} pts</span>
+                <span>${escapeQuizText(text('Score: {score} / {max} pts', '得分：{score} / {max} 分', {
+                    score: totalScore,
+                    max: maxTotal
+                }))}</span>
                 <span class="performance-badge ${performanceClass}" style="
                     padding: 4px 12px;
                     border-radius: 20px;
@@ -345,10 +389,12 @@
                     color: ${performanceClass === 'success' ? '#155724' : 
                             performanceClass === 'info' ? '#0c5460' : 
                             performanceClass === 'warning' ? '#856404' : '#721c24'};
-                ">${performance} (${accuracy}%)</span>
+                ">${escapeQuizText(performance)} (${accuracy}%)</span>
             </div>
             <div style="font-size: 13px; color: var(--color-gray-500);">
-                Completed: ${new Date().toLocaleString('en-US')}
+                ${escapeQuizText(text('Completed: {date}', '完成时间：{date}', {
+                    date: gradeCompletedAt.toLocaleString(window.HKU.lang() === 'zh' ? 'zh-CN' : 'en-US')
+                }))}
             </div>
         `;
 
@@ -359,35 +405,42 @@
 
             const isCorrect = row.score >= row.max_score * 0.8;
             const statusEmoji = isCorrect ? '✅' : '❌';
-            const statusClass = isCorrect ? 'success' : 'error';
+            const questionType = quizTypeLabel(row.question_type || '');
 
             div.innerHTML = `
                 <div class="grade-item-head">
                     <span style="display: flex; align-items: center; gap: 8px;">
                         ${statusEmoji}
-                        <span>Question ${index + 1} [${row.question_type || ''}]</span>
+                        <span>${escapeQuizText(text('Question {number}', '第 {number} 题', {
+                            number: index + 1
+                        }))} [${escapeQuizText(questionType)}]</span>
                     </span>
                     <span style="font-weight: 600; color: ${isCorrect ? 'var(--success-color)' : 'var(--error-color)'}">
-                        ${row.score || 0} / ${row.max_score || 10} pts
+                        ${escapeQuizText(text('{score} / {max} pts', '{score} / {max} 分', {
+                            score: row.score || 0,
+                            max: row.max_score || 10
+                        }))}
                     </span>
                 </div>
                 <div class="grade-item-detail">
                     <div style="margin-bottom: 8px;">
-                        <strong style="color: var(--color-gray-700);">Prompt:</strong>
-                        <span style="color: var(--color-gray-700);">${row.question || ''}</span>
+                        <strong style="color: var(--color-gray-700);">${escapeQuizText(text('Prompt:', '题目：'))}</strong>
+                        <span style="color: var(--color-gray-700);">${escapeQuizText(row.question || '')}</span>
                     </div>
                     <div style="margin-bottom: 8px;">
-                        <strong style="color: var(--color-gray-600);">Your answer:</strong>
-                        <span style="color: var(--color-gray-700);">${row.user_answer || '(empty)'}</span>
+                        <strong style="color: var(--color-gray-600);">${escapeQuizText(text('Your answer:', '您的答案：'))}</strong>
+                        <span style="color: var(--color-gray-700);">${escapeQuizText(row.user_answer || text('(empty)', '（未作答）'))}</span>
                     </div>
                     <div style="margin-bottom: 8px;">
-                        <strong style="color: ${isCorrect ? 'var(--success-color)' : 'var(--error-color)'}">${isCorrect ? 'Correct answer' : 'Reference answer'}:</strong>
-                        <span style="color: var(--color-gray-800); font-weight: 500;">${row.correct_answer || ''}</span>
+                        <strong style="color: ${isCorrect ? 'var(--success-color)' : 'var(--error-color)'}">${escapeQuizText(isCorrect
+                            ? text('Correct answer:', '正确答案：')
+                            : text('Reference answer:', '参考答案：'))}</strong>
+                        <span style="color: var(--color-gray-800); font-weight: 500;">${escapeQuizText(row.correct_answer || '')}</span>
                     </div>
                     ${row.comment ? `
                         <div style="padding: 12px; background: var(--color-gray-50); border-radius: var(--radius-sm); margin-top: 8px;">
-                            <strong style="color: var(--color-gray-700);">Feedback:</strong>
-                            <span style="color: var(--color-gray-800);">${row.comment}</span>
+                            <strong style="color: var(--color-gray-700);">${escapeQuizText(text('Feedback:', '反馈：'))}</strong>
+                            <span style="color: var(--color-gray-800);">${escapeQuizText(row.comment)}</span>
                         </div>
                     ` : ''}
                 </div>
@@ -397,21 +450,21 @@
 
         el.gradeAnalysis.innerHTML = data.analysis ? `
             <div style="padding: var(--spacing-md); background: var(--primary-light); border-radius: var(--radius-md);">
-                <strong style="color: var(--primary-color); display: block; margin-bottom: 8px;">📊 Summary:</strong>
-                <p style="color: var(--color-gray-800); margin: 0;">${data.analysis}</p>
+                <strong style="color: var(--primary-color); display: block; margin-bottom: 8px;">${escapeQuizText(text('📊 Summary:', '📊 总结：'))}</strong>
+                <p style="color: var(--color-gray-800); margin: 0;">${escapeQuizText(data.analysis)}</p>
             </div>
         ` : '';
 
-        showToast('Grading complete.', false, true);
+        if (announce !== false) showToast(text('Grading complete.', '评分完成。'), false, true);
     }
 
     async function submitGrade() {
         if (!currentQuiz) {
-            showToast('No quiz to submit.', true);
+            showToast(text('No quiz to submit.', '没有可提交的测验。'), true);
             return;
         }
         if (quizMode === 'session' && !localStorage.getItem(SID_KEY)) {
-            showToast('No quiz to submit.', true);
+            showToast(text('No quiz to submit.', '没有可提交的测验。'), true);
             return;
         }
 
@@ -432,7 +485,11 @@
 
         var need = items.length;
         if (answers.length !== need || answers.some(function (a) { return !String(a).trim(); })) {
-            showToast('Answer all ' + need + ' questions before submitting.', true);
+            showToast(text(
+                'Answer all {count} questions before submitting.',
+                '请先回答全部 {count} 道题再提交。',
+                { count: need }
+            ), true);
             return;
         }
 
@@ -454,7 +511,7 @@
 
             if (!res.ok) {
                 var t = await res.text();
-                var msg = t || 'Grading failed';
+                var msg = t || text('Grading failed.', '评分失败。');
                 try {
                     var j = JSON.parse(t);
                     if (j && j.detail) msg = typeof j.detail === 'string' ? j.detail : t;
@@ -465,30 +522,36 @@
             var data = await res.json();
             renderGrade(data);
         } catch (e) {
-            showToast(e.message || 'Grading failed', true);
+            showToast(e.message || text('Grading failed.', '评分失败。'), true);
         } finally {
             el.submitBtn.disabled = false;
-            el.submitBtn.innerHTML = 'Submit for grading';
+            el.submitBtn.textContent = text('Submit for grading', '提交评分');
         }
     }
 
     function resetQuiz() {
         if (!currentQuiz) return;
 
-        if (window.confirm('Clear your answers and try this quiz again?')) {
+        if (window.confirm(text(
+            'Clear your answers and try this quiz again?',
+            '要清空答案并重新作答吗？'
+        ))) {
             renderQuiz(currentQuiz);
-            showToast('Answers cleared.', false, true);
+            showToast(text('Answers cleared.', '答案已清空。'), false, true);
         }
     }
 
     function restartQuiz() {
         if (quizMode === 'class') {
-            if (window.confirm('Return to Knowledge Base?')) {
+            if (window.confirm(text('Return to Knowledge Base?', '要返回知识库吗？'))) {
                 window.location.href = 'kb.html';
             }
             return;
         }
-        if (window.confirm('Start over? You’ll return to AI Assistant to generate a new quiz.')) {
+        if (window.confirm(text(
+            'Start over? You’ll return to AI Assistant to generate a new quiz.',
+            '要重新开始吗？您将返回 AI 助手生成新测验。'
+        ))) {
             sessionStorage.removeItem(LAST_QUIZ_KEY);
             window.location.href = 'index.html';
         }
@@ -497,6 +560,27 @@
     el.submitBtn.addEventListener('click', submitGrade);
     el.resetBtn.addEventListener('click', resetQuiz);
     el.restartBtn.addEventListener('click', restartQuiz);
+
+    function updateRestartButton() {
+        var en = quizMode === 'class' ? '← Back to Knowledge Base' : '🔄 New quiz';
+        var zh = quizMode === 'class' ? '← 返回知识库' : '🔄 新测验';
+        el.restartBtn.setAttribute('data-en', en);
+        el.restartBtn.setAttribute('data-zh', zh);
+        el.restartBtn.textContent = text(en, zh);
+    }
+
+    document.addEventListener('hku:langchange', function () {
+        updateRestartButton();
+        if (currentGradeData && el.gradeCard.style.display !== 'none') {
+            renderGrade(currentGradeData, false);
+            return;
+        }
+        if (currentQuiz && el.interactive.style.display !== 'none') {
+            var answers = collectAnswers();
+            renderQuiz(currentQuiz);
+            restoreAnswers(answers);
+        }
+    });
 
     document.addEventListener('keydown', (e) => {
         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !el.submitBtn.disabled) {
@@ -525,18 +609,18 @@
                         var ej = JSON.parse(errText);
                         if (ej && ej.detail) detail = ej.detail;
                     } catch (_) {}
-                    throw new Error(detail || 'Failed to load class exercise');
+                    throw new Error(detail || text('Failed to load class exercise.', '班级练习加载失败。'));
                 }
                 var quiz = await res.json();
                 if (quiz && quiz.quiz_id && quiz.items && quiz.items.length > 0) {
                     renderQuiz(quiz);
-                    if (el.restartBtn) el.restartBtn.textContent = '← Back to KB';
+                    updateRestartButton();
                     return;
                 }
-                throw new Error('Empty quiz');
+                throw new Error(text('The quiz is empty.', '测验内容为空。'));
             } catch (e) {
                 console.error(e);
-                showToast(e.message || 'Failed to load class exercise.', true);
+                showToast(e.message || text('Failed to load class exercise.', '班级练习加载失败。'), true);
                 return;
             }
         }
@@ -551,7 +635,7 @@
             }
         } catch (e) {
             console.error(e);
-            showToast('Failed to load quiz.', true);
+            showToast(text('Failed to load quiz.', '测验加载失败。'), true);
         }
     }
 
@@ -559,8 +643,6 @@
 
 })();
     </script>
-    <script src="auth.js"></script>
     <script>window.HKUAuth && window.HKUAuth.requireRole();</script>
-    <script src="brand.js"></script>
 </body>
 </html>

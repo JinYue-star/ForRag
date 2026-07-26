@@ -226,5 +226,45 @@
   {
     "question": "List three challenges commonly encountered in processing biomedical signals.",
     "ground_truth": "Any three of: the signal can be difficult to acquire directly; the signal is affected by interactions among physiological systems that may not be isolated; variability among subjects and across time/situations; lack of a gold standard/ground truth; artifact or interference present within the signal."
+  },
+  {
+    "question": "What is the current weather in London?",
+    "ground_truth": "",
+    "expected_grounding": "general"
+  },
+  {
+    "question": "Who won the latest FIFA World Cup?",
+    "ground_truth": "",
+    "expected_grounding": "general"
+  },
+  {
+    "question": "Explain the tax filing deadline for a company registered in Hong Kong this year.",
+    "ground_truth": "",
+    "expected_grounding": "general"
+  },
+  {
+    "question": "Write a Python web scraper for a shopping website.",
+    "ground_truth": "",
+    "expected_grounding": "general"
+  },
+  {
+    "question": "What is the recommended treatment for my persistent chest pain?",
+    "ground_truth": "",
+    "expected_grounding": "general"
+  },
+  {
+    "question": "Compare the ELEC6081 examination format with the examination format of ELEC6082.",
+    "ground_truth": "",
+    "expected_grounding": "general"
+  },
+  {
+    "question": "Which EEG headset should I buy today, and what is its current price?",
+    "ground_truth": "",
+    "expected_grounding": "general"
+  },
+  {
+    "question": "What did the lecturer say verbally after the final slide of the EEG lecture?",
+    "ground_truth": "",
+    "expected_grounding": "general"
   }
 ]

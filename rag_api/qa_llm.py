@@ -61,22 +61,91 @@ def _normalize_hit_scores_to_pct(raw: list[float]) -> list[float]:
     return [max(0.0, min(100.0, (float(s) - lo) / (hi - lo) * 100.0)) for s in raw]
 
 
-def build_fallback_answer(question: str, hits: list[tuple[float, object]]) -> str:
-    if not hits:
-        return "没有检索到相关内容，请换个问法或上传更相关的文档。"
+SOURCE_SECTION_TITLE = "证据来源："
 
-    lead_score, lead_chunk = hits[0]
+
+def strip_source_section(answer: str) -> str:
+    """去掉系统追加的来源清单，便于重复计算覆盖率或再次修订。"""
+    text = answer or ""
+    marker = re.search(rf"(?m)^\s*{re.escape(SOURCE_SECTION_TITLE)}\s*$", text)
+    if not marker:
+        return text.strip()
+    return text[: marker.start()].rstrip()
+
+
+def _format_source_line(ref: int, chunk: object) -> str:
+    location = (getattr(chunk, "page_label", "") or "").strip()
+    source = (getattr(chunk, "source", "") or "").strip() or "未知来源"
+    return f"[{ref}] {source} · {location}" if location else f"[{ref}] {source}"
+
+
+def build_source_section(
+    answer: str,
+    hits: list[tuple[float, object]],
+    *,
+    fallback_all: bool = False,
+) -> str:
+    """按回答中实际出现的 [k]，用检索元数据生成可核对的来源清单。
+
+    ``fallback_all=True``：正文没有有效引用时，列出全部检索命中（软放行场景）。
+    """
+    refs = rag_pipeline.parse_citation_refs(answer)
+    lines: list[str] = []
+    for ref in sorted(ref for ref in refs if 1 <= ref <= len(hits)):
+        lines.append(_format_source_line(ref, hits[ref - 1][1]))
+    if not lines and fallback_all and hits:
+        lines = [_format_source_line(i + 1, chunk) for i, (_, chunk) in enumerate(hits)]
+    if not lines:
+        return ""
+    return "\n".join([SOURCE_SECTION_TITLE, *lines])
+
+
+def append_source_section(
+    answer: str,
+    hits: list[tuple[float, object]],
+    *,
+    fallback_all: bool = False,
+) -> str:
+    body = strip_source_section(answer)
+    section = build_source_section(body, hits, fallback_all=fallback_all)
+    if not section:
+        return body
+    return f"{body}\n\n{section}"
+
+
+def build_service_unavailable_answer(
+    _hits: list[tuple[float, object]],
+    *,
+    evidence_sufficient: bool,
+) -> str:
+    if evidence_sufficient:
+        lead = "已检索到可能相关的课程资料，但 AI 服务当前不可用，无法生成经过证据约束的可靠答案。"
+    else:
+        lead = "课程资料不足以可靠回答该问题，且 AI 服务当前不可用，无法生成通识性答案。"
     lines = [
-        "当前使用快速检索模式，未调用本地大模型。",
-        f"最相关内容来自 `{lead_chunk.source}` 的 `{lead_chunk.page_label}`。",
-        f"参考摘要：{compact_text(lead_chunk.text, limit=280)}",
-        f"相关度：{lead_score:.4f}",
+        f"【暂时无法回答】{lead}",
+        "请稍后重试，或补充更直接相关的课程材料。",
     ]
-    if len(hits) > 1:
-        refs = "；".join(f"{chunk.source} {chunk.page_label}" for _, chunk in hits[:3])
-        lines.append(f"其他参考：{refs}")
-    lines.append(f"问题：{question}")
     return "\n".join(lines)
+
+
+def _evidence_body(chunk: object, idx: int, parent_first_ref: dict[str, int]) -> str:
+    """证据正文：命中子块时展开其所在页/幻灯片（parent-child retrieval）。
+
+    子块适合嵌入与重排（语义集中），但作答需要上下文，因此提示词里给父级整段。
+    同一父级被多次命中时只展开一次，后续命中只给子块片段，避免重复占用上下文。
+    """
+    limit = settings.PROMPT_CHUNK_CHAR_LIMIT
+    text = getattr(chunk, "text", "") or ""
+    parent_id = (getattr(chunk, "parent_id", "") or "").strip()
+    parent_text = (getattr(chunk, "parent_text", "") or "").strip()
+    if parent_id and parent_text:
+        first = parent_first_ref.get(parent_id)
+        if first is None:
+            parent_first_ref[parent_id] = idx
+            return compact_text(parent_text, limit=limit)
+        return f"（与 [{first}] 同一位置，此处仅列该处的相关片段）{compact_text(text, limit=limit)}"
+    return compact_text(text, limit=limit)
 
 
 def build_strategy_prompt(question: str, hits: list[tuple[float, object]]) -> str:
@@ -84,6 +153,7 @@ def build_strategy_prompt(question: str, hits: list[tuple[float, object]]) -> st
         return build_no_kb_prompt(question)
 
     evidence_blocks = []
+    parent_first_ref: dict[str, int] = {}
     for idx, (score, chunk) in enumerate(hits, start=1):
         evidence_blocks.append(
             "\n".join(
@@ -92,7 +162,7 @@ def build_strategy_prompt(question: str, hits: list[tuple[float, object]]) -> st
                     f"位置: {chunk.page_label}",
                     f"说明: {chunk.meta}",
                     f"相关度: {score:.4f}",
-                    f"内容: {compact_text(chunk.text, limit=settings.PROMPT_CHUNK_CHAR_LIMIT)}",
+                    f"内容: {_evidence_body(chunk, idx, parent_first_ref)}",
                 ]
             )
         )
@@ -102,26 +172,25 @@ def build_strategy_prompt(question: str, hits: list[tuple[float, object]]) -> st
         "你面向【课程学习、作业与学术答辩备询】等场景。身份：严谨的文档依据型助手。回答须学术化表达："
         "用语准确、逻辑清楚；先给可核对的核心结论，再作必要展开；避免口语化与模糊断言。\n"
         "只依据下述检索证据作答；对证据中未出现的信息不得当作事实写出。若作合理归纳或推断，"
-        "须在 Answer 中点明是「从材料可归纳/可推出」，且不得外推到证据无法支撑的程度。\n\n"
+        "须点明是「从材料可归纳/可推出」，且不得外推到证据无法支撑的程度。\n\n"
         "【学术写作要求】\n"
         "• 对术语可在证据范围内简要界定；若多段证据有细微表述差异，应如实反映或说明以何者为准、为何如此。\n"
-        "• 若问题涉及比较、条件或适用边界，在 Answer 中写清「适用于…」「前提为…」等，避免过宽结论。\n"
-        "• 若证据仅部分覆盖问题，须明确写「材料未充分说明/未涉及…」，可指出尚需何种材料，勿补写虚构细节。\n\n"
-        "【输出格式】必须严格按下述结构书写：单独一行以 Answer: 开头；"
-        "随后每条证据单独一行，以 - Evidence k 开头（k 为正整数，与检索证据块序号一致）。\n"
-        "Answer:\n"
-        "<先写学术化核心结论或首句。**每一个事实性句子/分句结尾都必须紧跟其依据的证据编号**，如「……结论[1]。」「……条件[2][3]。」"
-        "编号与下方 Evidence 的 k 一致，仅标实际用到的证据；纯过渡句可不标。不要把多句合并后只在段末标一次。>\n"
-        "\n"
-        "- Evidence 1 (与检索块「来源」一致的文件名, 与「位置」一致的位置描述): "
-        "简要说明该段如何支持 Answer，避免大段照抄；行末再写 [1]。\n"
-        "- Evidence 2 (...): ... [2]\n"
-        "依此类推；仅列出在 Answer 中实际引用过的证据。\n"
-        "若连续两条来自同一文件、仅位置不同，从第二条起可将括号内写为：(same file, 与「位置」字段一致)，仍以英文 same file 开头。\n\n"
+        "• 若问题涉及比较、条件或适用边界，写清「适用于…」「前提为…」等，避免过宽结论。\n"
+        "• 若证据仅部分覆盖问题，须明确写「材料未充分说明/未涉及…」，可指出尚需何种材料，勿补写虚构细节。\n"
+        "• 直接陈述学术内容，不要写「证据[k]中提到…」「材料[k]显示…」这类元描述，编号只出现在句末标注处。\n"
+        "• 公式与符号一律用纯文本书写，如 fs > 2*fmax、O(n log n)；不得使用 LaTeX 记法或 \\( \\)、$$ 等包裹。\n\n"
+        "【输出格式】直接给出连贯的学术性回答，不要使用「结论」「说明」「证据边界」这类分段标题，"
+        "也不要输出小标题、前言或收尾寄语。\n"
+        "• 开头一到两句给出可核对的核心判断，随后自然展开必要的定义、条件、机制与适用边界；"
+        "内容较多时可用 1. 2. 3. 分点，但每点仍是完整陈述句，不加点内标题。\n"
+        "• **每个事实性句子或分句末尾都必须紧跟其依据的证据编号**，如「……结论[1]。」「……条件[2][3]。」"
+        "编号与检索证据块序号一致，仅标实际用到的证据。\n"
+        f"• 不要自行编写「{SOURCE_SECTION_TITLE}」，也不要罗列文件名或页码——来源清单由系统按真实元数据自动追加。\n\n"
         "【规则】\n"
-        "1. Evidence 序号 k 与证据块 [k] 须一致，方括号为半角；句级引用要覆盖 Answer 中每条事实性陈述。\n"
-        "2. 文件名、位置须与证据块中来源、位置一致，不得编造。\n"
-        "3. 证据不足时，在 Answer 中直陈不确定性或无法从所给材料完全确认，并说明缺口；Evidence 可列相关但不足的片段。\n"
+        "1. 引用编号 k 必须与检索证据块 [k] 对应，方括号为半角；句级引用要覆盖每条事实性陈述，"
+        "不要把多句合并后只在段末标一次；纯过渡句可不标。\n"
+        "2. 不得编写、猜测或改写文件名与页码位置。\n"
+        "3. 证据不足时，在正文相应位置直陈「材料未说明…」，不要另起标题或段落。\n"
         "4. 勿复述全段原文，勿编造引文、数据、结论。\n\n"
         f"用户问题：{question}\n\n"
         f"检索证据：\n{evidence_text}"
@@ -185,26 +254,93 @@ def generate_strategy_answer(
     text, route = invoke_llm(prompt, max_new_tokens)
     if text:
         return text, route
-    fb = build_fallback_answer(question, hits)
-    if route.startswith("api"):
-        return fb, "api_fallback"
-    if route.startswith("local"):
-        return fb, "local_fallback"
-    return fb, "fallback"
+    return "", route
 
 
-def _grounding_thresholds() -> tuple[float, float, float]:
-    """按当前评分口径返回 (multi_min, single_min, strong)。
+# 句末标点或换行处断句；英文句点仅在其后是空白时才算句末，避免切开 0.5、fs 2.0 这类数字。
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[。！？!?])|(?<=\.)(?=\s)|\n")
+
+# 声明材料缺口的句子（如「材料未说明…」）陈述的是证据不存在，无需也无法引用，故不计入分母。
+_EVIDENCE_GAP_RE = re.compile(
+    r"(材料|资料|文档|讲义|课件|证据)[^。！？!?]{0,20}(未|没有|不足|无从)"
+    r"|未(充分)?(说明|涉及|提及|给出|讨论|定义|覆盖)"
+    r"|无法(仅)?(从|凭|依据)?[^。！？!?]{0,16}(确认|确定|判断|得出)"
+)
+
+
+def citation_coverage(answer: str, evidence_count: int) -> tuple[float, int, int]:
+    """计算正文中事实性句子携带有效 [n] 引用的比例。
+
+    系统追加的来源清单不是模型断言，声明材料缺口的句子也无从引用，二者都不计入分母。
+    以句号级标点切句：分号连接的从句属同一断言，句末带 [k] 即视为已引用。
+    """
+    text = strip_source_section(answer)
+    answer_match = re.search(r"(?im)^\s*Answer\s*:\s*", text)
+    if answer_match:
+        text = text[answer_match.end() :]
+    boundary_match = re.search(r"(?m)^\s*证据边界\s*[:：]", text)
+    if boundary_match:
+        text = text[: boundary_match.start()]
+    evidence_match = re.search(r"(?im)^\s*-\s*Evidence\s+\d+\b", text)
+    if evidence_match:
+        text = text[: evidence_match.start()]
+    segments = _SENTENCE_SPLIT_RE.split(text)
+    factual: list[str] = []
+    for segment in segments:
+        cleaned = re.sub(r"\[\d+\]", "", segment)
+        cleaned = re.sub(r"^[\s#>*\-•\d.()（）]+", "", cleaned).strip()
+        if len(cleaned) < 6 or cleaned.casefold() in {"answer:", "answer"}:
+            continue
+        if _EVIDENCE_GAP_RE.search(cleaned):
+            continue
+        factual.append(segment)
+    if not factual:
+        return 0.0, 0, 0
+    covered = 0
+    for segment in factual:
+        refs = [int(ref) for ref in re.findall(r"\[(\d+)\]", segment)]
+        if any(1 <= ref <= evidence_count for ref in refs):
+            covered += 1
+    return covered / len(factual), covered, len(factual)
+
+
+def repair_citation_coverage(
+    question: str,
+    hits: list[tuple[float, object]],
+    draft: str,
+    max_new_tokens: Optional[int],
+) -> tuple[str, str]:
+    """要求模型仅重写现有答案，补齐句级引用；不允许新增事实。"""
+    prompt = (
+        f"{build_strategy_prompt(question, hits)}\n\n"
+        "【引用校验修订】下方草稿未通过句级引用覆盖率检查。请按上述格式完整重写一次："
+        "每个事实性句子或分句都必须在句末带至少一个有效 [n]；"
+        "只能使用上面的检索证据和已有编号，不得新增事实，不得输出修订说明。\n\n"
+        f"待修订草稿：\n{strip_source_section(draft)}"
+    )
+    return invoke_llm(prompt, max_new_tokens)
+
+
+def _grounding_thresholds() -> tuple[float, float, float, float, float]:
+    """返回 (multi_min, single_min, multi_strong, single_strong, second_support)。
 
     重排开启时命中分是 0~1 概率，用 RERANK_* 阈值；否则用余弦 KB_* 阈值。
     """
-    if rag_pipeline.rerank_active():
+    if rag_pipeline.scores_from_rerank():
         return (
             settings.RERANK_MIN_SCORE,
             settings.RERANK_SINGLE_HIT_MIN_SCORE,
             settings.RERANK_STRONG_SCORE,
+            settings.RERANK_SINGLE_HIT_STRONG_SCORE,
+            settings.RERANK_SECOND_HIT_SCORE,
         )
-    return (settings.KB_MIN_SCORE, settings.KB_SINGLE_HIT_MIN_SCORE, settings.KB_SINGLE_HIT_MIN_SCORE)
+    return (
+        settings.KB_MIN_SCORE,
+        settings.KB_SINGLE_HIT_MIN_SCORE,
+        settings.KB_STRONG_SCORE,
+        settings.KB_SINGLE_HIT_STRONG_SCORE,
+        settings.KB_SECOND_HIT_SCORE,
+    )
 
 
 def classify_grounding(hits: list[tuple[float, object]]) -> str:
@@ -212,24 +348,50 @@ def classify_grounding(hits: list[tuple[float, object]]) -> str:
 
     返回 "grounded" | "weak" | "none"：
     - none：置信度不足 → 走通识回答，避免把不相关材料硬套成 RAG 结论。
-    - weak：有相关但偏低 → 仍依据材料，但附"依据有限"提示（对应 CRAG 的 Ambiguous）。
+    - weak：存在候选资料但不足以支撑结论 → 不进入文档型 RAG，改走通识回答。
     - grounded：足够可信。
     """
     if not hits:
         return "none"
     top = float(hits[0][0])
-    multi_min, single_min, strong = _grounding_thresholds()
+    multi_min, single_min, multi_strong, single_strong, second_support = _grounding_thresholds()
     if top < multi_min:
         return "none"
     if len(hits) == 1 and top < single_min:
         return "none"
-    if top < strong:
-        return "weak"
-    return "grounded"
+    if len(hits) == 1:
+        return "grounded" if top >= single_strong else "weak"
+    second = float(hits[1][0])
+    if top >= single_strong:
+        return "grounded"
+    if top >= multi_strong and second >= second_support:
+        return "grounded"
+    return "weak"
+
+
+def is_boundary_evidence(hits: list[tuple[float, object]]) -> bool:
+    """只让接近强阈值的 weak 命中进入 LLM 充分性判断，避免无谓调用。"""
+    if not hits:
+        return False
+    _multi_min, _single_min, multi_strong, single_strong, second_support = (
+        _grounding_thresholds()
+    )
+    margin = (
+        settings.RERANK_SUFFICIENCY_MARGIN
+        if rag_pipeline.scores_from_rerank()
+        else settings.KB_SUFFICIENCY_MARGIN
+    )
+    top = float(hits[0][0])
+    if len(hits) == 1:
+        return top >= single_strong - margin
+    second = float(hits[1][0])
+    return top >= single_strong - margin or (
+        top >= multi_strong - margin and second >= second_support - margin
+    )
 
 
 def hits_are_relevant(hits: list[tuple[float, object]]) -> bool:
-    return classify_grounding(hits) != "none"
+    return classify_grounding(hits) == "grounded"
 
 
 def refine_evidence(hits: list[tuple[float, object]]) -> list[tuple[float, object]]:
@@ -274,6 +436,11 @@ def build_no_kb_prompt(question: str) -> str:
         "• 边界：对存在学派分歧、或强依赖题设材料而未给出的内容，须标注不确定性或列明需补充的已知条件；"
         "对前沿/政策类问题注明时效性。\n"
         "• 不要依据不存在的知识库命中强行敷衍；与问题强依赖未提供内部材料时，明确说明无法仅凭通识作确定性结论。\n\n"
+        "【输出格式】直接给出连贯的学术性回答，不要使用「结论」「说明」「证据边界」这类分段标题。"
+        "开头一到两句给出核心判断或定义，随后展开要点、条件与局限；内容较多时可用 1. 2. 3. 分点。\n"
+        "• 公式与符号一律用纯文本书写，如 a^2 + b^2 = c^2、fs > 2*fmax、O(n log n)；"
+        "不得使用 LaTeX 记法或 \\( \\)、$$ 等包裹。\n"
+        "不要使用 [1] 这类引用编号，也不要罗列文件名或页码——本回答没有课程材料依据。\n\n"
         f"用户问题：{question}"
     )
 
@@ -286,10 +453,7 @@ def generate_general_knowledge_answer(
     text, route = invoke_llm(prompt, max_new_tokens)
     if text:
         return text, route
-    return (
-        "【说明】知识库中未检索到与问题足够相关的内容，且当前未配置可用的语言模型（请设置 DASHSCOPE_API_KEY "
-        "或启用本地模型 RAG_ENABLE_LOCAL_LLM），无法生成基于通用知识的回答。"
-    ), "fallback"
+    return "", route
 
 
 def llm_available() -> bool:
@@ -315,6 +479,40 @@ def extract_json_object(text: str) -> Optional[dict]:
         except json.JSONDecodeError:
             return None
     return None
+
+
+def evaluate_evidence_sufficiency(
+    question: str,
+    hits: list[tuple[float, object]],
+) -> tuple[bool, str, str]:
+    """对分数边界内的证据做一次严格充分性判断；失败时安全地返回不足。"""
+    if not settings.ENABLE_SUFFICIENCY_JUDGE or not hits:
+        return False, "disabled", ""
+    evidence = "\n\n".join(
+        f"[{idx}] {chunk.source} | {chunk.page_label}\n"
+        f"{compact_text(chunk.text, limit=600)}"
+        for idx, (_score, chunk) in enumerate(hits[:5], start=1)
+    )
+    prompt = (
+        "You are a strict evidence-sufficiency gate for a course RAG system. "
+        "Decide whether the supplied excerpts alone are sufficient to answer every material-dependent "
+        "part of the question accurately. Semantic relatedness is not enough. Mark sufficient=false "
+        "when evidence is partial, merely topical, ambiguous, conflicting, or missing requested facts. "
+        "Do not use your own knowledge to fill gaps. Output ONLY JSON: "
+        '{"sufficient":true|false,"reason":"brief reason","missing_aspects":["..."]}.\n\n'
+        f"QUESTION:\n{question}\n\nEVIDENCE:\n{evidence}"
+    )
+    raw, route = invoke_llm(prompt, 400, json_object=True)
+    parsed = extract_json_object(raw or "")
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("sufficient"), bool):
+        return False, route, ""
+    reason = str(parsed.get("reason", "") or "").strip()
+    missing = parsed.get("missing_aspects")
+    if isinstance(missing, list):
+        missing_text = "；".join(str(item).strip() for item in missing if str(item).strip())
+        if missing_text:
+            reason = f"{reason} 缺失：{missing_text}".strip()
+    return bool(parsed["sufficient"]), route, reason
 
 
 def extract_json_items_loose(text: str) -> Optional[dict]:
@@ -458,6 +656,58 @@ def normalize_quiz_items_flexible(data: dict, n: int, forbidden_questions: set[s
     return out
 
 
+def _quiz_evidence_origin(chunk: object) -> str:
+    if getattr(chunk, "kb_note_id", None) or getattr(chunk, "kb_attachment_id", None):
+        return "course_kb"
+    if getattr(chunk, "session_file_id", None):
+        return "session_file"
+    return "source"
+
+
+def prefer_kb_hits(
+    hits: list[tuple[float, object]],
+    limit: int = 5,
+) -> list[tuple[float, object]]:
+    """同一批检索结果内：课程知识库命中优先，会话附件仅作补充。"""
+    kb: list[tuple[float, object]] = []
+    session: list[tuple[float, object]] = []
+    other: list[tuple[float, object]] = []
+    for item in hits:
+        origin = _quiz_evidence_origin(item[1])
+        if origin == "course_kb":
+            kb.append(item)
+        elif origin == "session_file":
+            session.append(item)
+        else:
+            other.append(item)
+    return (kb + other + session)[: max(0, limit)]
+
+
+def build_quiz_search_query(
+    resolved_segments: list[tuple[str, str, int]],
+    session_messages: list[dict[str, Any]],
+) -> str:
+    """用勾选助手回复对应的用户问题 + 回复摘要构造检索查询。"""
+    parts: list[str] = []
+    selected = {mid for mid, _excerpt, _cnt in resolved_segments}
+    ordered = sorted(session_messages, key=lambda m: float(m.get("created_at") or 0))
+    for i, m in enumerate(ordered):
+        if str(m.get("id") or "") not in selected:
+            continue
+        for j in range(i - 1, -1, -1):
+            if ordered[j].get("role") == "user":
+                uq = compact_text(str(ordered[j].get("content") or ""), 220)
+                if uq:
+                    parts.append(uq)
+                break
+    for _mid, excerpt, _cnt in resolved_segments:
+        t = compact_text(excerpt, 280)
+        if t:
+            parts.append(t)
+    joined = "\n".join(parts).strip()
+    return joined[:800] if joined else "course quiz concepts"
+
+
 def build_quiz_generation_prompt_v3(
     total_n: int,
     segment_blocks: str,
@@ -467,15 +717,23 @@ def build_quiz_generation_prompt_v3(
     tf_n, single_n, multi_n = quiz_type_counts_tf_single_multi(total_n)
     evidence_blocks = []
     for idx, (score, chunk) in enumerate(hits[:5], start=1):
+        origin = _quiz_evidence_origin(chunk)
         evidence_blocks.append(
-            f"[{idx}] source:{chunk.source} location:{chunk.page_label} relevance:{score:.4f}\n"
-            f"{compact_text(chunk.text, limit=500)}"
+            f"[{idx}] origin:{origin} source:{chunk.source} location:{chunk.page_label} "
+            f"relevance:{score:.4f}\n{compact_text(chunk.text, limit=500)}"
         )
-    evidence_text = "\n\n".join(evidence_blocks)
+    evidence_text = "\n\n".join(evidence_blocks) or (
+        "(no retrieval hits — ground questions carefully in the selected segment text only)"
+    )
     forbid = "\n".join(f"- {line[:200]}" for line in forbidden_lines[:80]) if forbidden_lines else "(none)"
     return (
         "You are an expert educator. Design a quiz that helps learners **understand concepts**, not just memorize phrases. "
         "Use clear English. Each question should have a concise stem and test one main idea.\n\n"
+        "### Source priority\n"
+        "Selected assistant segments define WHAT topics to test. "
+        "Retrieval evidence labeled origin:course_kb is authoritative course material — prefer it for facts and answer keys. "
+        "Evidence labeled origin:session_file is optional supplemental material uploaded in this chat; "
+        "use it only when it clarifies the same topic, and prefer course_kb if they conflict.\n\n"
         "### Cognitive level (Bloom's taxonomy)\n"
         "Spread items across Bloom levels and TAG each item with a \"bloom\" field "
         '(one of: "remember","understand","apply","analyze","evaluate"). '
@@ -497,7 +755,8 @@ def build_quiz_generation_prompt_v3(
         '- tf: {"type":"tf","question":"...","options":["True","False"],"correct_index":0 or 1,"bloom":"understand","difficulty":"easy","explanation":"..."}\n'
         '- single: {"type":"single","question":"...","options":["A","B","C","D"],"correct_index":0..3,"bloom":"apply","difficulty":"medium","explanation":"..."}\n'
         '- multi: {"type":"multi","question":"...","options":[...],"correct_indices":[0,2],"bloom":"analyze","difficulty":"hard","explanation":"..."}\n\n'
-        "Rules: Ground every question in the segment text and retrieval evidence; avoid duplicate or near-duplicate stems; "
+        "Rules: Ground every question in the segment topics and retrieval evidence (course_kb first); "
+        "avoid duplicate or near-duplicate stems; "
         "do not repeat any question similar to these prior stems:\n"
         f"{forbid}\n\n"
         "Output ONE JSON object only, no markdown fences, no commentary. Shape: "
@@ -759,23 +1018,93 @@ def run_qa_pipeline(
     max_new_tokens: Optional[int],
 ) -> QAResponse:
     label = classify_grounding(hits)
-    kb_rel = label != "none"
-    no_kb_notice: Optional[str] = None
-
-    if not kb_rel:
-        used_hits = reorder_lost_in_the_middle(list(hits))
-        answer, route = generate_general_knowledge_answer(question, max_new_tokens)
-        no_kb_notice = (
-            "未据上传材料检索作答；下述为通识性学术表述，非文献原文结论，引用课程材料时请以自行核对为准。"
+    sufficiency_checked = False
+    sufficiency_sufficient: Optional[bool] = None
+    sufficiency_reason: Optional[str] = None
+    if (
+        label == "weak"
+        and settings.ENABLE_SUFFICIENCY_JUDGE
+        and is_boundary_evidence(hits)
+    ):
+        sufficiency_checked = True
+        sufficiency_sufficient, _judge_route, sufficiency_reason = evaluate_evidence_sufficiency(
+            question,
+            hits,
         )
-    else:
-        # CRAG 知识精炼 + Lost-in-the-Middle 排序后再进 prompt。
+    kb_rel = label == "grounded" or sufficiency_sufficient is True
+    response_label = "weak_sufficient" if label == "weak" and kb_rel else label
+    no_kb_notice: Optional[str] = None
+    service_unavailable = False
+    citation_coverage_score: Optional[float] = None
+
+    if kb_rel:
+        # 只有高置信证据才允许进入文档约束型 RAG。
         used_hits = reorder_lost_in_the_middle(refine_evidence(list(hits)))
         answer, route = generate_strategy_answer(question, used_hits, max_new_tokens)
-        if label == "weak":
-            no_kb_notice = (
-                "检索到的材料与问题相关度偏低，下述回答依据有限，请结合课程原文核对。"
+        answer_kind = "grounded"
+    else:
+        # weak 与 none 均不使用课程片段组织结论，只请求明确标注的通识回答。
+        used_hits = reorder_lost_in_the_middle(list(hits))
+        answer, route = generate_general_knowledge_answer(question, max_new_tokens)
+        answer_kind = "general"
+        no_kb_notice = (
+            "课程资料证据不足；以下为 AI 通识回答，不代表课程材料结论，引用时请另行核对可靠来源。"
+        )
+
+    if kb_rel and answer:
+        citation_coverage_score, _covered, _total = citation_coverage(answer, len(used_hits))
+        if citation_coverage_score < settings.MIN_CITATION_COVERAGE:
+            repaired, repair_route = repair_citation_coverage(
+                question,
+                used_hits,
+                answer,
+                max_new_tokens,
             )
+            repaired_coverage, _rc, _rt = citation_coverage(repaired or "", len(used_hits))
+            if repaired and repaired_coverage >= settings.MIN_CITATION_COVERAGE:
+                answer = repaired
+                route = f"{repair_route}_citation_repaired"
+                citation_coverage_score = repaired_coverage
+            else:
+                # Soft policy: still return the course-grounded draft (+ sources).
+                # Prefer the repaired text when it improves coverage; never blank the answer.
+                if repaired and repaired.strip() and repaired_coverage >= (citation_coverage_score or 0.0):
+                    answer = repaired
+                    citation_coverage_score = repaired_coverage
+                    route = f"{repair_route}_citation_partial"
+                else:
+                    route = f"{route}_citation_partial"
+                answer_kind = "grounded"
+                no_kb_notice = (
+                    "部分句子的引用标注可能不完整；以下仍依据课程检索片段生成，文末来源供核对。"
+                )
+        if answer_kind == "grounded":
+            # 来源清单由检索元数据生成，模型不参与，避免文件名或页码被编造。
+            # 引用覆盖不足时：即使正文缺 [n]，仍附上本次检索命中列表供核对。
+            answer = append_source_section(
+                answer,
+                used_hits,
+                fallback_all=(citation_coverage_score or 0.0) < settings.MIN_CITATION_COVERAGE,
+            )
+
+    if not answer:
+        service_unavailable = True
+        answer_kind = "unavailable"
+        answer = build_service_unavailable_answer(
+            used_hits,
+            evidence_sufficient=kb_rel,
+        )
+        if route.startswith("api"):
+            route = "api_unavailable"
+        elif route.startswith("local"):
+            route = "local_unavailable"
+        else:
+            route = "llm_unavailable"
+        no_kb_notice = (
+            "AI 服务当前不可用，系统已停止生成结论；下列候选来源仅供核对，不构成答案。"
+            if kb_rel
+            else "课程资料证据不足且 AI 服务当前不可用，系统无法可靠回答。"
+        )
 
     raw_scores = [float(s) for s, _ in used_hits]
     pct_scores = _normalize_hit_scores_to_pct(raw_scores)
@@ -794,7 +1123,11 @@ def run_qa_pipeline(
         for i, (_, chunk) in enumerate(used_hits)
     ]
 
-    cite_raw = rag_pipeline.build_citations(answer, used_hits) if kb_rel else []
+    cite_raw = (
+        rag_pipeline.build_citations(answer, used_hits)
+        if kb_rel and answer_kind == "grounded" and not service_unavailable
+        else []
+    )
     pct_by_ref = {idx + 1: pct_scores[idx] for idx in range(len(pct_scores))}
     for row in cite_raw:
         r = int(row.get("ref", 0))
@@ -807,6 +1140,13 @@ def run_qa_pipeline(
         route=route,
         hits=hit_items,
         kb_relevant=kb_rel,
+        grounding_label=response_label,
+        answer_kind=answer_kind,
+        service_unavailable=service_unavailable,
+        sufficiency_checked=sufficiency_checked,
+        sufficiency_sufficient=sufficiency_sufficient,
+        sufficiency_reason=sufficiency_reason,
+        citation_coverage=citation_coverage_score,
         no_kb_notice=no_kb_notice,
         quiz=None,
         citations=citations,

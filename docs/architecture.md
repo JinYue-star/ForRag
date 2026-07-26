@@ -163,12 +163,14 @@ nodes:
   - id: embed
     name: Local Embedding
     layer: external
-    default_model: BAAI/bge-m3
+    default_model: intfloat/multilingual-e5-small
+    alt_models: [BAAI/bge-m3]
     runtime: sentence-transformers
   - id: rerank
     name: Cross-Encoder Reranker
     layer: external
-    default_model: BAAI/bge-reranker-v2-m3
+    default_model: ms-marco-MiniLM-L-6-v2
+    alt_models: [BAAI/bge-reranker-v2-m3]
     used_by: [pipeline]
 
   # —— Tools ——
@@ -226,8 +228,8 @@ flowchart TB
 
   subgraph external["External / Local models"]
     llm["llm · DashScope Qwen"]
-    embed["embed · bge-m3"]
-    rerank["rerank · bge-reranker-v2-m3"]
+    embed["embed · e5-small / bge-m3"]
+    rerank["rerank · MiniLM / bge-reranker"]
   end
 
   Browser -->|"HTTP Bearer + Session-Secret"| fe
@@ -342,6 +344,8 @@ For_RAG/
 
 **课堂练习闭环**：导出学生提问 → `Student questions` 笔记 → AI 生成题库（xlsx/csv）→ 发布 `class_exercises` → 学生 `quiz.html?quiz_id=` 作答。
 
+**会话归属**：`http_common.verify_session_access` 在验 `X-Session-Secret` 之外，启用鉴权时要求 Bearer 用户 = 会话 `owner`；教师看全班数据仅经 `/admin/export/*`（提问 / 测验，不含对话正文）。前端侧栏键为 `RAG_CONVERSATIONS::<username>`。
+
 ---
 
 ## 3. RAG 主链路（数据流）
@@ -350,9 +354,9 @@ For_RAG/
 flowchart LR
   subgraph ingest["Ingest"]
     U["Upload / KB write"] --> P["doc.parse_*"]
-    P --> C["boundary-aware chunk<br/>CACHE_VERSION=rag_cache_v4"]
-    C --> E["embed · bge-m3"]
-    E --> F["FAISS + disk cache"]
+    P --> C["token chunk + parent-child<br/>+ PDF OCR · cache v6"]
+    C --> E["embed · e5-small / bge-m3"]
+    E --> F["FAISS + parsed/docs cache"]
   end
 
   subgraph retrieve["Retrieve · pipeline.hybrid_retrieve"]
@@ -367,10 +371,10 @@ flowchart LR
   end
 
   subgraph generate["Generate · qa_llm.run_qa_pipeline"]
-    COR --> CRAG["CRAG gate<br/>none / weak / grounded"]
+    COR --> CRAG["CRAG gate + sufficiency<br/>none / weak / grounded"]
     CRAG --> LIM["Lost-in-the-Middle"]
-    LIM --> GEN["invoke_llm · Qwen"]
-    GEN --> CIT["sentence [n] citations"]
+    LIM --> GEN["invoke_llm · Qwen<br/>RAG or general"]
+    GEN --> CIT["sentence [n] + coverage<br/>+ source footer"]
     CIT --> MSG["chroma.message_add"]
   end
 
@@ -468,17 +472,19 @@ flowchart LR
 flowchart LR
   landing["landing.html"] --> login["login.html"]
   login --> teacher["teacher.html"]
-  login --> index["index.html"]
+  login --> index["index.html<br/>本人会话 · owner 隔离"]
   login --> kb["kb.html"]
-  teacher --> export["export.html"]
+  teacher --> export["export.html<br/>测验默认 · 提问可选"]
   teacher --> kb
   index --> quiz["quiz.html"]
+  kb --> quiz
+  export -->|"可选 Save to KB"| kb
 
   login -.->|"/api/v1/auth/*"| routes_auth
   teacher -.->|"/api/v1/admin/*"| routes_auth
-  export -.->|"/api/v1/admin/export/*"| routes_export
+  export -.->|"/api/v1/admin/export/*<br/>无对话正文"| routes_export
   kb -.->|"/api/v1/kb/*"| routes_v1
-  index -.->|"/api/v1/sessions/* · /qa"| routes_v1
+  index -.->|"sessions/* · verify_session_access"| routes_v1
   quiz -.->|"quiz generate / grade"| routes_v1
 ```
 
@@ -488,9 +494,9 @@ flowchart LR
 | `login.html` | `auth.js` | `routes_auth` |
 | `teacher.html` | `auth.js` | admin users + reg code |
 | `kb.html` | `kb.js` | KB CRUD（教师写 / 学生读） |
-| `index.html` | `app.js` | session · upload · QA |
+| `index.html` | `app.js` | session · upload · QA（owner 隔离；侧栏按用户名分区） |
 | `quiz.html` | `app.js` | quiz generate / grade |
-| `export.html` | — | `routes_export` |
+| `export.html` | — | `routes_export`（提问 / 测验；默认测验） |
 
 ---
 

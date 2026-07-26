@@ -127,6 +127,30 @@ def session_update_last_seen(sid: str, last_seen: float) -> None:
     _chroma_op(op)
 
 
+def session_set_owner(sid: str, owner: dict[str, Any]) -> None:
+    """回填会话归属（历史会话或无鉴权时创建的会话首次被认领）。"""
+    row = session_get(sid)
+    if not row:
+        return
+    row["owner"] = {
+        "user_id": str(owner.get("user_id") or owner.get("id") or ""),
+        "username": str(owner.get("username") or ""),
+        "display_name": str(owner.get("display_name") or ""),
+        "student_no": str(owner.get("student_no") or ""),
+        "role": str(owner.get("role") or ""),
+    }
+
+    def op() -> None:
+        c = _col("sessions")
+        c.update(
+            ids=[sid],
+            documents=[json.dumps(row, ensure_ascii=False)],
+            metadatas=[{"kind": "session"}],
+        )
+
+    _chroma_op(op)
+
+
 def session_delete_record(sid: str) -> None:
     """从 sessions 集合中移除会话记录。"""
 

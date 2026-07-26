@@ -1,0 +1,90 @@
+[
+  {
+    "question": "How is ELEC6049 Digital System Design Techniques assessed and what are the weightings?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "What are the three primary techniques used to fabricate a CMOS?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "Under Dennard's scaling with dimension shrinking 0.7x, how do area, voltage and frequency change?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "How is a NOT function realised with CMOS transistors, and which transistor turns on when the input is 0?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "What topics do the lectures and labs of this digital design course cover?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "Why are MOS transistors described as electrically controlled switches?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "What is a SIM card in GSM and what does it allow a subscriber to do?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "Why do operators apply SIM locking to subsidised handsets?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "What are the five cell sizes in a GSM network and how do macro and micro cells differ?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "What is the purpose of frequency reuse, and what happens when the reuse factor N becomes larger?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "Which approaches are used to cope with increasing capacity in a cellular network?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "Which methodologies are used for location estimation in location based services?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "What subsystems make up the structure of a GSM network?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "In which years were GPRS and EDGE introduced to GSM?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "What range does the cell horizontal radius span and which factors does it depend on?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "What does Retrieval-Augmented Generation integrate, and why does it help large language models?",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "请给出勾股定理的一个完整证明过程。",
+    "expected_grounding": "general"
+  },
+  {
+    "question": "What is the capital city of France and roughly how many people live there?",
+    "expected_grounding": "general"
+  },
+  {
+    "question": "Explain how photosynthesis converts light energy into chemical energy in plant cells.",
+    "expected_grounding": "general"
+  },
+  {
+    "question": "请解释傅里叶变换与拉普拉斯变换在求解微分方程时的差别。",
+    "expected_grounding": "general"
+  },
+  {
+    "question": "How should I structure a cover letter when applying for a summer internship?",
+    "expected_grounding": "general"
+  },
+  {
+    "question": "What are the main causes of inflation in a modern economy?",
+    "expected_grounding": "general"
+  }
+]

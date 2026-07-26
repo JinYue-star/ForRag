@@ -41,7 +41,7 @@ os.environ.setdefault("RAG_CLEAR_CACHE_ON_SHUTDOWN", "0")
 from rag_api import settings  # noqa: E402
 import rag_pipeline  # noqa: E402
 from doc_qa_assistant import build_or_load_index  # noqa: E402
-from rag_api.qa_llm import extract_json_object, invoke_llm, run_qa_pipeline  # noqa: E402
+from rag_api.qa_llm import classify_grounding, extract_json_object, invoke_llm, run_qa_pipeline  # noqa: E402
 
 DOC_EXTS = {
     ".pdf", ".docx", ".doc", ".txt", ".md", ".html",
@@ -170,6 +170,169 @@ def _avg(vals: list[Optional[float]]) -> Optional[float]:
     return round(mean(xs), 4) if xs else None
 
 
+def _expected_grounding(item: dict[str, Any]) -> str:
+    label = str(item.get("expected_grounding", "") or "").strip().lower()
+    if label in {"grounded", "general"}:
+        return label
+    return "grounded" if str(item.get("ground_truth", "") or "").strip() else ""
+
+
+def _threshold_metrics(rows: list[dict[str, Any]], threshold: float, *, single: bool) -> dict[str, Any]:
+    labelled = [
+        row for row in rows
+        if row.get("expected_grounding") in {"grounded", "general"}
+        and ((int(row.get("n_hits", 0)) == 1) if single else (int(row.get("n_hits", 0)) > 1))
+    ]
+    tp = fp = tn = fn = 0
+    for row in labelled:
+        predicted = float(row.get("top_score", float("-inf"))) >= threshold
+        actual = row["expected_grounding"] == "grounded"
+        if predicted and actual:
+            tp += 1
+        elif predicted:
+            fp += 1
+        elif actual:
+            fn += 1
+        else:
+            tn += 1
+    precision = tp / (tp + fp) if tp + fp else 1.0
+    recall = tp / (tp + fn) if tp + fn else 1.0
+    return {
+        "threshold": round(float(threshold), 6),
+        "n": len(labelled),
+        "tp": tp,
+        "fp": fp,
+        "tn": tn,
+        "fn": fn,
+        "precision": round(precision, 4),
+        "recall": round(recall, 4),
+    }
+
+
+def _recommend_threshold(
+    rows: list[dict[str, Any]],
+    *,
+    single: bool,
+    target_precision: float,
+) -> Optional[dict[str, Any]]:
+    subset = [
+        row for row in rows
+        if row.get("expected_grounding") in {"grounded", "general"}
+        and ((int(row.get("n_hits", 0)) == 1) if single else (int(row.get("n_hits", 0)) > 1))
+    ]
+    if not subset or not any(row["expected_grounding"] == "grounded" for row in subset):
+        return None
+    scores = sorted({float(row["top_score"]) for row in subset})
+    candidates = sorted({0.0, 1.0, *scores, *(min(1.0, score + 1e-6) for score in scores)})
+    eligible = [
+        _threshold_metrics(rows, threshold, single=single)
+        for threshold in candidates
+    ]
+    eligible = [
+        row for row in eligible
+        if row["precision"] >= target_precision and row["tp"] > 0
+    ]
+    if not eligible:
+        return None
+    return max(eligible, key=lambda row: (row["recall"], row["precision"], -row["threshold"]))
+
+
+def _multi_threshold_metrics(
+    rows: list[dict[str, Any]],
+    top_threshold: float,
+    second_threshold: float,
+) -> dict[str, Any]:
+    labelled = [
+        row for row in rows
+        if row.get("expected_grounding") in {"grounded", "general"}
+        and int(row.get("n_hits", 0)) > 1
+    ]
+    tp = fp = tn = fn = 0
+    for row in labelled:
+        predicted = (
+            float(row.get("top_score", float("-inf"))) >= top_threshold
+            and float(row.get("second_score", float("-inf"))) >= second_threshold
+        )
+        actual = row["expected_grounding"] == "grounded"
+        if predicted and actual:
+            tp += 1
+        elif predicted:
+            fp += 1
+        elif actual:
+            fn += 1
+        else:
+            tn += 1
+    precision = tp / (tp + fp) if tp + fp else 1.0
+    recall = tp / (tp + fn) if tp + fn else 1.0
+    return {
+        "threshold": round(float(top_threshold), 6),
+        "top_threshold": round(float(top_threshold), 6),
+        "second_threshold": round(float(second_threshold), 6),
+        "n": len(labelled),
+        "tp": tp,
+        "fp": fp,
+        "tn": tn,
+        "fn": fn,
+        "precision": round(precision, 4),
+        "recall": round(recall, 4),
+    }
+
+
+def _recommend_multi_thresholds(
+    rows: list[dict[str, Any]],
+    target_precision: float,
+) -> Optional[dict[str, Any]]:
+    subset = [
+        row for row in rows
+        if row.get("expected_grounding") in {"grounded", "general"}
+        and int(row.get("n_hits", 0)) > 1
+        and row.get("top_score") is not None
+        and row.get("second_score") is not None
+    ]
+    if not subset or not any(row["expected_grounding"] == "grounded" for row in subset):
+        return None
+    top_scores = {float(row["top_score"]) for row in subset}
+    second_scores = {float(row["second_score"]) for row in subset}
+    top_candidates = sorted({0.0, 1.0, *top_scores, *(min(1.0, s + 1e-6) for s in top_scores)})
+    second_candidates = sorted(
+        {0.0, 1.0, *second_scores, *(min(1.0, s + 1e-6) for s in second_scores)}
+    )
+    eligible = [
+        _multi_threshold_metrics(rows, top, second)
+        for top in top_candidates
+        for second in second_candidates
+    ]
+    eligible = [
+        row for row in eligible
+        if row["precision"] >= target_precision and row["tp"] > 0
+    ]
+    if not eligible:
+        return None
+    return max(
+        eligible,
+        key=lambda row: (
+            row["recall"],
+            row["precision"],
+            -row["top_threshold"],
+            -row["second_threshold"],
+        ),
+    )
+
+
+def _grounding_calibration(
+    rows: list[dict[str, Any]],
+    target_precision: float,
+) -> dict[str, Any]:
+    return {
+        "target_precision": target_precision,
+        "score_mode": "rerank" if rag_pipeline.scores_from_rerank() else "cosine",
+        "multi_hit": _recommend_multi_thresholds(rows, target_precision),
+        "single_hit": _recommend_threshold(
+            rows, single=True, target_precision=target_precision
+        ),
+    }
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="RAGAS-style offline evaluation for the RAG pipeline")
     ap.add_argument("--docs", required=True, help="课程材料目录或单个文件")
@@ -177,10 +340,21 @@ def main() -> int:
     ap.add_argument("--top-k", type=int, default=settings.MAX_TOP_K)
     ap.add_argument("--max-new-tokens", type=int, default=700)
     ap.add_argument("--limit", type=int, default=0, help="只评估前 N 条（0 表示全部）")
+    ap.add_argument(
+        "--grounding-only",
+        action="store_true",
+        help="只运行检索与门控校准，不生成答案或调用 LLM 评审",
+    )
+    ap.add_argument(
+        "--target-grounded-precision",
+        type=float,
+        default=0.95,
+        help="推荐门控阈值要求的最低 grounded precision（默认 0.95）",
+    )
     ap.add_argument("--out", default="rag_eval_report.json")
     args = ap.parse_args()
 
-    if not settings.SERVER_API_KEY:
+    if not settings.SERVER_API_KEY and not args.grounding_only:
         print("[warn] 未配置 DASHSCOPE_API_KEY：作答与评审都需要 LLM，结果不可用。", file=sys.stderr)
 
     docs = _collect_docs(Path(args.docs).expanduser())
@@ -202,16 +376,53 @@ def main() -> int:
     for i, item in enumerate(eval_items, start=1):
         question = str(item.get("question", "")).strip()
         gt = str(item.get("ground_truth", "") or "").strip()
+        expected_grounding = _expected_grounding(item)
         if not question:
             continue
+        retrieval_llm = (
+            (lambda _prompt, _max_tok, **_kw: ("", "offline"))
+            if args.grounding_only
+            else (lambda prompt, max_tok, **kw: invoke_llm(prompt, max_tok, **kw))
+        )
         hits = rag_pipeline.hybrid_retrieve(
             question, chunks, index, st,
-            lambda prompt, max_tok, **kw: invoke_llm(prompt, max_tok, **kw),
+            retrieval_llm,
             max(1, int(args.top_k)),
         )
+        raw_scores = [float(score) for score, _chunk in hits]
+        current_label = classify_grounding(hits)
+        base_row = {
+            "question": question,
+            "expected_grounding": expected_grounding,
+            "current_grounding": current_label,
+            "n_hits": len(hits),
+            "top_score": raw_scores[0] if raw_scores else None,
+            "second_score": raw_scores[1] if len(raw_scores) > 1 else None,
+            "raw_scores": raw_scores,
+        }
+        if args.grounding_only:
+            row = {
+                **base_row,
+                "sources": [
+                    {
+                        "source": chunk.source,
+                        "page_label": chunk.page_label,
+                        "score": raw_scores[idx],
+                    }
+                    for idx, (_score, chunk) in enumerate(hits)
+                ],
+            }
+            results.append(row)
+            print(
+                f"  [{i}/{len(eval_items)}] expected={expected_grounding or '-'} "
+                f"current={current_label} top={row['top_score']}"
+            )
+            continue
+
         resp = run_qa_pipeline(question=question, hits=hits, max_new_tokens=args.max_new_tokens)
         contexts = [h.content for h in resp.hits]
         row = {
+            **base_row,
             "question": question,
             "answer": resp.answer,
             "route": resp.route,
@@ -230,22 +441,26 @@ def main() -> int:
             f"ctx_rec={row['context_recall']} correct={row['correctness']}"
         )
 
+    target_precision = max(0.0, min(1.0, float(args.target_grounded_precision)))
+    calibration = _grounding_calibration(results, target_precision)
     summary = {
         "n": len(results),
         "embed_model": settings.SERVER_EMBED_MODEL,
         "rerank_active": rag_pipeline.rerank_active(),
-        "faithfulness": _avg([r["faithfulness"] for r in results]),
-        "answer_relevancy": _avg([r["answer_relevancy"] for r in results]),
-        "context_precision": _avg([r["context_precision"] for r in results]),
-        "context_recall": _avg([r["context_recall"] for r in results]),
-        "correctness": _avg([r["correctness"] for r in results]),
+        "faithfulness": _avg([r.get("faithfulness") for r in results]),
+        "answer_relevancy": _avg([r.get("answer_relevancy") for r in results]),
+        "context_precision": _avg([r.get("context_precision") for r in results]),
+        "context_recall": _avg([r.get("context_recall") for r in results]),
+        "correctness": _avg([r.get("correctness") for r in results]),
     }
-    report = {"summary": summary, "results": results}
+    report = {"summary": summary, "grounding_calibration": calibration, "results": results}
     Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print("\n===== RAGAS-style summary =====")
     for k, v in summary.items():
         print(f"  {k}: {v}")
+    print("\n===== Grounding calibration =====")
+    print(json.dumps(calibration, ensure_ascii=False, indent=2))
     print(f"\n[done] 详细报告写入 {args.out}")
     return 0
 

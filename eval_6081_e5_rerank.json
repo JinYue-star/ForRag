@@ -1,0 +1,2761 @@
+{
+  "summary": {
+    "n": 65,
+    "embed_model": "intfloat/multilingual-e5-small",
+    "rerank_active": true,
+    "faithfulness": null,
+    "answer_relevancy": null,
+    "context_precision": null,
+    "context_recall": null,
+    "correctness": null
+  },
+  "grounding_calibration": {
+    "target_precision": 0.95,
+    "score_mode": "rerank",
+    "multi_hit": {
+      "threshold": 0.01171,
+      "top_threshold": 0.01171,
+      "second_threshold": 0.0,
+      "n": 65,
+      "tp": 57,
+      "fp": 1,
+      "tn": 7,
+      "fn": 0,
+      "precision": 0.9828,
+      "recall": 1.0
+    },
+    "single_hit": null
+  },
+  "results": [
+    {
+      "question": "What are the three electrophysiological signals emphasized in ELEC6081, and what does each measure?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.8745538592338562,
+      "second_score": 0.1598464548587799,
+      "raw_scores": [
+        0.8745538592338562,
+        0.1598464548587799,
+        0.10768840461969376,
+        0.05435873568058014,
+        0.053141627460718155
+      ],
+      "sources": [
+        {
+          "source": "6490cd9a4f304cf9be10a02095ce83cd_ELEC_6081_Tutorial_1.pdf",
+          "page_label": "第3页",
+          "score": 0.8745538592338562
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第5页",
+          "score": 0.1598464548587799
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第61页",
+          "score": 0.10768840461969376
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第1页",
+          "score": 0.05435873568058014
+        },
+        {
+          "source": "6490cd9a4f304cf9be10a02095ce83cd_ELEC_6081_Tutorial_1.pdf",
+          "page_label": "第9页",
+          "score": 0.053141627460718155
+        }
+      ]
+    },
+    {
+      "question": "How is the ELEC6081 course assessed and what are the weightings?",
+      "expected_grounding": "grounded",
+      "current_grounding": "weak",
+      "n_hits": 5,
+      "top_score": 0.056493859738111496,
+      "second_score": 0.04219505563378334,
+      "raw_scores": [
+        0.056493859738111496,
+        0.04219505563378334,
+        0.040442515164613724,
+        0.028732791543006897,
+        0.027953555807471275
+      ],
+      "sources": [
+        {
+          "source": "f9cc82eb8d5240678d9127ba3db13a2f_ELEC6081_Computer_based_Assignment-description.pdf",
+          "page_label": "第1页",
+          "score": 0.056493859738111496
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第59页",
+          "score": 0.04219505563378334
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第57页",
+          "score": 0.040442515164613724
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第1页",
+          "score": 0.028732791543006897
+        },
+        {
+          "source": "f9cc82eb8d5240678d9127ba3db13a2f_ELEC6081_Computer_based_Assignment-description.pdf",
+          "page_label": "第4页",
+          "score": 0.027953555807471275
+        }
+      ]
+    },
+    {
+      "question": "What is an action potential and why is it important for biomedical signals?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.8406981229782104,
+      "second_score": 0.7449102997779846,
+      "raw_scores": [
+        0.8406981229782104,
+        0.7449102997779846,
+        0.7274816632270813,
+        0.20133395493030548,
+        0.1569582223892212
+      ],
+      "sources": [
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第33页",
+          "score": 0.8406981229782104
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第2页",
+          "score": 0.7449102997779846
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第4页",
+          "score": 0.7274816632270813
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第7页",
+          "score": 0.20133395493030548
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第12页",
+          "score": 0.1569582223892212
+        }
+      ]
+    },
+    {
+      "question": "Define deterministic versus stochastic signals, and stationary versus non-stationary signals.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9215458631515503,
+      "second_score": 0.1023029312491417,
+      "raw_scores": [
+        0.9215458631515503,
+        0.1023029312491417,
+        0.09904349595308304,
+        0.07178213447332382,
+        0.011014660820364952
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第50页",
+          "score": 0.9215458631515503
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第24页",
+          "score": 0.1023029312491417
+        },
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第14页",
+          "score": 0.09904349595308304
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第22页",
+          "score": 0.07178213447332382
+        },
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第13页",
+          "score": 0.011014660820364952
+        }
+      ]
+    },
+    {
+      "question": "What do the P wave, QRS complex, and T wave of the ECG represent?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9936819076538086,
+      "second_score": 0.9856922626495361,
+      "raw_scores": [
+        0.9936819076538086,
+        0.9856922626495361,
+        0.9854662418365479,
+        0.9465369582176208,
+        0.9386009573936462
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第5页",
+          "score": 0.9936819076538086
+        },
+        {
+          "source": "6490cd9a4f304cf9be10a02095ce83cd_ELEC_6081_Tutorial_1.pdf",
+          "page_label": "第10页",
+          "score": 0.9856922626495361
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第36页",
+          "score": 0.9854662418365479
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第30页",
+          "score": 0.9465369582176208
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第31页",
+          "score": 0.9386009573936462
+        }
+      ]
+    },
+    {
+      "question": "In the standard 12-lead ECG system, what is a 'lead'?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9935402274131775,
+      "second_score": 0.9829112887382507,
+      "raw_scores": [
+        0.9935402274131775,
+        0.9829112887382507,
+        0.9627561569213867,
+        0.9179442524909973,
+        0.24051786959171295
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第6-8页",
+          "score": 0.9935402274131775
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第55页",
+          "score": 0.9829112887382507
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第9页",
+          "score": 0.9627561569213867
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第39-40页",
+          "score": 0.9179442524909973
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第2-4页",
+          "score": 0.24051786959171295
+        }
+      ]
+    },
+    {
+      "question": "List the main types of biomedical signals classified by the physical quantity recorded.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9983752965927124,
+      "second_score": 0.7431530356407166,
+      "raw_scores": [
+        0.9983752965927124,
+        0.7431530356407166,
+        0.2193956822156906,
+        0.14237289130687714,
+        0.05273742973804474
+      ],
+      "sources": [
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第24页",
+          "score": 0.9983752965927124
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第2-4页",
+          "score": 0.7431530356407166
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第32页",
+          "score": 0.2193956822156906
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第13页",
+          "score": 0.14237289130687714
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第18页",
+          "score": 0.05273742973804474
+        }
+      ]
+    },
+    {
+      "question": "What are the four main types of noise and artifacts in ECG signals?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9944372177124023,
+      "second_score": 0.99186110496521,
+      "raw_scores": [
+        0.9944372177124023,
+        0.99186110496521,
+        0.9826453924179077,
+        0.9738574028015137,
+        0.9640503525733948
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第50页",
+          "score": 0.9944372177124023
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第13页",
+          "score": 0.99186110496521
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第20页",
+          "score": 0.9826453924179077
+        },
+        {
+          "source": "f72d879464104be8a69c2cc5db06f683_ELEC_6081_Tutorial_4_2024.pdf",
+          "page_label": "第7页",
+          "score": 0.9738574028015137
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第21页",
+          "score": 0.9640503525733948
+        }
+      ]
+    },
+    {
+      "question": "What is baseline wander (drift) in ECG, what is its frequency characteristic, and how is it removed?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9859281778335571,
+      "second_score": 0.9034383893013,
+      "raw_scores": [
+        0.9859281778335571,
+        0.9034383893013,
+        0.8555732369422913,
+        0.7964076399803162,
+        0.7492474913597107
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第14页",
+          "score": 0.9859281778335571
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第21页",
+          "score": 0.9034383893013
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第13页",
+          "score": 0.8555732369422913
+        },
+        {
+          "source": "f72d879464104be8a69c2cc5db06f683_ELEC_6081_Tutorial_4_2024.pdf",
+          "page_label": "第7页",
+          "score": 0.7964076399803162
+        },
+        {
+          "source": "f72d879464104be8a69c2cc5db06f683_ELEC_6081_Tutorial_4_2024.pdf",
+          "page_label": "第9页",
+          "score": 0.7492474913597107
+        }
+      ]
+    },
+    {
+      "question": "What is powerline interference in ECG and at what frequencies does it appear? How is it removed?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9840653538703918,
+      "second_score": 0.953290581703186,
+      "raw_scores": [
+        0.9840653538703918,
+        0.953290581703186,
+        0.9234721064567566,
+        0.8984291553497314,
+        0.8333887457847595
+      ],
+      "sources": [
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第8页",
+          "score": 0.9840653538703918
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第16-17页",
+          "score": 0.953290581703186
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第23页",
+          "score": 0.9234721064567566
+        },
+        {
+          "source": "f72d879464104be8a69c2cc5db06f683_ELEC_6081_Tutorial_4_2024.pdf",
+          "page_label": "第9页",
+          "score": 0.8984291553497314
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第6页",
+          "score": 0.8333887457847595
+        }
+      ]
+    },
+    {
+      "question": "What is a notch filter and how is the Q factor defined?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9975082874298096,
+      "second_score": 0.2084101140499115,
+      "raw_scores": [
+        0.9975082874298096,
+        0.2084101140499115,
+        0.011857863515615463,
+        0.008580437861382961,
+        0.0025559645146131516
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第22页",
+          "score": 0.9975082874298096
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第23页",
+          "score": 0.2084101140499115
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第23页",
+          "score": 0.011857863515615463
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第8页",
+          "score": 0.008580437861382961
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第34页",
+          "score": 0.0025559645146131516
+        }
+      ]
+    },
+    {
+      "question": "What is a comb filter and what is it used for?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9481117129325867,
+      "second_score": 0.3013359308242798,
+      "raw_scores": [
+        0.9481117129325867,
+        0.3013359308242798,
+        0.17333506047725677,
+        0.005226324778050184,
+        0.0007933824090287089
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第23页",
+          "score": 0.9481117129325867
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第23页",
+          "score": 0.3013359308242798
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第20页",
+          "score": 0.17333506047725677
+        },
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第8页",
+          "score": 0.005226324778050184
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第3页",
+          "score": 0.0007933824090287089
+        }
+      ]
+    },
+    {
+      "question": "Describe the steps of wavelet filtering for denoising a signal such as ECG.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.998316764831543,
+      "second_score": 0.9738373756408691,
+      "raw_scores": [
+        0.998316764831543,
+        0.9738373756408691,
+        0.9147909879684448,
+        0.8805708885192871,
+        0.8776617646217346
+      ],
+      "sources": [
+        {
+          "source": "f72d879464104be8a69c2cc5db06f683_ELEC_6081_Tutorial_4_2024.pdf",
+          "page_label": "第10页",
+          "score": 0.998316764831543
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第26页",
+          "score": 0.9738373756408691
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第27页",
+          "score": 0.9147909879684448
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第24-25页",
+          "score": 0.8805708885192871
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第19页",
+          "score": 0.8776617646217346
+        }
+      ]
+    },
+    {
+      "question": "How does Wiener filtering remove noise, and what prior knowledge does it require?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9967511892318726,
+      "second_score": 0.9904340505599976,
+      "raw_scores": [
+        0.9967511892318726,
+        0.9904340505599976,
+        0.9475224018096924,
+        0.9250925779342651,
+        0.21239598095417023
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第19页",
+          "score": 0.9967511892318726
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第24-25页",
+          "score": 0.9904340505599976
+        },
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第8页",
+          "score": 0.9475224018096924
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第38页",
+          "score": 0.9250925779342651
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第3页",
+          "score": 0.21239598095417023
+        }
+      ]
+    },
+    {
+      "question": "How is a matched filter used in QRS detection?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9995337724685669,
+      "second_score": 0.9983835220336914,
+      "raw_scores": [
+        0.9995337724685669,
+        0.9983835220336914,
+        0.8969686031341553,
+        0.5714775323867798,
+        0.36773282289505005
+      ],
+      "sources": [
+        {
+          "source": "f72d879464104be8a69c2cc5db06f683_ELEC_6081_Tutorial_4_2024.pdf",
+          "page_label": "第8页",
+          "score": 0.9995337724685669
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第29页",
+          "score": 0.9983835220336914
+        },
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第10页",
+          "score": 0.8969686031341553
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第34页",
+          "score": 0.5714775323867798
+        },
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第8页",
+          "score": 0.36773282289505005
+        }
+      ]
+    },
+    {
+      "question": "List signal and noise problems that make QRS detection difficult.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.996519923210144,
+      "second_score": 0.6492800116539001,
+      "raw_scores": [
+        0.996519923210144,
+        0.6492800116539001,
+        0.39396607875823975,
+        0.25873440504074097,
+        0.2203238159418106
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第30页",
+          "score": 0.996519923210144
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第31页",
+          "score": 0.6492800116539001
+        },
+        {
+          "source": "f72d879464104be8a69c2cc5db06f683_ELEC_6081_Tutorial_4_2024.pdf",
+          "page_label": "第1页",
+          "score": 0.39396607875823975
+        },
+        {
+          "source": "f72d879464104be8a69c2cc5db06f683_ELEC_6081_Tutorial_4_2024.pdf",
+          "page_label": "第2页",
+          "score": 0.25873440504074097
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第12页",
+          "score": 0.2203238159418106
+        }
+      ]
+    },
+    {
+      "question": "What is heart rate variability (HRV) and how is it measured?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9996905326843262,
+      "second_score": 0.38966062664985657,
+      "raw_scores": [
+        0.9996905326843262,
+        0.38966062664985657,
+        0.2065720558166504,
+        0.11002013832330704,
+        0.0952800065279007
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第39页",
+          "score": 0.9996905326843262
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第41页",
+          "score": 0.38966062664985657
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第37页",
+          "score": 0.2065720558166504
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第40页",
+          "score": 0.11002013832330704
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第42页",
+          "score": 0.0952800065279007
+        }
+      ]
+    },
+    {
+      "question": "Why is the Lomb periodogram useful for analysing R-R interval signals compared with the ordinary periodogram?",
+      "expected_grounding": "grounded",
+      "current_grounding": "weak",
+      "n_hits": 5,
+      "top_score": 0.2394256740808487,
+      "second_score": 0.07585283368825912,
+      "raw_scores": [
+        0.2394256740808487,
+        0.07585283368825912,
+        0.043369073420763016,
+        0.0033994170371443033,
+        0.002604344394057989
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第43页",
+          "score": 0.2394256740808487
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第45页",
+          "score": 0.07585283368825912
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第44页",
+          "score": 0.043369073420763016
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第8页",
+          "score": 0.0033994170371443033
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第20页",
+          "score": 0.002604344394057989
+        }
+      ]
+    },
+    {
+      "question": "Name two approaches for spectral analysis of unevenly sampled RR intervals.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9981780052185059,
+      "second_score": 0.9935941100120544,
+      "raw_scores": [
+        0.9981780052185059,
+        0.9935941100120544,
+        0.4236975312232971,
+        0.2470685839653015,
+        0.07220476120710373
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第43页",
+          "score": 0.9981780052185059
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第6页",
+          "score": 0.9935941100120544
+        },
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第13页",
+          "score": 0.4236975312232971
+        },
+        {
+          "source": "17e949aba5ed49398bd5e9279d33c4c0_ELEC_6081_Tutorial_7.pdf",
+          "page_label": "第9页",
+          "score": 0.2470685839653015
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第12页",
+          "score": 0.07220476120710373
+        }
+      ]
+    },
+    {
+      "question": "What are the three types of data redundancy exploited in ECG data compression?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9997908473014832,
+      "second_score": 0.8796627521514893,
+      "raw_scores": [
+        0.9997908473014832,
+        0.8796627521514893,
+        0.24904417991638184,
+        0.13200144469738007,
+        0.08343608677387238
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第35页",
+          "score": 0.9997908473014832
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第53页",
+          "score": 0.8796627521514893
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第36页",
+          "score": 0.24904417991638184
+        },
+        {
+          "source": "42f282986b9a4cc78e05ce4947c752a5_ELEC_6081_Tutorial_6_2021.pdf",
+          "page_label": "第5页",
+          "score": 0.13200144469738007
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第55页",
+          "score": 0.08343608677387238
+        }
+      ]
+    },
+    {
+      "question": "Distinguish lossless from lossy compression for ECG.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.997238039970398,
+      "second_score": 0.034779343754053116,
+      "raw_scores": [
+        0.997238039970398,
+        0.034779343754053116,
+        0.018591227009892464,
+        0.014554654248058796,
+        0.011219719424843788
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第36页",
+          "score": 0.997238039970398
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第35页",
+          "score": 0.034779343754053116
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第53页",
+          "score": 0.018591227009892464
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第54页",
+          "score": 0.014554654248058796
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第6页",
+          "score": 0.011219719424843788
+        }
+      ]
+    },
+    {
+      "question": "What noise and artifacts commonly affect EMG signals, and what is the nature of the EMG signal?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9973656535148621,
+      "second_score": 0.9922605156898499,
+      "raw_scores": [
+        0.9973656535148621,
+        0.9922605156898499,
+        0.9909132719039917,
+        0.9724474549293518,
+        0.9189171195030212
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第50页",
+          "score": 0.9973656535148621
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第13页",
+          "score": 0.9922605156898499
+        },
+        {
+          "source": "f72d879464104be8a69c2cc5db06f683_ELEC_6081_Tutorial_4_2024.pdf",
+          "page_label": "第7页",
+          "score": 0.9909132719039917
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第21页",
+          "score": 0.9724474549293518
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第55页",
+          "score": 0.9189171195030212
+        }
+      ]
+    },
+    {
+      "question": "Define root mean square (RMS), mean frequency (MNF), and median frequency (MDF) in EMG signal processing.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9934225678443909,
+      "second_score": 0.9922103881835938,
+      "raw_scores": [
+        0.9934225678443909,
+        0.9922103881835938,
+        0.9903188943862915,
+        0.9335047602653503,
+        0.9151200652122498
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第57页",
+          "score": 0.9934225678443909
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第62页",
+          "score": 0.9922103881835938
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第61页",
+          "score": 0.9903188943862915
+        },
+        {
+          "source": "f72d879464104be8a69c2cc5db06f683_ELEC_6081_Tutorial_4_2024.pdf",
+          "page_label": "第12页",
+          "score": 0.9335047602653503
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第55页",
+          "score": 0.9151200652122498
+        }
+      ]
+    },
+    {
+      "question": "How can ECG contamination be removed from a surface EMG recording?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9974302649497986,
+      "second_score": 0.9948685169219971,
+      "raw_scores": [
+        0.9974302649497986,
+        0.9948685169219971,
+        0.840570867061615,
+        0.8202669620513916,
+        0.5582082271575928
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第52页",
+          "score": 0.9974302649497986
+        },
+        {
+          "source": "f72d879464104be8a69c2cc5db06f683_ELEC_6081_Tutorial_4_2024.pdf",
+          "page_label": "第11页",
+          "score": 0.9948685169219971
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第51页",
+          "score": 0.840570867061615
+        },
+        {
+          "source": "f72d879464104be8a69c2cc5db06f683_ELEC_6081_Tutorial_4_2024.pdf",
+          "page_label": "第9页",
+          "score": 0.8202669620513916
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第53-54页",
+          "score": 0.5582082271575928
+        }
+      ]
+    },
+    {
+      "question": "Why is EMG spectral analysis used as an index of muscle fatigue?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9944032430648804,
+      "second_score": 0.9878541827201843,
+      "raw_scores": [
+        0.9944032430648804,
+        0.9878541827201843,
+        0.9798837304115295,
+        0.8628646731376648,
+        0.6091987490653992
+      ],
+      "sources": [
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第26页",
+          "score": 0.9944032430648804
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第64页",
+          "score": 0.9878541827201843
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第68页",
+          "score": 0.9798837304115295
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第63页",
+          "score": 0.8628646731376648
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第45页",
+          "score": 0.6091987490653992
+        }
+      ]
+    },
+    {
+      "question": "Explain the relationship between time-domain convolution and the frequency domain, and how it enables FIR filtering via the FFT.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9706255197525024,
+      "second_score": 0.4781982898712158,
+      "raw_scores": [
+        0.9706255197525024,
+        0.4781982898712158,
+        0.1250951588153839,
+        0.0399516336619854,
+        0.03805582597851753
+      ],
+      "sources": [
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第11页",
+          "score": 0.9706255197525024
+        },
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第3页",
+          "score": 0.4781982898712158
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第19页",
+          "score": 0.1250951588153839
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第24-25页",
+          "score": 0.0399516336619854
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第59页",
+          "score": 0.03805582597851753
+        }
+      ]
+    },
+    {
+      "question": "Compare the computational complexity of the DFT and the FFT.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9647612571716309,
+      "second_score": 0.1984504908323288,
+      "raw_scores": [
+        0.9647612571716309,
+        0.1984504908323288,
+        0.01818419247865677,
+        0.013481605798006058,
+        0.01049204170703888
+      ],
+      "sources": [
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第10页",
+          "score": 0.9647612571716309
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第3页",
+          "score": 0.1984504908323288
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第11页",
+          "score": 0.01818419247865677
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第13页",
+          "score": 0.013481605798006058
+        },
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第3页",
+          "score": 0.01049204170703888
+        }
+      ]
+    },
+    {
+      "question": "What is the difference between non-parametric and parametric spectral estimation methods? Give an example of each.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9974889755249023,
+      "second_score": 0.8619609475135803,
+      "raw_scores": [
+        0.9974889755249023,
+        0.8619609475135803,
+        0.7578913569450378,
+        0.6534734964370728,
+        0.39927348494529724
+      ],
+      "sources": [
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第13页",
+          "score": 0.9974889755249023
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第5页",
+          "score": 0.8619609475135803
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第12页",
+          "score": 0.7578913569450378
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第13页",
+          "score": 0.6534734964370728
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第7页",
+          "score": 0.39927348494529724
+        }
+      ]
+    },
+    {
+      "question": "What is the fundamental limitation of the STFT, and how can it be addressed?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.8597254157066345,
+      "second_score": 0.0009041770827025175,
+      "raw_scores": [
+        0.8597254157066345,
+        0.0009041770827025175,
+        0.00026803655782714486,
+        0.0001376426953356713,
+        8.064870053203776e-05
+      ],
+      "sources": [
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第18页",
+          "score": 0.8597254157066345
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第27页",
+          "score": 0.0009041770827025175
+        },
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第4页",
+          "score": 0.00026803655782714486
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第3页",
+          "score": 0.0001376426953356713
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第40页",
+          "score": 8.064870053203776e-05
+        }
+      ]
+    },
+    {
+      "question": "In windowing for the STFT/periodogram, what are the mainlobe and sidelobes, and how does the choice of window trade off resolution and sidelobes?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9795474410057068,
+      "second_score": 0.05732429400086403,
+      "raw_scores": [
+        0.9795474410057068,
+        0.05732429400086403,
+        0.047284822911024094,
+        0.019472600892186165,
+        0.002435648115351796
+      ],
+      "sources": [
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第16页",
+          "score": 0.9795474410057068
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第3页",
+          "score": 0.05732429400086403
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第17页",
+          "score": 0.047284822911024094
+        },
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第4页",
+          "score": 0.019472600892186165
+        },
+        {
+          "source": "17e949aba5ed49398bd5e9279d33c4c0_ELEC_6081_Tutorial_7.pdf",
+          "page_label": "第9页",
+          "score": 0.002435648115351796
+        }
+      ]
+    },
+    {
+      "question": "Describe Bartlett's method for improving the periodogram.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9914433360099792,
+      "second_score": 0.9814574122428894,
+      "raw_scores": [
+        0.9914433360099792,
+        0.9814574122428894,
+        0.7886660695075989,
+        0.084989994764328,
+        0.02631922997534275
+      ],
+      "sources": [
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第20页",
+          "score": 0.9914433360099792
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第21页",
+          "score": 0.9814574122428894
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第3页",
+          "score": 0.7886660695075989
+        },
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第4页",
+          "score": 0.084989994764328
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第22页",
+          "score": 0.02631922997534275
+        }
+      ]
+    },
+    {
+      "question": "How does Welch's method differ from Bartlett's method?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9979259967803955,
+      "second_score": 0.544338047504425,
+      "raw_scores": [
+        0.9979259967803955,
+        0.544338047504425,
+        0.29245099425315857,
+        0.20357131958007812,
+        0.057107113301754
+      ],
+      "sources": [
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第22页",
+          "score": 0.9979259967803955
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第20页",
+          "score": 0.544338047504425
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第21页",
+          "score": 0.29245099425315857
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第3页",
+          "score": 0.20357131958007812
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第39页",
+          "score": 0.057107113301754
+        }
+      ]
+    },
+    {
+      "question": "What is the idea behind eigenanalysis-based spectral estimation, and name one such method.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9739331603050232,
+      "second_score": 0.9644624590873718,
+      "raw_scores": [
+        0.9739331603050232,
+        0.9644624590873718,
+        0.9213221669197083,
+        0.48984017968177795,
+        0.22198669612407684
+      ],
+      "sources": [
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第13页",
+          "score": 0.9739331603050232
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第23页",
+          "score": 0.9644624590873718
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第12页",
+          "score": 0.9213221669197083
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第5页",
+          "score": 0.48984017968177795
+        },
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第14页",
+          "score": 0.22198669612407684
+        }
+      ]
+    },
+    {
+      "question": "Name three time-frequency signal decomposition methods suitable for non-stationary signals.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9981104135513306,
+      "second_score": 0.9890934228897095,
+      "raw_scores": [
+        0.9981104135513306,
+        0.9890934228897095,
+        0.2072792947292328,
+        0.19758574664592743,
+        0.09389329701662064
+      ],
+      "sources": [
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第14页",
+          "score": 0.9981104135513306
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第24页",
+          "score": 0.9890934228897095
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第40页",
+          "score": 0.2072792947292328
+        },
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第13页",
+          "score": 0.19758574664592743
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第73页",
+          "score": 0.09389329701662064
+        }
+      ]
+    },
+    {
+      "question": "Distinguish supervised learning from traditional rule-based programming, giving one pro and one con of each.",
+      "expected_grounding": "grounded",
+      "current_grounding": "weak",
+      "n_hits": 5,
+      "top_score": 0.24852512776851654,
+      "second_score": 0.19468103349208832,
+      "raw_scores": [
+        0.24852512776851654,
+        0.19468103349208832,
+        0.012013161554932594,
+        0.0026063891127705574,
+        0.0006524554919451475
+      ],
+      "sources": [
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第4页",
+          "score": 0.24852512776851654
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第2页",
+          "score": 0.19468103349208832
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第3页",
+          "score": 0.012013161554932594
+        },
+        {
+          "source": "b51f7d26cdae40bab88d04f365a1a644_ELEC_6081_Tutorial_5_2024.pdf",
+          "page_label": "第1页",
+          "score": 0.0026063891127705574
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第5页",
+          "score": 0.0006524554919451475
+        }
+      ]
+    },
+    {
+      "question": "What are the three major types of machine-learning problems described, and how do they differ?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9961848855018616,
+      "second_score": 0.2324007749557495,
+      "raw_scores": [
+        0.9961848855018616,
+        0.2324007749557495,
+        0.015401787124574184,
+        0.014377934858202934,
+        0.012574595399200916
+      ],
+      "sources": [
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第7页",
+          "score": 0.9961848855018616
+        },
+        {
+          "source": "b51f7d26cdae40bab88d04f365a1a644_ELEC_6081_Tutorial_5_2024.pdf",
+          "page_label": "第1页",
+          "score": 0.2324007749557495
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第5页",
+          "score": 0.015401787124574184
+        },
+        {
+          "source": "b51f7d26cdae40bab88d04f365a1a644_ELEC_6081_Tutorial_5_2024.pdf",
+          "page_label": "第2页",
+          "score": 0.014377934858202934
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第56页",
+          "score": 0.012574595399200916
+        }
+      ]
+    },
+    {
+      "question": "For a 4-class problem, how many classifiers are required for the One-vs-All (OVA) and One-vs-One (OVO) approaches?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9158346056938171,
+      "second_score": 0.5305110812187195,
+      "raw_scores": [
+        0.9158346056938171,
+        0.5305110812187195,
+        0.3196057975292206,
+        0.019988680258393288,
+        0.0008953220676630735
+      ],
+      "sources": [
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第12页",
+          "score": 0.9158346056938171
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第13页",
+          "score": 0.5305110812187195
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第11页",
+          "score": 0.3196057975292206
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第14页",
+          "score": 0.019988680258393288
+        },
+        {
+          "source": "b51f7d26cdae40bab88d04f365a1a644_ELEC_6081_Tutorial_5_2024.pdf",
+          "page_label": "第2页",
+          "score": 0.0008953220676630735
+        }
+      ]
+    },
+    {
+      "question": "What is feature extraction in a machine-learning pipeline?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9776285290718079,
+      "second_score": 0.9507139921188354,
+      "raw_scores": [
+        0.9776285290718079,
+        0.9507139921188354,
+        0.8394044041633606,
+        0.8389145135879517,
+        0.8377887010574341
+      ],
+      "sources": [
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第15页",
+          "score": 0.9776285290718079
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第43页",
+          "score": 0.9507139921188354
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第22页",
+          "score": 0.8394044041633606
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第18页",
+          "score": 0.8389145135879517
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第21页",
+          "score": 0.8377887010574341
+        }
+      ]
+    },
+    {
+      "question": "What makes a model 'logistic regression', and what does it output?",
+      "expected_grounding": "grounded",
+      "current_grounding": "none",
+      "n_hits": 5,
+      "top_score": 0.04464133083820343,
+      "second_score": 0.00937364250421524,
+      "raw_scores": [
+        0.04464133083820343,
+        0.00937364250421524,
+        0.008752972818911076,
+        0.0012201571371406317,
+        0.0009916191920638084
+      ],
+      "sources": [
+        {
+          "source": "b51f7d26cdae40bab88d04f365a1a644_ELEC_6081_Tutorial_5_2024.pdf",
+          "page_label": "第4页",
+          "score": 0.04464133083820343
+        },
+        {
+          "source": "b51f7d26cdae40bab88d04f365a1a644_ELEC_6081_Tutorial_5_2024.pdf",
+          "page_label": "第2页",
+          "score": 0.00937364250421524
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第39页",
+          "score": 0.008752972818911076
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第35页",
+          "score": 0.0012201571371406317
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第7页",
+          "score": 0.0009916191920638084
+        }
+      ]
+    },
+    {
+      "question": "Describe K-fold and leave-one-out cross-validation, and what must be true of the testing data.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9960657954216003,
+      "second_score": 0.6754526495933533,
+      "raw_scores": [
+        0.9960657954216003,
+        0.6754526495933533,
+        0.2561410069465637,
+        0.19544285535812378,
+        0.0588156096637249
+      ],
+      "sources": [
+        {
+          "source": "b51f7d26cdae40bab88d04f365a1a644_ELEC_6081_Tutorial_5_2024.pdf",
+          "page_label": "第6页",
+          "score": 0.9960657954216003
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第55页",
+          "score": 0.6754526495933533
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第4页",
+          "score": 0.2561410069465637
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第56页",
+          "score": 0.19544285535812378
+        },
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第57页",
+          "score": 0.0588156096637249
+        }
+      ]
+    },
+    {
+      "question": "A medical test gives TP=25, FP=15, FN=15, TN=35. Compute the sensitivity, specificity, and accuracy.",
+      "expected_grounding": "grounded",
+      "current_grounding": "weak",
+      "n_hits": 5,
+      "top_score": 0.510890781879425,
+      "second_score": 0.05172833055257797,
+      "raw_scores": [
+        0.510890781879425,
+        0.05172833055257797,
+        0.0011906219879165292,
+        0.0004950794391334057,
+        0.0003836235555354506
+      ],
+      "sources": [
+        {
+          "source": "b51f7d26cdae40bab88d04f365a1a644_ELEC_6081_Tutorial_5_2024.pdf",
+          "page_label": "第7页",
+          "score": 0.510890781879425
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第5页",
+          "score": 0.05172833055257797
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第15页",
+          "score": 0.0011906219879165292
+        },
+        {
+          "source": "00f53527bc5e45e198462ff431f2ed67_Ch-3_Random_Processes_and_Spectral_Estimation.pdf",
+          "page_label": "第10页",
+          "score": 0.0004950794391334057
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第25页",
+          "score": 0.0003836235555354506
+        }
+      ]
+    },
+    {
+      "question": "Why are multiple-trial biomedical signals used in research and clinical practice?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9998620748519897,
+      "second_score": 0.9559218287467957,
+      "raw_scores": [
+        0.9998620748519897,
+        0.9559218287467957,
+        0.74134761095047,
+        0.5333534479141235,
+        0.2580692172050476
+      ],
+      "sources": [
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第7页",
+          "score": 0.9998620748519897
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第2-4页",
+          "score": 0.9559218287467957
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第8页",
+          "score": 0.74134761095047
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第6页",
+          "score": 0.5333534479141235
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第32页",
+          "score": 0.2580692172050476
+        }
+      ]
+    },
+    {
+      "question": "What are the two main approaches for analysing multivariate biomedical signals?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9998395442962646,
+      "second_score": 0.9995328187942505,
+      "raw_scores": [
+        0.9998395442962646,
+        0.9995328187942505,
+        0.9695225954055786,
+        0.9556580781936646,
+        0.921465277671814
+      ],
+      "sources": [
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第13页",
+          "score": 0.9998395442962646
+        },
+        {
+          "source": "42f282986b9a4cc78e05ce4947c752a5_ELEC_6081_Tutorial_6_2021.pdf",
+          "page_label": "第8页",
+          "score": 0.9995328187942505
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第43页",
+          "score": 0.9695225954055786
+        },
+        {
+          "source": "42f282986b9a4cc78e05ce4947c752a5_ELEC_6081_Tutorial_6_2021.pdf",
+          "page_label": "第10页",
+          "score": 0.9556580781936646
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第8页",
+          "score": 0.921465277671814
+        }
+      ]
+    },
+    {
+      "question": "Distinguish correlation, coherence, and causality as measures of dependence among signals.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9926435351371765,
+      "second_score": 0.9723157286643982,
+      "raw_scores": [
+        0.9926435351371765,
+        0.9723157286643982,
+        0.839284360408783,
+        0.7166627645492554,
+        0.6747378706932068
+      ],
+      "sources": [
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第19页",
+          "score": 0.9926435351371765
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第13页",
+          "score": 0.9723157286643982
+        },
+        {
+          "source": "42f282986b9a4cc78e05ce4947c752a5_ELEC_6081_Tutorial_6_2021.pdf",
+          "page_label": "第2页",
+          "score": 0.839284360408783
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第33-34页",
+          "score": 0.7166627645492554
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第18页",
+          "score": 0.6747378706932068
+        }
+      ]
+    },
+    {
+      "question": "Why is partial correlation used instead of ordinary correlation?",
+      "expected_grounding": "grounded",
+      "current_grounding": "weak",
+      "n_hits": 5,
+      "top_score": 0.1399502009153366,
+      "second_score": 0.065997414290905,
+      "raw_scores": [
+        0.1399502009153366,
+        0.065997414290905,
+        0.002930581569671631,
+        0.0015420574927702546,
+        0.0012999969767406583
+      ],
+      "sources": [
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第26-27页",
+          "score": 0.1399502009153366
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第28-29页",
+          "score": 0.065997414290905
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第1页",
+          "score": 0.002930581569671631
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第30页",
+          "score": 0.0015420574927702546
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第18页",
+          "score": 0.0012999969767406583
+        }
+      ]
+    },
+    {
+      "question": "How is Granger causality tested, and what does it conclude?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9986050724983215,
+      "second_score": 0.8815754055976868,
+      "raw_scores": [
+        0.9986050724983215,
+        0.8815754055976868,
+        0.8024252653121948,
+        0.09006043523550034,
+        0.06680174171924591
+      ],
+      "sources": [
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第35页",
+          "score": 0.9986050724983215
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第36页",
+          "score": 0.8815754055976868
+        },
+        {
+          "source": "42f282986b9a4cc78e05ce4947c752a5_ELEC_6081_Tutorial_6_2021.pdf",
+          "page_label": "第2页",
+          "score": 0.8024252653121948
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第80页",
+          "score": 0.09006043523550034
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第1页",
+          "score": 0.06680174171924591
+        }
+      ]
+    },
+    {
+      "question": "Explain the difference between 'uncorrelated' and 'independent' random variables.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9499567151069641,
+      "second_score": 0.6940219402313232,
+      "raw_scores": [
+        0.9499567151069641,
+        0.6940219402313232,
+        0.03915119916200638,
+        0.018394162878394127,
+        0.004161495249718428
+      ],
+      "sources": [
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第45页",
+          "score": 0.9499567151069641
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第44页",
+          "score": 0.6940219402313232
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第43页",
+          "score": 0.03915119916200638
+        },
+        {
+          "source": "42f282986b9a4cc78e05ce4947c752a5_ELEC_6081_Tutorial_6_2021.pdf",
+          "page_label": "第5页",
+          "score": 0.018394162878394127
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第4页",
+          "score": 0.004161495249718428
+        }
+      ]
+    },
+    {
+      "question": "What is PCA, and how do you decide how many principal components to retain?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9848716855049133,
+      "second_score": 0.9295647740364075,
+      "raw_scores": [
+        0.9848716855049133,
+        0.9295647740364075,
+        0.8789797425270081,
+        0.6370168924331665,
+        0.16934335231781006
+      ],
+      "sources": [
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第49页",
+          "score": 0.9848716855049133
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第50页",
+          "score": 0.9295647740364075
+        },
+        {
+          "source": "42f282986b9a4cc78e05ce4947c752a5_ELEC_6081_Tutorial_6_2021.pdf",
+          "page_label": "第9页",
+          "score": 0.8789797425270081
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第46页",
+          "score": 0.6370168924331665
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第47页",
+          "score": 0.16934335231781006
+        }
+      ]
+    },
+    {
+      "question": "On what basis do PCA and ICA separate sources in blind source separation, and how is independence detected in ICA?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9900174736976624,
+      "second_score": 0.9869323372840881,
+      "raw_scores": [
+        0.9900174736976624,
+        0.9869323372840881,
+        0.34061333537101746,
+        0.22641952335834503,
+        0.189702108502388
+      ],
+      "sources": [
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第43页",
+          "score": 0.9900174736976624
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第4页",
+          "score": 0.9869323372840881
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第13页",
+          "score": 0.34061333537101746
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第56页",
+          "score": 0.22641952335834503
+        },
+        {
+          "source": "42f282986b9a4cc78e05ce4947c752a5_ELEC_6081_Tutorial_6_2021.pdf",
+          "page_label": "第10页",
+          "score": 0.189702108502388
+        }
+      ]
+    },
+    {
+      "question": "Rank EEG, ECoG, LFP, and neural spikes by tissue invasiveness and spatial resolution, and give the approximate frequency range of each.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.994001567363739,
+      "second_score": 0.990330696105957,
+      "raw_scores": [
+        0.994001567363739,
+        0.990330696105957,
+        0.9824426174163818,
+        0.892327070236206,
+        0.8565393686294556
+      ],
+      "sources": [
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第47页",
+          "score": 0.994001567363739
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第5页",
+          "score": 0.990330696105957
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第6页",
+          "score": 0.9824426174163818
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第64页",
+          "score": 0.892327070236206
+        },
+        {
+          "source": "6490cd9a4f304cf9be10a02095ce83cd_ELEC_6081_Tutorial_1.pdf",
+          "page_label": "第6页",
+          "score": 0.8565393686294556
+        }
+      ]
+    },
+    {
+      "question": "In the international 10-20 EEG system, what do the '10' and '20' refer to, and what do the letters (F, T, P, O, C) and the suffix 'z' and even/odd numbers denote?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9967047572135925,
+      "second_score": 0.9892805218696594,
+      "raw_scores": [
+        0.9967047572135925,
+        0.9892805218696594,
+        0.9811945557594299,
+        0.9557169675827026,
+        0.9534144997596741
+      ],
+      "sources": [
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第9页",
+          "score": 0.9967047572135925
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第11页",
+          "score": 0.9892805218696594
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第12页",
+          "score": 0.9811945557594299
+        },
+        {
+          "source": "6490cd9a4f304cf9be10a02095ce83cd_ELEC_6081_Tutorial_1.pdf",
+          "page_label": "第12页",
+          "score": 0.9557169675827026
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第48页",
+          "score": 0.9534144997596741
+        }
+      ]
+    },
+    {
+      "question": "List the five EEG frequency bands with their approximate ranges and the states they are associated with.",
+      "expected_grounding": "grounded",
+      "current_grounding": "weak",
+      "n_hits": 5,
+      "top_score": 0.15714986622333527,
+      "second_score": 0.052764855325222015,
+      "raw_scores": [
+        0.15714986622333527,
+        0.052764855325222015,
+        0.00939309224486351,
+        0.004879363346844912,
+        0.0023886337876319885
+      ],
+      "sources": [
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第45页",
+          "score": 0.15714986622333527
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第6页",
+          "score": 0.052764855325222015
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第40页",
+          "score": 0.00939309224486351
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第37页",
+          "score": 0.004879363346844912
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第11页",
+          "score": 0.0023886337876319885
+        }
+      ]
+    },
+    {
+      "question": "Why is ICA often preferred over adaptive noise cancellation (ANC) for removing EEG artifacts, and what are its pros and cons?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9655649065971375,
+      "second_score": 0.8367675542831421,
+      "raw_scores": [
+        0.9655649065971375,
+        0.8367675542831421,
+        0.7768564820289612,
+        0.5034794211387634,
+        0.4236679673194885
+      ],
+      "sources": [
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第24页",
+          "score": 0.9655649065971375
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第33页",
+          "score": 0.8367675542831421
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第25页",
+          "score": 0.7768564820289612
+        },
+        {
+          "source": "f72d879464104be8a69c2cc5db06f683_ELEC_6081_Tutorial_4_2024.pdf",
+          "page_label": "第11页",
+          "score": 0.5034794211387634
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第32页",
+          "score": 0.4236679673194885
+        }
+      ]
+    },
+    {
+      "question": "What EEG temporal features indicate epileptic seizures and sleep, respectively?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9977949857711792,
+      "second_score": 0.9505001902580261,
+      "raw_scores": [
+        0.9977949857711792,
+        0.9505001902580261,
+        0.22120855748653412,
+        0.11385852843523026,
+        0.09693888574838638
+      ],
+      "sources": [
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第35页",
+          "score": 0.9977949857711792
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第34页",
+          "score": 0.9505001902580261
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第16页",
+          "score": 0.22120855748653412
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第37页",
+          "score": 0.11385852843523026
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第38页",
+          "score": 0.09693888574838638
+        }
+      ]
+    },
+    {
+      "question": "How is baseline correction performed for EEG/ERP signals?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9955209493637085,
+      "second_score": 0.9750930070877075,
+      "raw_scores": [
+        0.9955209493637085,
+        0.9750930070877075,
+        0.9565619230270386,
+        0.9395595788955688,
+        0.6432621479034424
+      ],
+      "sources": [
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第61页",
+          "score": 0.9955209493637085
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第56页",
+          "score": 0.9750930070877075
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第9页",
+          "score": 0.9565619230270386
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第69页",
+          "score": 0.9395595788955688
+        },
+        {
+          "source": "17e949aba5ed49398bd5e9279d33c4c0_ELEC_6081_Tutorial_7.pdf",
+          "page_label": "第8页",
+          "score": 0.6432621479034424
+        }
+      ]
+    },
+    {
+      "question": "When measuring ERS/ERD from multiple trials, why should one not take the ensemble average in the time domain?",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.8740772008895874,
+      "second_score": 0.7690700888633728,
+      "raw_scores": [
+        0.8740772008895874,
+        0.7690700888633728,
+        0.7334889769554138,
+        0.6697985529899597,
+        0.5611092448234558
+      ],
+      "sources": [
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第69页",
+          "score": 0.8740772008895874
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第9页",
+          "score": 0.7690700888633728
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第66页",
+          "score": 0.7334889769554138
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第62页",
+          "score": 0.6697985529899597
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第76页",
+          "score": 0.5611092448234558
+        }
+      ]
+    },
+    {
+      "question": "List three challenges commonly encountered in processing biomedical signals.",
+      "expected_grounding": "grounded",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.9998058676719666,
+      "second_score": 0.9996812343597412,
+      "raw_scores": [
+        0.9998058676719666,
+        0.9996812343597412,
+        0.9206416010856628,
+        0.8686282634735107,
+        0.5223650336265564
+      ],
+      "sources": [
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第5页",
+          "score": 0.9998058676719666
+        },
+        {
+          "source": "6490cd9a4f304cf9be10a02095ce83cd_ELEC_6081_Tutorial_1.pdf",
+          "page_label": "第14页",
+          "score": 0.9996812343597412
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第53页",
+          "score": 0.9206416010856628
+        },
+        {
+          "source": "b51f7d26cdae40bab88d04f365a1a644_ELEC_6081_Tutorial_5_2024.pdf",
+          "page_label": "第8页",
+          "score": 0.8686282634735107
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第1-4页",
+          "score": 0.5223650336265564
+        }
+      ]
+    },
+    {
+      "question": "What is the current weather in London?",
+      "expected_grounding": "general",
+      "current_grounding": "none",
+      "n_hits": 5,
+      "top_score": 1.293893456022488e-05,
+      "second_score": 1.2478207281674258e-05,
+      "raw_scores": [
+        1.293893456022488e-05,
+        1.2478207281674258e-05,
+        1.2418707228789572e-05,
+        1.2328587217780296e-05,
+        1.2074682672391646e-05
+      ],
+      "sources": [
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第3页",
+          "score": 1.293893456022488e-05
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第38页",
+          "score": 1.2478207281674258e-05
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第14-15页",
+          "score": 1.2418707228789572e-05
+        },
+        {
+          "source": "66792ae5cacb424eac65311ac364fe47_ELEC_6081_Tutorial_3_2024.pdf",
+          "page_label": "第14页",
+          "score": 1.2328587217780296e-05
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第33页",
+          "score": 1.2074682672391646e-05
+        }
+      ]
+    },
+    {
+      "question": "Who won the latest FIFA World Cup?",
+      "expected_grounding": "general",
+      "current_grounding": "none",
+      "n_hits": 5,
+      "top_score": 1.8934499166789465e-05,
+      "second_score": 1.7673237380222417e-05,
+      "raw_scores": [
+        1.8934499166789465e-05,
+        1.7673237380222417e-05,
+        1.679308115853928e-05,
+        1.6719255654606968e-05,
+        1.6134932593558915e-05
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第38页",
+          "score": 1.8934499166789465e-05
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第37页",
+          "score": 1.7673237380222417e-05
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第36页",
+          "score": 1.679308115853928e-05
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第5页",
+          "score": 1.6719255654606968e-05
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第50页",
+          "score": 1.6134932593558915e-05
+        }
+      ]
+    },
+    {
+      "question": "Explain the tax filing deadline for a company registered in Hong Kong this year.",
+      "expected_grounding": "general",
+      "current_grounding": "none",
+      "n_hits": 5,
+      "top_score": 4.329186776885763e-05,
+      "second_score": 2.021501313720364e-05,
+      "raw_scores": [
+        4.329186776885763e-05,
+        2.021501313720364e-05,
+        1.587237056810409e-05,
+        1.5346831787610427e-05,
+        1.3981613847136032e-05
+      ],
+      "sources": [
+        {
+          "source": "97acaf56cf6d45ff8cda1b6b2e7dd13c_Ch-2_basics_of_signal_processing.pdf",
+          "page_label": "第2-3页",
+          "score": 4.329186776885763e-05
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第1页",
+          "score": 2.021501313720364e-05
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第2页",
+          "score": 1.587237056810409e-05
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第6页",
+          "score": 1.5346831787610427e-05
+        },
+        {
+          "source": "1fdf63436c154656897cb9ea53b2d100_Ch-6_Multivariate_Signal_Processing.pdf",
+          "page_label": "第49页",
+          "score": 1.3981613847136032e-05
+        }
+      ]
+    },
+    {
+      "question": "Write a Python web scraper for a shopping website.",
+      "expected_grounding": "general",
+      "current_grounding": "none",
+      "n_hits": 5,
+      "top_score": 3.2140338589670137e-05,
+      "second_score": 2.2739954147255048e-05,
+      "raw_scores": [
+        3.2140338589670137e-05,
+        2.2739954147255048e-05,
+        2.0986579329473898e-05,
+        2.070795017061755e-05,
+        1.8103228285326622e-05
+      ],
+      "sources": [
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第16页",
+          "score": 3.2140338589670137e-05
+        },
+        {
+          "source": "f9cc82eb8d5240678d9127ba3db13a2f_ELEC6081_Computer_based_Assignment-description.pdf",
+          "page_label": "第7页",
+          "score": 2.2739954147255048e-05
+        },
+        {
+          "source": "f9cc82eb8d5240678d9127ba3db13a2f_ELEC6081_Computer_based_Assignment-description.pdf",
+          "page_label": "第6页",
+          "score": 2.0986579329473898e-05
+        },
+        {
+          "source": "f9cc82eb8d5240678d9127ba3db13a2f_ELEC6081_Computer_based_Assignment-description.pdf",
+          "page_label": "第8页",
+          "score": 2.070795017061755e-05
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第4-5页",
+          "score": 1.8103228285326622e-05
+        }
+      ]
+    },
+    {
+      "question": "What is the recommended treatment for my persistent chest pain?",
+      "expected_grounding": "general",
+      "current_grounding": "none",
+      "n_hits": 5,
+      "top_score": 2.5562125301803462e-05,
+      "second_score": 1.5395940863527358e-05,
+      "raw_scores": [
+        2.5562125301803462e-05,
+        1.5395940863527358e-05,
+        1.4002508578414563e-05,
+        1.3988495993544348e-05,
+        1.389388671668712e-05
+      ],
+      "sources": [
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第65页",
+          "score": 2.5562125301803462e-05
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第23页",
+          "score": 1.5395940863527358e-05
+        },
+        {
+          "source": "ed360f9e1f904ffabd718067e478a5be_Ch-4_ECG_and_EMG_Processing.pdf",
+          "page_label": "第15页",
+          "score": 1.4002508578414563e-05
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第26页",
+          "score": 1.3988495993544348e-05
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第36页",
+          "score": 1.389388671668712e-05
+        }
+      ]
+    },
+    {
+      "question": "Compare the ELEC6081 examination format with the examination format of ELEC6082.",
+      "expected_grounding": "general",
+      "current_grounding": "grounded",
+      "n_hits": 5,
+      "top_score": 0.7901030778884888,
+      "second_score": 0.7854115962982178,
+      "raw_scores": [
+        0.7901030778884888,
+        0.7854115962982178,
+        0.7698671817779541,
+        0.7337887287139893,
+        0.6676481366157532
+      ],
+      "sources": [
+        {
+          "source": "bca2a7b7611d4c909edee93db7c1b376_Ch-5_Pattern_Recognition_and_Machine_Learning_2025.pdf",
+          "page_label": "第59页",
+          "score": 0.7901030778884888
+        },
+        {
+          "source": "2521d6e6e99644bd82118e5a57afe602_pastpaper_with_solution.pdf",
+          "page_label": "第1页",
+          "score": 0.7854115962982178
+        },
+        {
+          "source": "f9cc82eb8d5240678d9127ba3db13a2f_ELEC6081_Computer_based_Assignment-description.pdf",
+          "page_label": "第3页",
+          "score": 0.7698671817779541
+        },
+        {
+          "source": "f9cc82eb8d5240678d9127ba3db13a2f_ELEC6081_Computer_based_Assignment-description.pdf",
+          "page_label": "第1页",
+          "score": 0.7337887287139893
+        },
+        {
+          "source": "f9cc82eb8d5240678d9127ba3db13a2f_ELEC6081_Computer_based_Assignment-description.pdf",
+          "page_label": "第4页",
+          "score": 0.6676481366157532
+        }
+      ]
+    },
+    {
+      "question": "Which EEG headset should I buy today, and what is its current price?",
+      "expected_grounding": "general",
+      "current_grounding": "none",
+      "n_hits": 5,
+      "top_score": 0.00011108323087682948,
+      "second_score": 6.893857062095776e-05,
+      "raw_scores": [
+        0.00011108323087682948,
+        6.893857062095776e-05,
+        6.356285302899778e-05,
+        4.2406572902109474e-05,
+        3.8272304664133117e-05
+      ],
+      "sources": [
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第14-15页",
+          "score": 0.00011108323087682948
+        },
+        {
+          "source": "6490cd9a4f304cf9be10a02095ce83cd_ELEC_6081_Tutorial_1.pdf",
+          "page_label": "第12页",
+          "score": 6.893857062095776e-05
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第6页",
+          "score": 6.356285302899778e-05
+        },
+        {
+          "source": "625c5778e1dd4cb48527c2bcdf328aa3_Ch-7_EEG_and_EP_Signal_Processing.pdf",
+          "page_label": "第9页",
+          "score": 4.2406572902109474e-05
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第11页",
+          "score": 3.8272304664133117e-05
+        }
+      ]
+    },
+    {
+      "question": "What did the lecturer say verbally after the final slide of the EEG lecture?",
+      "expected_grounding": "general",
+      "current_grounding": "none",
+      "n_hits": 5,
+      "top_score": 0.011708620935678482,
+      "second_score": 0.0012832137290388346,
+      "raw_scores": [
+        0.011708620935678482,
+        0.0012832137290388346,
+        0.0012607156531885266,
+        0.0005307454848662019,
+        0.0002946052700281143
+      ],
+      "sources": [
+        {
+          "source": "6490cd9a4f304cf9be10a02095ce83cd_ELEC_6081_Tutorial_1.pdf",
+          "page_label": "第12页",
+          "score": 0.011708620935678482
+        },
+        {
+          "source": "b51f7d26cdae40bab88d04f365a1a644_ELEC_6081_Tutorial_5_2024.pdf",
+          "page_label": "第5页",
+          "score": 0.0012832137290388346
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第11页",
+          "score": 0.0012607156531885266
+        },
+        {
+          "source": "6490cd9a4f304cf9be10a02095ce83cd_ELEC_6081_Tutorial_1.pdf",
+          "page_label": "第6页",
+          "score": 0.0005307454848662019
+        },
+        {
+          "source": "9148bff92fb54f54b08532f56218c688_CH-1_Introduction_2025.pdf",
+          "page_label": "第56页",
+          "score": 0.0002946052700281143
+        }
+      ]
+    }
+  ]
+}

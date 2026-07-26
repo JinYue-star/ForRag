@@ -19,3 +19,8 @@ __pycache__/
 
 # 本地模型权重（体积大，不入库）
 .models/
+
+# 分块改造前后的检索评测语料与报告（本地产物，不入库）
+.evalcorpus/
+eval_before.json
+eval_after.json

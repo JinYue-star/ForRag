@@ -95,3 +95,82 @@ def test_global_kb_shared_across_sessions_and_not_deleted_with_session(client: T
     assert rc3.status_code == 200
     assert any(x["id"] == cid for x in rc3.json())
 
+
+def test_kb_attachment_download_and_delete_note(client: TestClient) -> None:
+    token = "pytest-token-secure"
+    r = client.post("/api/v1/sessions", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200
+    sid = r.json()["session_id"]
+    sec = r.json()["session_secret"]
+    h = _auth_headers(token, sec)
+
+    rc = client.post(
+        f"/api/v1/sessions/{sid}/kb/categories",
+        headers=h,
+        json={"name": "cat-dl", "sort_order": 0},
+    )
+    assert rc.status_code == 200
+    cid = rc.json()["id"]
+
+    rn = client.post(
+        f"/api/v1/sessions/{sid}/kb/categories/{cid}/notes",
+        headers=h,
+        json={"title": "note-dl", "body_markdown": ""},
+    )
+    assert rn.status_code == 200
+    nid = rn.json()["id"]
+
+    payload = b"%PDF-1.4 test-bytes-for-download"
+    rf = client.post(
+        f"/api/v1/sessions/{sid}/kb/notes/{nid}/files",
+        headers=h,
+        files={"file": ("sample.pdf", payload, "application/pdf")},
+    )
+    assert rf.status_code == 200
+    fid = rf.json()["id"]
+
+    rd = client.get(f"/api/v1/sessions/{sid}/kb/notes/{nid}/files/{fid}", headers=h)
+    assert rd.status_code == 200
+    assert rd.content == payload
+
+    bad = client.get(
+        f"/api/v1/sessions/{sid}/kb/notes/{nid}/files/{fid}",
+        headers=_auth_headers(token, "wrong" * 8),
+    )
+    assert bad.status_code == 403
+
+    # Wrong note id for this file → 404
+    rn2 = client.post(
+        f"/api/v1/sessions/{sid}/kb/categories/{cid}/notes",
+        headers=h,
+        json={"title": "other", "body_markdown": ""},
+    )
+    other_nid = rn2.json()["id"]
+    cross = client.get(
+        f"/api/v1/sessions/{sid}/kb/notes/{other_nid}/files/{fid}",
+        headers=h,
+    )
+    assert cross.status_code == 404
+
+    # Remove attachment (teacher) then re-upload for note-level delete check
+    rm = client.delete(f"/api/v1/sessions/{sid}/kb/notes/{nid}/files/{fid}", headers=h)
+    assert rm.status_code == 200
+    assert rm.json()["status"] == "deleted"
+    gone_file = client.get(f"/api/v1/sessions/{sid}/kb/notes/{nid}/files/{fid}", headers=h)
+    assert gone_file.status_code == 404
+
+    rf2 = client.post(
+        f"/api/v1/sessions/{sid}/kb/notes/{nid}/files",
+        headers=h,
+        files={"file": ("sample2.pdf", payload, "application/pdf")},
+    )
+    assert rf2.status_code == 200
+    fid2 = rf2.json()["id"]
+
+    del_note = client.delete(f"/api/v1/sessions/{sid}/kb/notes/{nid}", headers=h)
+    assert del_note.status_code == 200
+    assert del_note.json()["status"] == "deleted"
+
+    gone = client.get(f"/api/v1/sessions/{sid}/kb/notes/{nid}/files/{fid2}", headers=h)
+    assert gone.status_code == 404
+

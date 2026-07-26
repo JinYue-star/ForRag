@@ -12,7 +12,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, File, Form, Header, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, Form, Header, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse
 
 import chroma_store
 import kb_store
@@ -21,7 +22,6 @@ import rag_pipeline
 from doc_qa_assistant import (
     build_or_load_index,
     invalidate_caches_for_file,
-    search,
 )
 
 from rag_api import settings
@@ -35,15 +35,17 @@ from rag_api.http_common import (
     require_access_token,
     safe_filename,
     server_error_detail,
-    verify_session,
+    verify_session_access,
 )
 from rag_api.kb_files import purge_kb_note_from_disk, sync_kb_note_body_file
 from rag_api.qa_llm import (
     build_quiz_public,
+    build_quiz_search_query,
     generate_quiz_bundle_for_segments,
     grade_quiz_with_llm,
     invoke_llm,
     merge_quiz_segments,
+    prefer_kb_hits,
     quiz_generation_fail_detail,
     run_qa_pipeline,
 )
@@ -111,7 +113,7 @@ def delete_session(
     require_access_token(authorization)
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
 
     for row in chroma_store.file_list(sid):
         abs_path = (settings.UPLOAD_DIR / row["stored_rel"]).resolve()
@@ -144,7 +146,7 @@ def list_session_files(
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
 
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     rows = chroma_store.file_list(sid)
     return [
         SessionFileItem(id=r["id"], original_name=r["original_name"], size_bytes=int(r["size_bytes"]))
@@ -184,7 +186,7 @@ async def upload_session_files(
         raise HTTPException(status_code=400, detail="未接收到有效文件")
 
     secret = x_session_secret.strip()
-    verify_session(sid, secret)
+    verify_session_access(sid, secret, authorization)
     count = len(chroma_store.file_list(sid))
     if count + len(prepared) > settings.MAX_FILES:
         raise HTTPException(status_code=400, detail=f"最多只能上传 {settings.MAX_FILES} 个文件")
@@ -207,7 +209,7 @@ async def upload_session_files(
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(content)
 
-        verify_session(sid, secret)
+        verify_session_access(sid, secret, authorization)
         chroma_store.file_insert(
             file_id,
             sid,
@@ -237,7 +239,7 @@ def delete_session_file(
     except ValueError as e:
         raise HTTPException(status_code=400, detail="无效的文件 ID") from e
 
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     row = chroma_store.file_get(sid, fid)
     if not row:
         raise HTTPException(status_code=404, detail="文件不存在")
@@ -268,7 +270,7 @@ def kb_list_categories(
     require_access_token(authorization)
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     return kb_store.categories_list(settings.DATA_DIR, settings.KB_ID)
 
 
@@ -284,7 +286,7 @@ def kb_create_category(
     require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     return kb_store.category_insert(
         settings.DATA_DIR,
         settings.KB_ID,
@@ -308,7 +310,7 @@ def kb_patch_category(
     require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     cid = category_id.strip()
     row = kb_store.category_update(
         settings.DATA_DIR,
@@ -334,7 +336,7 @@ def kb_delete_category(
     require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     cid = category_id.strip()
     notes = []
     for cat in kb_store.categories_list(settings.DATA_DIR, settings.KB_ID):
@@ -359,7 +361,7 @@ def kb_list_notes(
     require_access_token(authorization)
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     cid = category_id.strip()
     if not kb_store.category_get(settings.DATA_DIR, settings.KB_ID, cid):
         raise HTTPException(status_code=404, detail="类目不存在")
@@ -379,7 +381,7 @@ def kb_create_note(
     require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     cid = category_id.strip()
     try:
         row = kb_store.note_insert(
@@ -408,7 +410,7 @@ def kb_get_note(
     require_access_token(authorization)
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     row = kb_store.note_get(settings.DATA_DIR, settings.KB_ID, note_id.strip())
     if not row:
         raise HTTPException(status_code=404, detail="笔记不存在")
@@ -428,7 +430,7 @@ def kb_patch_note(
     require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     nid = note_id.strip()
     try:
         row = kb_store.note_update(
@@ -462,7 +464,7 @@ def kb_delete_note(
     require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     nid = note_id.strip()
     if not kb_store.note_get(settings.DATA_DIR, settings.KB_ID, nid):
         raise HTTPException(status_code=404, detail="笔记不存在")
@@ -482,12 +484,53 @@ def kb_list_note_files(
     require_access_token(authorization)
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     nid = note_id.strip()
     if not kb_store.note_get(settings.DATA_DIR, settings.KB_ID, nid):
         raise HTTPException(status_code=404, detail="笔记不存在")
     rows = kb_store.note_files_list(settings.DATA_DIR, settings.KB_ID, nid)
     return [KbNoteFileItem.model_validate(dict(r)) for r in rows]
+
+
+@router_v1.get("/sessions/{session_id}/kb/notes/{note_id}/files/{file_id}")
+def kb_download_note_file(
+    request: Request,
+    session_id: str,
+    note_id: str,
+    file_id: str,
+    authorization: Optional[str] = Header(default=None),
+    x_session_secret: str = Header(..., alias="X-Session-Secret"),
+    inline: bool = Query(False, description="true 时 Content-Disposition: inline"),
+) -> FileResponse:
+    """下载知识库附件（师生可读；需会话 secret）。"""
+    require_access_token(authorization)
+    check_rate_limit(client_ip(request))
+    sid = parse_uuid_param("session_id", session_id)
+    verify_session_access(sid, x_session_secret.strip(), authorization)
+    nid = note_id.strip()
+    fid = file_id.strip()
+    if not kb_store.note_get(settings.DATA_DIR, settings.KB_ID, nid):
+        raise HTTPException(status_code=404, detail="笔记不存在")
+    row = kb_store.note_file_get(settings.DATA_DIR, settings.KB_ID, fid)
+    if not row or str(row.get("note_id")) != nid:
+        raise HTTPException(status_code=404, detail="附件不存在")
+    abs_path = (settings.UPLOAD_DIR / str(row["stored_rel"])).resolve()
+    upload_root = settings.UPLOAD_DIR.resolve()
+    try:
+        abs_path.relative_to(upload_root)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail="附件不存在") from e
+    if not abs_path.is_file():
+        raise HTTPException(status_code=404, detail="附件文件缺失")
+    filename = str(row.get("original_name") or abs_path.name)
+    media = str(row.get("mime") or "").strip() or "application/octet-stream"
+    disposition = "inline" if inline else "attachment"
+    return FileResponse(
+        path=str(abs_path),
+        media_type=media,
+        filename=filename,
+        content_disposition_type=disposition,
+    )
 
 
 @router_v1.post("/sessions/{session_id}/kb/notes/{note_id}/files", response_model=KbNoteFileItem)
@@ -503,7 +546,7 @@ async def kb_upload_note_file(
     require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     nid = note_id.strip()
     if not kb_store.note_get(settings.DATA_DIR, settings.KB_ID, nid):
         raise HTTPException(status_code=404, detail="笔记不存在")
@@ -554,7 +597,7 @@ def kb_delete_note_file(
     require_teacher(resolve_current_user(authorization))
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     nid = note_id.strip()
     fid = file_id.strip()
     row = kb_store.note_file_get(settings.DATA_DIR, settings.KB_ID, fid)
@@ -581,7 +624,7 @@ def ask_session_qa(
     authorization: Optional[str] = Header(default=None),
     x_session_secret: str = Header(..., alias="X-Session-Secret"),
     question: str = Form(..., description="用户问题"),
-    top_k: int = Form(3, description="检索片段条数"),
+    top_k: int = Form(settings.MAX_TOP_K, description="检索片段条数"),
     max_new_tokens: Optional[int] = Form(None, description="生成 token 上限"),
     kb_scope: str = Form("union", description="session_files | kb_only | union"),
     category_ids: Optional[str] = Form(
@@ -597,7 +640,7 @@ def ask_session_qa(
     if len(question) > settings.MAX_QUESTION_CHARS:
         raise HTTPException(status_code=400, detail=f"问题长度不能超过 {settings.MAX_QUESTION_CHARS} 个字符")
 
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     cat_ids = kb_store.parse_category_ids_json(category_ids)
     saved_paths, chunk_tags, bundle_extra = collect_qa_index_inputs(sid, kb_scope, cat_ids)
     if not saved_paths:
@@ -643,11 +686,30 @@ def ask_session_qa(
     uid = uuid.uuid4().hex
     aid = uuid.uuid4().hex
     chroma_store.message_add(uid, sid, "user", question.strip(), now)
-    extra: dict[str, Any] = {"route": resp.route, "kb_relevant": resp.kb_relevant}
+    extra: dict[str, Any] = {
+        "route": resp.route,
+        "kb_relevant": resp.kb_relevant,
+        "grounding_label": resp.grounding_label,
+        "answer_kind": resp.answer_kind,
+        "service_unavailable": resp.service_unavailable,
+        "sufficiency_checked": resp.sufficiency_checked,
+        "sufficiency_sufficient": resp.sufficiency_sufficient,
+        "sufficiency_reason": resp.sufficiency_reason,
+        "citation_coverage": resp.citation_coverage,
+    }
     if resp.no_kb_notice:
         extra["no_kb_notice"] = resp.no_kb_notice
     if resp.citations:
         extra["citations"] = [c.model_dump() for c in resp.citations]
+    if (resp.service_unavailable or resp.answer_kind == "verification_failed") and resp.hits:
+        extra["sources"] = [
+            {
+                "source": h.source,
+                "page_label": h.page_label,
+                "score": h.score,
+            }
+            for h in resp.hits[:3]
+        ]
     chroma_store.message_add(aid, sid, "assistant", resp.answer, now + 0.001, extra=extra)
     return resp
 
@@ -659,7 +721,7 @@ def ask_session_qa_async(
     authorization: Optional[str] = Header(default=None),
     x_session_secret: str = Header(..., alias="X-Session-Secret"),
     question: str = Form(..., description="用户问题"),
-    top_k: int = Form(3, description="检索片段条数"),
+    top_k: int = Form(settings.MAX_TOP_K, description="检索片段条数"),
     max_new_tokens: Optional[int] = Form(None, description="生成 token 上限"),
     kb_scope: str = Form("union", description="session_files | kb_only | union"),
     category_ids: Optional[str] = Form(None, description="可选：类目 id JSON 数组"),
@@ -673,7 +735,7 @@ def ask_session_qa_async(
     if len(question) > settings.MAX_QUESTION_CHARS:
         raise HTTPException(status_code=400, detail=f"问题长度不能超过 {settings.MAX_QUESTION_CHARS} 个字符")
 
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     cat_ids = kb_store.parse_category_ids_json(category_ids)
     paths, _, _ = collect_qa_index_inputs(sid, kb_scope, cat_ids)
     if not paths:
@@ -705,7 +767,7 @@ def get_session_qa_job(
     require_access_token(authorization)
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     jid = job_id.strip()
     row = qa_job_get(jid)
     if not row:
@@ -729,7 +791,7 @@ def list_session_messages(
     require_access_token(authorization)
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     raw = chroma_store.messages_list(sid)
     return [
         ChatMessageItem(
@@ -754,7 +816,7 @@ def delete_session_message(
     require_access_token(authorization)
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     mid = message_id.strip()
     if not mid:
         raise HTTPException(status_code=400, detail="无效的消息 id")
@@ -773,7 +835,7 @@ def delete_all_session_messages(
     require_access_token(authorization)
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     n = chroma_store.messages_delete_all(sid)
     return {"status": "ok", "deleted": n}
 
@@ -789,7 +851,7 @@ def generate_session_quiz(
     require_access_token(authorization)
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     merged = merge_quiz_segments(body.segments or [])
     if not merged:
         raise HTTPException(status_code=400, detail="至少选择一条消息")
@@ -814,22 +876,39 @@ def generate_session_quiz(
         msgs_for_context.append(m)
     msgs_for_context.sort(key=lambda x: float(x["created_at"]))
     context = "\n\n".join(f"{m['role']}: {m['content']}" for m in msgs_for_context)
-    last_user = next((m["content"] for m in reversed(msgs_for_context) if m["role"] == "user"), None)
-    search_q = (last_user or context)[:800]
+    session_messages = chroma_store.messages_list(sid)
+    search_q = build_quiz_search_query(resolved_segments, session_messages)
 
-    rows = chroma_store.file_list(sid)
-    if not rows:
-        raise HTTPException(status_code=400, detail="会话中还没有文件，请先上传")
-    saved_paths = [(settings.UPLOAD_DIR / r["stored_rel"]).resolve() for r in rows]
+    # 出题检索：知识库 ∪ 会话附件（可不上传会话文件）；命中结果再按 KB 优先排序。
+    saved_paths, chunk_tags, bundle_extra = collect_qa_index_inputs(sid, "union", None)
+    if not saved_paths:
+        raise HTTPException(
+            status_code=400,
+            detail="没有可检索的内容：请先在知识库中添加资料，或上传会话附件后再生成测验",
+        )
     for p in saved_paths:
         if not p.is_file():
-            raise HTTPException(status_code=500, detail="服务器上文件缺失，请重新上传")
+            raise HTTPException(status_code=500, detail="服务器上文件缺失，请重新上传或同步知识库")
 
     limited_top_k = max(1, min(settings.MAX_TOP_K, 5))
+    pool_k = max(limited_top_k * 2, 8)
     with session_qa_lock(sid):
         try:
-            chunks, _embeddings, index, st = build_or_load_index(saved_paths, settings.SERVER_EMBED_MODEL)
-            hits = search(search_q, chunks, index, st, top_k=limited_top_k)
+            chunks, _embeddings, index, st = build_or_load_index(
+                saved_paths,
+                settings.SERVER_EMBED_MODEL,
+                bundle_extra=bundle_extra,
+                chunk_tags_by_norm_path=chunk_tags,
+            )
+            raw_hits = rag_pipeline.hybrid_retrieve(
+                search_q,
+                chunks,
+                index,
+                st,
+                lambda prompt, max_tok, **kw: invoke_llm(prompt, max_tok, **kw),
+                pool_k,
+            )
+            hits = prefer_kb_hits(raw_hits, limited_top_k)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
         except Exception as e:
@@ -869,7 +948,7 @@ def get_session_quiz_bundle(
     require_access_token(authorization)
     check_rate_limit(client_ip(request))
     sid = parse_uuid_param("session_id", session_id)
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     qid = quiz_id.strip()
     got = chroma_store.quiz_get(qid)
     if not got:
@@ -887,7 +966,7 @@ async def ask_doc_qa(
     authorization: Optional[str] = Header(default=None),
     question: str = Form(..., description="用户问题"),
     files: list[UploadFile] = File(..., description="一个或多个文档文件"),
-    top_k: int = Form(3, description="检索片段条数"),
+    top_k: int = Form(settings.MAX_TOP_K, description="检索片段条数"),
     max_new_tokens: Optional[int] = Form(None, description="生成 token 上限"),
 ) -> QAResponse:
     require_access_token(authorization)
@@ -969,7 +1048,7 @@ def grade_session_quiz(
     sid = parse_uuid_param("session_id", session_id)
     qid = quiz_id.strip()
 
-    verify_session(sid, x_session_secret.strip())
+    verify_session_access(sid, x_session_secret.strip(), authorization)
     got = chroma_store.quiz_get(qid)
     if not got:
         raise HTTPException(status_code=404, detail="测验不存在或已过期")

@@ -10,9 +10,9 @@
 服务端向量缓存（RAG_CACHE_ROOT）与按文件删除时同步清理缓存。
 
 启动（允许局域网其它机器访问，需放行防火墙端口）：
-  生产环境建议：set RAG_ACCESS_TOKEN=你的强随机令牌（设置后即默认要求请求带 Bearer）
+  师生产品部署：set RAG_REQUIRE_AUTH=1（用户名密码登录；前端存 HKU_LOGIN_TOKEN）
+  无登录、仅机器访问时：set RAG_ACCESS_TOKEN=强随机令牌（且 RAG_REQUIRE_AUTH=0）
   py -3.12 -m uvicorn fastapi_service:app --host 0.0.0.0 --port 8000
-  本地未设置 RAG_ACCESS_TOKEN 时默认不校验 Bearer；若仍要强制校验：set RAG_REQUIRE_ACCESS_TOKEN=1（须同时配置 RAG_ACCESS_TOKEN）
 
 环境变量：
   RAG_ALLOWED_ORIGINS  逗号分隔的 CORS 白名单（仅当 RAG_CORS_STRICT=1 时生效）
@@ -24,8 +24,9 @@
   RAG_FRONTEND_DIR     可选，静态前端目录绝对路径；不设时优先使用与 ForRag 同级的 ForRag-frontend，否则用仓库内 ForRag-gh-pages
   RAG_RATE_LIMIT_MAX_REQUESTS  单 IP 在时间窗口内最大请求数，默认 120；设为 0 关闭限流
   RAG_DEBUG_ERRORS           设为 1/true 时，500 错误返回异常类型与信息（仅排障用）
-  RAG_ACCESS_TOKEN         非空时默认启用 Bearer 校验；未设置时本地默认不校验（便于开箱）
-  RAG_REQUIRE_ACCESS_TOKEN 显式设为 1/true 则强制校验（须已配置 RAG_ACCESS_TOKEN）；设为 0 则关闭校验
+  RAG_REQUIRE_AUTH         1=强制用户登录；此时忽略静态 RAG_ACCESS_TOKEN 门闩
+  RAG_ACCESS_TOKEN         静态服务 Bearer（仅登录鉴权关闭时生效）；与登录 token 不是同一概念
+  RAG_REQUIRE_ACCESS_TOKEN 显式开关静态令牌门闩；登录鉴权开启时无效
   RAG_STRICT_IMAGE_OCR       默认关闭；设为 1 时若未安装图像 OCR 依赖则直接报错（不写入占位文本）
   RAG_ENABLE_REWRITE         设为 1 时问答前对查询做 LLM 改写（需可用 API 或本地模型）
   RAG_ENABLE_HYBRID          默认开启；设为 0 关闭 dense+BM25 混合检索

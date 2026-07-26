@@ -30,6 +30,8 @@ _reranker_model: Any = None
 _reranker_id: str = ""
 # 运行期是否真正跑通重排（模型加载/推理失败后置 False），用于门控选择正确的分数口径。
 _rerank_runtime_ok: bool = True
+# 最近一次 hybrid_retrieve 返回的分数是否来自 cross-encoder（中文原问遇英文 MiniLM 时可能为 False）。
+_last_scores_from_rerank: bool = False
 
 # 查询扩写（multi-query）与 HyDE 默认开启：对"学生口语化提问 vs 课件术语"错配最有效（各仅一次 LLM 调用）。
 REWRITE_ENABLED = _flag_on("RAG_ENABLE_REWRITE", True)
@@ -46,6 +48,16 @@ HYBRID_POOL = max(8, min(96, int(os.environ.get("RAG_HYBRID_CANDIDATES", "36")))
 DENSE_PER_QUERY = max(4, min(32, int(os.environ.get("RAG_DENSE_PER_QUERY", "12"))))
 BM25_TOP = max(4, min(64, int(os.environ.get("RAG_BM25_TOP", "20"))))
 RRF_K = max(10, min(120, int(os.environ.get("RAG_RRF_K", "60"))))
+
+
+def scores_from_rerank() -> bool:
+    """门控阈值选择：仅当本次检索分确实来自重排器时用 RERANK_*，否则用 KB_*。"""
+    return bool(_last_scores_from_rerank) and rerank_active()
+
+
+def _english_only_reranker() -> bool:
+    mid = (RERANK_MODEL or "").lower()
+    return "ms-marco" in mid or "minilm" in mid
 
 
 def rerank_active() -> bool:
@@ -82,7 +94,9 @@ def _expand_queries_llm(invoke_llm, question: str) -> dict[str, Any]:
     prompt = (
         "You help a document retrieval system. Given a user question, output ONLY a JSON object, no prose.\n"
         + (
-            '- "queries": an array of 1-3 concise search queries (synonym-expanded or split sub-questions) that best retrieve relevant course material.\n'
+            '- "queries": an array of 1-3 concise search queries (synonym-expanded or split sub-questions) '
+            "that best retrieve relevant course material. Prefer the language of typical lecture notes "
+            "(often English technical terms), even if the user asked in Chinese.\n"
             if want_rewrite
             else '- "queries": an array with just the original question.\n'
         )
@@ -251,6 +265,25 @@ def _rerank(
         return [(float(sc), ch) for sc, _idx, ch in candidates[:top_k]]
 
 
+_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+
+
+def _pick_rerank_query(original: str, queries: list[str]) -> str:
+    """为重排器挑选查询文本。
+
+    本地 MiniLM 是英文 cross-encoder：用中文原问去打英文课件分会系统性偏低。
+    当原问含汉字时，优先用扩写得到的无汉字查询（通常是课件术语的英文表述）。
+    """
+    q0 = (original or "").strip()
+    cleaned = [str(q).strip() for q in queries if str(q).strip()]
+    if not _CJK_RE.search(q0):
+        return q0 or (cleaned[0] if cleaned else "")
+    for q in cleaned:
+        if not _CJK_RE.search(q):
+            return q
+    return cleaned[0] if cleaned else q0
+
+
 def _corrective_trigger() -> float:
     """低于该 top 分即触发一次纠错重查。重排开启用概率口径，否则用余弦口径。"""
     from rag_api import settings
@@ -331,12 +364,32 @@ def hybrid_retrieve(
         sc = dense_best.get(idx, 0.01)
         candidates.append((float(sc), idx, chunks[idx]))
 
-    reranked = _rerank(question.strip(), candidates, min(final_top_k, len(candidates)))
+    global _last_scores_from_rerank
+    rerank_q = _pick_rerank_query(question, queries)
+    # 扩写未给出拉丁文查询时，用 HyDE 假想段落作重排查询（课件多为英文）。
+    if _CJK_RE.search(rerank_q) and hyde and not _CJK_RE.search(hyde[:120]):
+        rerank_q = " ".join(hyde.split()[:48])
+    # 英文 MiniLM 对汉字查询打分失真：跳过 CE，保留稠密余弦分，并让门控改用 KB_*。
+    use_ce = RERANK_ENABLED and not (
+        _english_only_reranker() and bool(_CJK_RE.search(rerank_q))
+    )
+    if use_ce:
+        reranked = _rerank(rerank_q, candidates, min(final_top_k, len(candidates)))
+        _last_scores_from_rerank = _rerank_runtime_ok
+    else:
+        reranked = [(float(sc), ch) for sc, _idx, ch in candidates[: min(final_top_k, len(candidates))]]
+        _last_scores_from_rerank = False
 
     # 纠错式重查（硬上限 1 次）：首轮 top 分偏弱时改写查询再检一次，取 top 分更高者。
     if CORRECTIVE_ENABLED and allow_correction and reranked:
         top = float(reranked[0][0])
-        if top < _corrective_trigger():
+        if _last_scores_from_rerank:
+            trigger = _corrective_trigger()
+        else:
+            from rag_api import settings as _settings
+
+            trigger = float(_settings.KB_SINGLE_HIT_MIN_SCORE)
+        if top < trigger:
             new_q = _corrective_rewrite_llm(invoke_llm, question, reranked)
             if new_q and new_q.strip().lower() != question.strip().lower():
                 alt = hybrid_retrieve(

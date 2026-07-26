@@ -1,7 +1,0 @@
-{
-  "version": "rag_cache_v2",
-  "embed_model_id": "BAAI/bge-small-zh-v1.5",
-  "file_path": "E:\\For_RAG\\.uploads\\kb\\default\\files\\0131f73fd04a4b92a3a10b681b5ab883_CH-1_Introduction_2025.pdf",
-  "file_fingerprint": "9553ffe36987b57815e00bbb99f08380cd396a62",
-  "chunk_count": 67
-}

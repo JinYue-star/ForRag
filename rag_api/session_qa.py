@@ -96,6 +96,7 @@ def session_qa_worker(
     category_ids_json: Optional[str] = None,
 ) -> None:
     try:
+        # 派发路由已用 verify_session_access 校验 owner；worker 仅复查 secret。
         verify_session(sid, secret)
         cat_ids = kb_store.parse_category_ids_json(category_ids_json)
         saved_paths, chunk_tags, bundle_extra = collect_qa_index_inputs(sid, kb_scope, cat_ids)
@@ -132,11 +133,30 @@ def session_qa_worker(
         uid = uuid.uuid4().hex
         aid = uuid.uuid4().hex
         chroma_store.message_add(uid, sid, "user", question.strip(), now)
-        extra: dict[str, Any] = {"route": resp.route, "kb_relevant": resp.kb_relevant}
+        extra: dict[str, Any] = {
+            "route": resp.route,
+            "kb_relevant": resp.kb_relevant,
+            "grounding_label": resp.grounding_label,
+            "answer_kind": resp.answer_kind,
+            "service_unavailable": resp.service_unavailable,
+            "sufficiency_checked": resp.sufficiency_checked,
+            "sufficiency_sufficient": resp.sufficiency_sufficient,
+            "sufficiency_reason": resp.sufficiency_reason,
+            "citation_coverage": resp.citation_coverage,
+        }
         if resp.no_kb_notice:
             extra["no_kb_notice"] = resp.no_kb_notice
         if resp.citations:
             extra["citations"] = [c.model_dump() for c in resp.citations]
+        if (resp.service_unavailable or resp.answer_kind == "verification_failed") and resp.hits:
+            extra["sources"] = [
+                {
+                    "source": h.source,
+                    "page_label": h.page_label,
+                    "score": h.score,
+                }
+                for h in resp.hits[:3]
+            ]
         chroma_store.message_add(aid, sid, "assistant", resp.answer, now + 0.001, extra=extra)
         with _jobs_lock:
             _qa_jobs[job_id] = {

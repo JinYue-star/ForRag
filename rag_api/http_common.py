@@ -15,13 +15,14 @@ import time
 import uuid
 from collections import defaultdict, deque
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import HTTPException, Request
 
 import chroma_store
 
 from rag_api import settings
+from rag_api.auth import auth_required, resolve_current_user
 
 _rate_limit_records: dict[str, deque[float]] = defaultdict(deque)
 _rate_limit_lock = threading.Lock()
@@ -90,6 +91,15 @@ def server_error_detail(exc: BaseException) -> str:
 
 
 def require_access_token(authorization: Optional[str]) -> None:
+    """可选的「静态服务令牌」门闩，与登录 token 分离。
+
+    - 已启用用户登录鉴权（``auth_required()``）时：本函数为空操作。
+      调用方须通过 ``resolve_current_user`` / Bearer 登录令牌鉴权。
+    - 未启用登录鉴权且 ``REQUIRE_ACCESS_TOKEN`` 时：Bearer 必须等于环境变量
+      ``RAG_ACCESS_TOKEN``（机器/脚本访问用，勿与前端 ``HKU_LOGIN_TOKEN`` 混淆）。
+    """
+    if auth_required():
+        return
     if not settings.REQUIRE_ACCESS_TOKEN:
         return
     if not settings.ACCESS_TOKEN:
@@ -112,13 +122,41 @@ def parse_uuid_param(name: str, value: str) -> str:
         raise HTTPException(status_code=400, detail=f"无效的{name}") from e
 
 
-def verify_session(session_id: str, session_secret: str) -> None:
+def verify_session(session_id: str, session_secret: str) -> dict[str, Any]:
+    """校验 session_secret；成功返回会话行（含 owner 等字段）。"""
     row = chroma_store.session_get(session_id)
     if not row:
         raise HTTPException(status_code=404, detail="会话不存在")
     if not hmac.compare_digest(row["secret_hash"], hash_session_secret(session_secret)):
         raise HTTPException(status_code=403, detail="会话密钥无效")
     chroma_store.session_update_last_seen(session_id, time.time())
+    return row
+
+
+def verify_session_access(
+    session_id: str,
+    session_secret: str,
+    authorization: Optional[str],
+) -> dict[str, Any]:
+    """校验 secret，并在启用登录鉴权时要求调用者是会话 owner。
+
+    - 本机未启用鉴权：仅验 secret（与旧行为一致）。
+    - 历史会话无 owner：首次访问者认领。
+    - 已有 owner 且与当前用户不符：403。
+    """
+    row = verify_session(session_id, session_secret)
+    if not auth_required():
+        return row
+    user = resolve_current_user(authorization)
+    owner_id = str(((row.get("owner") or {}).get("user_id")) or "")
+    if not owner_id:
+        # 历史会话或创建时未绑定用户：首次访问者认领
+        chroma_store.session_set_owner(session_id, user or {})
+        return row
+    uid = str((user or {}).get("id") or "")
+    if owner_id != uid:
+        raise HTTPException(status_code=403, detail="无权访问该会话")
+    return row
 
 
 def safe_filename(name: str, used_names: set[str]) -> str:

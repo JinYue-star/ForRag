@@ -5,7 +5,7 @@
 > | 你是谁 | 建议先看 | 再深入 |
 > |---|---|---|
 > | **产品 / 课程负责人** | §1 一页纸 · §3 用户与场景 · §4 功能清单 | §8 验收 · §9 路线图 |
-> | **研发 / 运维** | §5 架构 · §5.4–5.6 RAG 优化 · §6 API · §7 部署 | 附录 A/C 配置与本机回退 |
+> | **研发 / 运维** | §5 架构 · §5.4–5.6 RAG 优化 · §6 API · **§7.1 本机启动** · §7.2 Docker | 附录 A/C 配置与本机回退 |
 > | **教师 / 学生用户** | §1.2 · **§3.0 默认账号** · §3.3 使用流程 | §4 对应角色功能 |
 
 ---
@@ -17,11 +17,11 @@
 | 产品对外名称 | **HKU Teacher-student Co-learning (SOLO) Bot** |
 | 简称 | SOLO Bot |
 | 工程代号 | ForRAG（仓库目录 `E:\For_RAG`） |
-| 文档版本 | **V2.1**（在 V2.0 上补回演示账号、RAG 优化要点与部署/本机配置） |
-| 文档日期 | 2026-07-15 |
+| 文档版本 | **V2.3**（e5 多语嵌入 + MiniLM 重排；token 分块/父子块/PDF OCR；门控充分性与引用覆盖） |
+| 文档日期 | 2026-07-26 |
 | 产品阶段 | **已可部署的师生共学版**（鉴权、共享 KB、问答、测验、导出、Docker 均已落地） |
 | 品牌资产 | `files/hku-logo.png`、`files/ece-logo.png`（前端 `ForRag-gh-pages/assets/`） |
-| 关联文档 | `DEPLOY.md`（部署）· `docs/RAG_Optimization_Report.md`（检索优化）· `.env.example`（配置模板） |
+| 关联文档 | `DEPLOY.md`（部署）· `docs/architecture.md`（架构）· `docs/RAG_Optimization_Report.md`（检索优化）· `ForRag-gh-pages/README.md`（前端）· `.env.example`（配置模板） |
 | 前序文档 | 本文档取代旧版 V1.1 中「尚未实现」的表述，以当前代码为唯一事实来源 |
 
 ---
@@ -41,7 +41,8 @@
 维护课程知识库（可写）        浏览课程知识库（只读）
 分享/重置学生注册码           基于资料提问（带引用）
 创建/删除师生账号             会话内临时上传文件
-导出提问 / 回答摘要 / 测验    从回答生成测验并作答
+导出提问 / 测验成绩           从回答生成测验并作答
+（不含完整对话）
 ```
 
 ### 1.3 核心价值
@@ -50,7 +51,7 @@
 |---|---|
 | 课件分散、查找慢 | 一门课一份共享知识库，分类笔记 + 附件 |
 | 通用 AI 答非所问、无出处 | RAG 检索课程资料，回答带引用；相关度不足时明确降级提示 |
-| 教师不清楚学生卡在哪 | 导出学生提问与测验结果（CSV / Excel） |
+| 教师不清楚学生卡在哪 | 导出学生提问与测验成绩（CSV / Excel；不含完整对话） |
 | 资料按人复制易不同步 | **禁止按学生复制整库**；教师写、学生读，同一份数据 |
 
 ### 1.4 明确不做（本阶段非目标）
@@ -69,7 +70,7 @@
 
 1. 教师能在几分钟内把课件/题目写入课程共享知识库。  
 2. 学生能基于同一份资料获得可追溯的回答，并能生成/完成测验。  
-3. 教师能导出答疑与测验数据，掌握提问热点与掌握情况。  
+3. 教师能导出学生提问与测验成绩（不含完整对话），掌握提问热点与掌握情况。  
 4. 界面体现 HKU / ECE 品牌（白底 + 绿色顶栏，中英切换）。  
 5. 通过 Docker 在课程服务器上一键部署，师生用浏览器即可使用。  
 
@@ -79,9 +80,9 @@
 |---|---|---|
 | S1 | Docker Compose 启动后，`GET /health` 正常，浏览器可打开落地页 | ✅ |
 | S2 | 教师可写 KB，学生只读；学生写 KB 返回 403 | ✅ |
-| S3 | 学生提问返回回答 + 引用/路由（资料依据或通识降级） | ✅ |
+| S3 | 学生提问返回回答 + 引用/路由（有依据 / 通识降级 / 服务不可用可区分） | ✅ |
 | S4 | 学生可从选中回答生成测验并判分 | ✅ |
-| S5 | 教师可按时间筛选、预览并导出 xlsx/csv | ✅ |
+| S5 | 教师可按时间筛选、预览并导出提问/测验为 xlsx/csv（不含对话正文） | ✅ |
 | S6 | 未登录访问受保护 API 返回 401 | ✅ |
 
 ---
@@ -106,8 +107,8 @@
 | 登录 / 注册 | `login.html?role=…` | 全部 | 教师仅登录；学生可注册 |
 | 教师控制台 | `teacher.html` | 教师 | 入口卡片、注册码、用户管理 |
 | 课程知识库 | `kb.html` | 师生 | 教师可写；学生只读；**课堂练习**上下架 / 答题入口 |
-| 导出中心 | `export.html` | 教师 | 筛选 → 预览 → 下载；**保存学生提问到知识库** |
-| 问答助手 | `index.html` | 学生为主 | 会话问答、临时上传、出题入口 |
+| 导出中心 | `export.html` | 教师 | 勾选模块（提问 / 测验）→ 预览 → 下载 xlsx/csv；**保存学生提问到知识库** |
+| 问答助手 | `index.html` | 学生为主；教师可进但只看自己会话 | 会话问答、临时上传、出题入口 |
 | 测验页 | `quiz.html` | 学生 | 作答与查看判分；支持 `?quiz_id=` 打开课堂练习 |
 
 ### 3.0 默认账号与注册码（演示 / 开课速查）
@@ -148,31 +149,44 @@
 #### 场景 C — 教师复盘与课堂练习回流
 
 1. 教师打开导出中心。  
-2. 选时间范围（今天 / 7 天 / 30 天 / 自定义），勾选模块（提问默认开、回答摘要可选、测验默认开）。  
-3. 预览确认 → 下载 Excel 或 CSV；或点击 **Save questions to KB**，将学生提问写入课程知识库分类 `Student questions`（笔记正文 + 附件）。  
+2. 选时间范围（今天 / 7 天 / 30 天 / 自定义），勾选模块（**测验默认开**；学生提问默认关，需主动勾选）。**不导出**系统回答摘要或完整对话。  
+3. 预览确认 → 下载 Excel 或 CSV；或点击 **Save questions to KB**，将学生提问写入课程知识库分类 `Student questions`（笔记正文 + 附件；此路径固定只含提问）。  
 4. 在知识库打开该笔记 → **AI from note** 整理生成带答案题库 → 自动发布为课堂练习，并下载 Excel/CSV 题库文件。  
 5. 也可直接在知识库「Class exercises」上传模板格式的 CSV/Excel 题库并发布；学生从知识库列表或 `quiz.html?quiz_id=…` 进入作答。  
 
 ```mermaid
-flowchart LR
-  subgraph teacher [教师]
-    A[维护知识库] --> B[分享注册码]
-    B --> C[导出学习数据]
-    C --> C2[学生提问入库]
-    C2 --> C3[AI生成题库]
-    C3 --> C4[发布课堂练习]
-    A --> C4
+flowchart TB
+  subgraph teacherFlow [教师主流程]
+    T1[登录 teacher.html] --> T2[维护课程 KB]
+    T1 --> T3[分享注册码 / 建学生号]
+    T1 --> T4[导出中心 export.html]
+    T4 --> T5{勾选模块}
+    T5 -->|默认| T6[测验成绩]
+    T5 -->|可选| T7[学生提问]
+    T6 --> T8[预览并下载 xlsx/csv]
+    T7 --> T8
+    T7 --> T9[Save questions to KB]
+    T9 --> T10[AI from note 生成题库]
+    T10 --> T11[发布课堂练习]
+    T2 --> T11
   end
-  subgraph student [学生]
-    D[浏览资料] --> E[RAG 提问]
-    E --> F[生成测验并作答]
-    D --> G[打开课堂练习]
+
+  subgraph studentFlow [学生主流程 · 会话按 owner 隔离]
+    S1[注册码注册 / 登录] --> S2[本人会话 index.html]
+    S2 --> S3[浏览只读 KB]
+    S2 --> S4[RAG 提问 · 临时上传]
+    S4 --> S5[从回答生成测验并作答]
+    S3 --> S6[打开已发布课堂练习]
   end
-  A -.->|同一份课程 KB| D
-  E -.->|会话归因| C
-  F -.->|测验记录| C
-  C4 -.->|quiz_id 链接| G
+
+  T2 -.->|共享课程 KB 只读| S3
+  T11 -.->|quiz_id| S6
+  S4 -.->|仅提问文本可导出| T7
+  S5 -.->|测验作答可导出| T6
+  S6 -.->|课堂练习成绩可导出| T6
 ```
+
+> **读图要点：** 学生之间会话互不可见（Bearer 用户须 = 会话 owner）。教师看全班数据只走导出中心；**不导出**完整对话 / 回答摘要。助手页（含教师预览）只操作本人会话。
 
 ---
 
@@ -189,19 +203,19 @@ flowchart LR
 | 课堂练习：查看已发布并作答 | ✓ | ✓ |
 | 导出学生提问到知识库 | ✓ | ✗ |
 | 会话内临时上传（不进课程 KB） | 可（非主流程） | ✓ |
-| RAG 提问 / 看引用 | 可进学生页（非主推） | ✓ |
-| 生成测验 / 作答 / 判分 | — | ✓ |
+| RAG 提问 / 看引用 | 可进助手页（仅本人会话；非主推） | ✓ |
+| 生成测验 / 作答 / 判分 | 可（本人会话） | ✓ |
 | 查看/重置注册码 | ✓ | ✗ |
 | 创建/删除用户 | ✓ | ✗ |
 | 导出预览与下载 | ✓ | ✗ |
 
-前端：`auth.js` 的 `requireRole` 阻挡学生打开教师页；后端对写 KB、管理、导出统一 `require_teacher`，越权 **403**。
+前端：`auth.js` 的 `requireRole` 阻挡学生打开教师页（教师可预览学生页，但会话数据按用户隔离）；后端对写 KB、管理、导出统一 `require_teacher`，越权 **403**。
 
 ### 4.2 身份与账号
 
 | 需求 | 说明 |
 |---|---|
-| 登录 | 用户名 + 密码；返回令牌，前端存 `localStorage` 键 `RAG_ACCESS_TOKEN` |
+| 登录 | 用户名 + 密码；返回令牌，前端存 `localStorage` 键 `HKU_LOGIN_TOKEN`（兼容迁移旧键 `RAG_ACCESS_TOKEN`）；与服务端环境变量静态 `RAG_ACCESS_TOKEN`（无登录时的机器门闩）分离 |
 | 密码存储 | PBKDF2-HMAC-SHA256，200k rounds |
 | 令牌有效期 | `RAG_AUTH_TOKEN_TTL`，默认 7 天 |
 | 强制登录 | `RAG_REQUIRE_AUTH=1`（共享部署强烈建议开启） |
@@ -216,14 +230,15 @@ flowchart LR
 | 层级 | 说明 |
 |---|---|
 | 类目（Category） | 资料分组 |
-| 笔记（Note） | 含 Markdown 正文 |
-| 附件（Attachment） | 挂在笔记下的文件 |
+| 笔记（Note） | 标题 + 附件列表（无 Markdown 正文编辑） |
+| 附件（Attachment） | 挂在笔记下的文件（可下载；教师可移除） |
 
 **支持解析类型（与引擎对齐）：** PDF、DOCX、PPTX、Markdown、表格（xlsx/csv）、常见图片（OCR）等。  
 
 **学生体验：**
 
-- 知识库页无写操作控件；API 写接口对非教师 403。  
+- 知识库页以**附件列表与下载**为主，**不提供 Markdown 正文编辑**；无附件时提示暂无文件。  
+- 学生无写操作控件；API 写接口对非教师 403。教师可改标题、上传/移除附件，并**删除整条笔记**（连带附件）。  
 - 问答默认检索范围 `union`（课程 KB + 本会话临时文件）；也可仅会话文件或仅 KB。  
 - 会话临时文件**不写入**课程 KB；删除会话后一并清理。删除会话**不会**删除课程 KB。  
 
@@ -232,11 +247,17 @@ flowchart LR
 | 项 | 要求 |
 |---|---|
 | 输入 | 问题文本；可选检索范围 `kb_scope`：`session_files` / `kb_only` / `union` |
-| 输出 | `answer`、命中片段 `hits`、引用 `citations`、路由 `route`、是否资料相关等 |
-| 依据不足 | 允许通识回答，但必须给出明确提示（如无资料依据 / 依据有限） |
+| 输出 | `answer`、命中片段 `hits`、引用 `citations`、路由 `route`、门控标签 `grounding_label`、回答类型 `answer_kind`、是否资料相关等 |
+| 依据充足（grounded） | 用课件证据生成带句级 `[n]` 引用的回答；文末附后端拼装的「证据来源」 |
+| 弱证据（weak） | 边界分数可先做一次 LLM **充分性判断**：够用则仍走课件 RAG；不够则通识回答 |
+| 无依据（none）或通识 | 调用同一大模型作**通识回答**，并明确提示「不代表课程材料结论」；不把弱检索片段硬套成课件依据 |
+| API 失败 | 不返回伪课件答案；`answer_kind=unavailable`，告知服务不可用 / 证据不足 |
+| 引用覆盖 | 生成后检查句级引用覆盖率；过低则修订一次；仍不达标则**仍返回**课程依据答案并附来源清单（软提示引用可能不完整），不再整段拦截 |
+| 检索条数 | 由服务端 `RAG_MAX_TOP_K`（默认 5）决定；前端**不再**提供 Chunks 下拉框 |
 | 同步 / 异步 | 支持同步 `/qa` 与异步 `/qa/async` + 轮询 job |
-| 会话安全 | 学习会话需 `X-Session-Secret`；登录开启时还需 Bearer 令牌 |
-| 归因 | 创建会话时写入 `owner`（用户名/显示名/学号/角色），供导出使用 |
+| 会话安全 | 学习会话需 `X-Session-Secret`；登录开启时还需 Bearer 令牌，且 **调用者必须是会话 `owner`**（`verify_session_access`）；他人持正确 secret 亦 **403** |
+| 归因与归属 | 创建会话时写入 `owner`（user_id / 用户名 / 显示名 / 学号 / 角色）；用于访问控制与导出归因；无 owner 的历史会话由首次合法访问者认领 |
+| 前端会话列表 | 侧栏多会话缓存在 `RAG_CONVERSATIONS::<username>`；登出清理当前会话键与遗留全局列表 |
 
 ### 4.5 测验
 
@@ -253,15 +274,18 @@ flowchart LR
 
 ### 4.6 教师导出
 
+**隐私原则：** 助手页只访问本人会话；学生数据仅通过导出中心主动勾选获取。导出 **不含** 完整对话与系统回答摘要（API 字段 `include_answers` 已忽略）。
+
 | 模块 | 默认 | 最小字段 |
 |---|---|---|
-| 学生提问 | 开 | 时间、学生标识、会话 ID、问题文本 |
-| 系统回答摘要 | 关（可选） | 时间、学生标识、问题、回答摘要、是否资料依据/降级 |
-| 测验汇总 | 开 | 时间、学生标识、题干、题型、选项、标准答案、学生作答、正误 |
+| 学生提问 | **关**（可勾选） | 时间、学生标识、会话 ID、问题文本 |
+| 测验汇总 | **开** | 时间、学生标识、题干、题型、选项、标准答案、学生作答、正误 |
+| ~~系统回答摘要~~ | **已移除** | 不再导出（请求中即使传 `include_answers=true` 亦忽略） |
 
-**流程：** 筛选（时间预设 / 自定义）→ 勾选模块 → **预览** → 选 `xlsx` 或 `csv` → 下载。  
+**流程：** 筛选（时间预设 / 自定义）→ 勾选模块（提问 / 测验）→ **预览** → 选 `xlsx` 或 `csv` → 下载。  
 **回流知识库：** 「Save questions to KB」将当前筛选下的学生提问写入分类 `Student questions`（Markdown 列表 + 原导出附件），供 AI 整理出题。  
 预览与导出范围、字段一致（所见即所得）。学生调用导出 API → 403。  
+**说明：** 测验条目若含 AI 生成的 `explanation`（解析），当前导出列 **尚未包含**；判分评语/`analysis` 亦不导出。
 
 ### 4.7 课堂练习与 AI 出题闭环
 
@@ -295,25 +319,30 @@ flowchart TB
   subgraph app [Docker / 本机 · 单进程 uvicorn]
     API[FastAPI rag_api]
     MW[CORS · 登录中间件 · 限流]
+    GATE[verify_session_access<br/>secret + owner]
     QA[rag_pipeline + qa_llm]
     DOC[doc_qa_assistant 解析/分块/嵌入]
+    EXP[export_service<br/>提问 / 测验]
     API --> MW
+    API --> GATE
     API --> QA
     API --> DOC
+    API --> EXP
   end
 
   subgraph data [持久卷]
     AUTH[(auth.sqlite)]
     KB[(kb.sqlite)]
-    CH[(ChromaDB sessions/messages/quiz)]
+    CH[(ChromaDB sessions+owner / messages / quiz)]
     FS[.uploads 原文件]
     VC[.data/vector_cache FAISS]
   end
 
   FE -->|Bearer + Session-Secret| API
+  GATE --> CH
   API --> AUTH
   API --> KB
-  API --> CH
+  EXP --> CH
   API --> FS
   DOC --> VC
   QA --> LLM[千问 API / 可选本地 Qwen]
@@ -351,20 +380,20 @@ For_RAG/
 | KB 类目 / 笔记 / 附件元数据 | SQLite | `.data/kb.sqlite` |
 | 会话、消息、测验 | ChromaDB | `.data/chroma/` |
 | 上传原文件 | 文件系统 | `.uploads/`（含 `kb/{kb_id}/`） |
-| 向量缓存 | FAISS 等 | `.data/vector_cache/` |
-| Embedding 模型缓存 | Docker 命名卷 | `hf-cache` → `HF_HOME` |
+| 向量缓存 | FAISS 等 | `.data/vector_cache/`（`parsed/` 解析缓存与 `docs/` 向量缓存分离） |
+| Embedding 模型缓存 | Docker 命名卷 / 本机目录 | `hf-cache` → `HF_HOME`；本机亦可 `RAG_EMBED_MODEL_PATH` 指向本地权重 |
 
 **备份 / 迁移必须同时保留 `.data` 与 `.uploads`。**
 
 ### 5.4 RAG 主链路（实现要点）
 
 1. **范围收集**：按 `kb_scope` 汇总会话文件与课程 KB 文档。  
-2. **解析分块**：边界感知分块（段/句/词）；可选 Contextual Headers（仅用于嵌入/BM25，不进入证据正文）。  
-3. **检索**：多查询改写 → HyDE（稠密）→ Dense + BM25 → RRF → Cross-Encoder 重排 → 可选 Corrective 再检索（最多 1 次）。  
-4. **生成门控（CRAG 风格）**：`none` / `weak` / `grounded`；不足则通识降级并提示。  
-5. **呈现**：Lost-in-the-Middle 重排证据；句级 `[n]` 引用；落库消息供前端与导出。  
+2. **解析分块**：token 口径分块（默认 480 token、15% 重叠）+ 段落边界 + 短块合并/去重 + **父子块**；PDF 文字层过少时 **图片页 OCR**；可选 Contextual Headers（仅用于嵌入/BM25）。解析结果缓存与向量缓存分离，换嵌入模型不重跑 OCR。  
+3. **检索**：多查询改写（优先课件语言术语）→ HyDE → Dense + BM25 → RRF → Cross-Encoder 重排 → 可选 Corrective 再检索（最多 1 次）。英文 MiniLM 遇纯中文查询时跳过 CE，门控改用余弦阈值。  
+4. **生成门控（CRAG 风格）**：`none` / `weak` / `grounded`；边界 weak 可经充分性判断晋升；否则通识降级并提示；引用覆盖率不达标则拦截。  
+5. **呈现**：Lost-in-the-Middle 重排证据；连贯学术回答 + 句级 `[n]` 引用；后端附「证据来源」；落库消息供前端与导出。  
 
-默认 Embedding：`BAAI/bge-m3`；默认重排：`BAAI/bge-reranker-v2-m3`；LLM：DashScope 兼容接口（默认 `qwen-plus`）。开关见附录 A / C。
+本机默认嵌入：`intfloat/multilingual-e5-small`；本机默认重排：本地 `ms-marco-MiniLM-L-6-v2`；GPU 部署可升到 `bge-m3` + `bge-reranker-v2-m3`。LLM：DashScope 兼容接口（默认 `qwen-plus`）。开关见附录 A / C。
 
 ### 5.5 已落地的 RAG 重要优化点（Before → After）
 
@@ -372,36 +401,38 @@ For_RAG/
 
 | # | 环节 | 优化前 | 现在（默认） | 为何重要 | 开关 |
 |---|---|---|---|---|---|
-| 1 | 嵌入 | 中文小模型 `bge-small-zh-v1.5` | 多语种 `BAAI/bge-m3`（8192 上下文）；低配可回退小模型 | 英文/双语课件与提问表示更稳 | `MS_EMBED_ID` |
+| 1 | 嵌入 | 中文小模型 `bge-small-zh-v1.5` | 本机 `multilingual-e5-small`；GPU 可升 `bge-m3`；E5 自动加前缀 | 英文课件 + 中英提问都能用；避免中文单语模型对英文虚高分 | `MS_EMBED_ID` / `RAG_EMBED_MODEL_PATH` |
 | 2 | 语境头 | 块=原文 | Contextual Retrieval：块加 `Document/Location/meta`（仅检索用） | 降低「脱离章节语境」的检索歧义 | `RAG_CONTEXTUAL_HEADERS=1` |
-| 3 | 查询理解 | 无 | Multi-query 改写 + HyDE 假想答案 | 口语问法与课件术语对齐，召回更全 | `RAG_ENABLE_REWRITE` / `HYDE` |
+| 3 | 查询理解 | 无 | Multi-query 改写 + HyDE；扩写优先课件术语语言 | 口语/中文问法对齐英文课件术语 | `RAG_ENABLE_REWRITE` / `HYDE` |
 | 4 | 召回 | 仅稠密 top-k | Dense + BM25 + **RRF** 融合 | 术语/编号靠稀疏补足；融合免调权重 | `RAG_ENABLE_HYBRID` |
-| 5 | 重排 | 无 | Cross-encoder `bge-reranker-v2-m3`（失败自动降级） | 「召回有、排序差」时把相关块顶上来 | `RAG_ENABLE_RERANK` |
-| 6 | 门控 | 单一余弦阈值 | CRAG 三档 `none/weak/grounded` + 证据精炼 | 弱证据可答但标明局限，减少硬套/误杀 | 阈值见 `.env.example` |
+| 5 | 重排 | 无 | 本机 MiniLM；GPU 可 `bge-reranker-v2-m3`（失败自动降级） | 「召回有、排序差」时把相关块顶上来；压掉跑题虚高分 | `RAG_ENABLE_RERANK` |
+| 6 | 门控 | 单一余弦阈值 | CRAG 三档 + **充分性判断** + 证据精炼；重排/余弦两套阈值 | 严谨：不够依据走通识；边界题可补召回 | 阈值见 `.env.example` |
 | 7 | 证据顺序 | 相似度降序 | Lost-in-the-Middle：强证据放首尾 | 缓解长上下文中段遗忘 | 内置 |
-| 8 | 引用 | 段落级弱约束 | **句级** `[k]` 引用 | 可核对、抗幻觉，适合课业场景 | 内置 prompt |
-| 9 | 分块 | 定长硬切 | 边界感知（段/句/词），`CACHE_VERSION=rag_cache_v4` | 少截断概念，改善嵌入与 BM25 | 内置 |
-| 10 | 纠错检索 | 无 | 首轮偏弱则改写再检一次（硬上限 1） | 低成本提升难例；控制延迟 | `RAG_ENABLE_CORRECTIVE` |
-| 11 | 测验 | 直接出选项 | Bloom 难度分层 + 干扰项过量再筛 | 题目区分度更好 | 内置 prompt |
-| 12 | 评估 | 无 | `tools/rag_eval.py`（忠实度/相关性/上下文精确·召回/命题正确性） | 改动能做回归，避免「感觉变好」 | 离线工具 |
+| 8 | 引用 | 段落级弱约束 | **句级** `[k]` + **覆盖率检查/修订**；不足则软放行+来源清单 | 可核对、可用 | `RAG_MIN_CITATION_COVERAGE` |
+| 9 | 分块 | 定长硬切 / 字符口径 | token 口径 + 短块合并去重 + 父子块，`CACHE_VERSION=rag_cache_v6` | 英文块信息量够；命中小块可展开整页 | `RAG_CHUNK_*` |
+| 10 | PDF 解析 | 仅文字层 | 文字过少页 → RapidOCR 兜底 | 扫描件/整页图片讲义可检索 | `RAG_PDF_OCR*` |
+| 11 | 纠错检索 | 无 | 首轮偏弱则改写再检一次（硬上限 1） | 低成本提升难例；控制延迟 | `RAG_ENABLE_CORRECTIVE` |
+| 12 | 测验 | 直接出选项 | Bloom 难度分层 + 干扰项过量再筛 | 题目区分度更好 | 内置 prompt |
+| 13 | 评估 | 无 | `tools/rag_eval.py`（含 `--grounding-only` 阈值标定） | 改动能做回归与门控校准 | 离线工具 |
 
 **端到端管线（摘要）：**
 
 ```text
-文档 → 边界感知分块 → 语境头 → 嵌入 + BM25 索引
+文档 → 解析(+OCR) → token 分块/短块治理/父子块 → 语境头 → 嵌入 + BM25
 用户问题 → Multi-query + HyDE → Dense/BM25 → RRF → 重排
-         →（可选）纠错重查 ×1 → CRAG 门控 → LiM 证据序 → 句级引用生成
+         →（可选）纠错重查 ×1 → CRAG 门控(+充分性) → LiM → 句级引用生成(+覆盖率)
 ```
 
 ### 5.6 模型与硬件建议
 
-| 用途 | 课程服务器（如 RTX 5060）推荐 | 本机低配（约 8GB 内存、纯 CPU）回退 |
+| 用途 | 课程服务器（如 RTX 5060）推荐 | 本机低配（约 8GB 内存、纯 CPU） |
 |---|---|---|
-| 嵌入 | `BAAI/bge-m3`（约 2.3GB） | `BAAI/bge-small-zh-v1.5` |
-| 重排 | `BAAI/bge-reranker-v2-m3` | `RAG_ENABLE_RERANK=0`（或改用本地小模型路径，如 MiniLM） |
+| 嵌入 | `BAAI/bge-m3`（约 2.3GB） | `intfloat/multilingual-e5-small`（约 0.5GB，本地路径） |
+| 重排 | `BAAI/bge-reranker-v2-m3` | 本地 `ms-marco-MiniLM-L-6-v2`（约 90MB，`RAG_ENABLE_RERANK=1`） |
 | 生成 LLM | DashScope `qwen-plus`（走 API） | 同左（不占本机显存） |
+| 编码批大小 | 默认即可 | `RAG_EMBED_BATCH_SIZE=2`（防 OOM） |
 
-**说明：** `bge-m3` + 重排同时加载约需 ~4.5GB，低内存本机有 OOM 风险；生产默认按「大模型 + 开重排」，本机联调按附录 C 一键回退。换嵌入模型会按新 `embed_model_id` **自动重建向量缓存**。嵌入/重排可自托管；付费项主要是生成 API。
+**说明：** `bge-m3` + 大型重排同时加载约需 ~4.5GB，8GB 本机易 OOM，故本机用 e5-small + MiniLM。换嵌入模型会按新 `embed_model_id` **重建向量缓存**，但**不必重跑 OCR**（解析缓存独立）。嵌入/重排可自托管；付费项主要是生成 API。
 
 ### 5.7 关键约束（设计决策）
 
@@ -460,7 +491,7 @@ For_RAG/
 | POST | `/sessions` | 创建会话（写入 owner） |
 | DELETE | `/sessions/{sid}` | 删会话（不删课程 KB） |
 | GET/POST | `/sessions/{sid}/files` | 会话临时文件 |
-| * | `/sessions/{sid}/kb/...` | 类目 / 笔记 / 附件（写：教师） |
+| * | `/sessions/{sid}/kb/...` | 类目 / 笔记 / 附件（写：教师；`GET .../files/{fid}` 师生可下载） |
 | POST | `/sessions/{sid}/qa` | 同步问答 |
 | POST | `/sessions/{sid}/qa/async` | 异步问答 |
 | GET | `/sessions/{sid}/qa/jobs/{job_id}` | 任务状态 |
@@ -469,7 +500,7 @@ For_RAG/
 | GET | `/sessions/{sid}/quiz/{quiz_id}` | 取题（无答案） |
 | POST | `/sessions/{sid}/quiz/{quiz_id}/grade` | 判分 |
 
-会话类请求需请求头 **`X-Session-Secret`**；开启鉴权时另需 **`Authorization: Bearer <token>`**。
+会话类请求需请求头 **`X-Session-Secret`**；开启鉴权时另需 **`Authorization: Bearer <token>`**，并由 `verify_session_access` 校验 **Bearer 用户 = 会话 owner**（未启用鉴权时仅验 secret，与旧行为一致）。教师查看全班数据走 `/admin/export/*`，不经会话 secret。
 
 ### 6.4 数据模型要点
 
@@ -492,7 +523,27 @@ For_RAG/
 
 ## 7. 部署与运维
 
-详细步骤见仓库根目录 [`DEPLOY.md`](../DEPLOY.md)。摘要如下：
+详细步骤见仓库根目录 [`DEPLOY.md`](../DEPLOY.md)。
+
+### 7.1 本机启动（Windows · conda · 日常联调）
+
+在 PowerShell 中进入仓库根目录，激活 `forrag` 环境后启动（终端需保持打开；`Ctrl+C` 停止服务）：
+
+```powershell
+cd E:\For_RAG
+conda activate forrag
+python -m uvicorn fastapi_service:app --host 127.0.0.1 --port 8000
+```
+
+| 项 | 值 |
+|---|---|
+| **项目网址** | **http://127.0.0.1:8000/** |
+| 健康检查 | http://127.0.0.1:8000/health |
+| 监听说明 | `127.0.0.1` = 仅本机可访问（更安全）；局域网分享可改为 `--host 0.0.0.0` |
+
+前置：已创建 conda 环境 `forrag`、已复制并填写 `.env`（至少含 `DASHSCOPE_API_KEY`）。未 `conda activate` 时可用绝对路径：`E:\anaconda\envs\forrag\python.exe -m uvicorn ...`（效果相同）。
+
+### 7.2 Docker 部署（正式 / 共享机）
 
 ```bash
 cp .env.example .env          # 填写密钥与管理员账号
@@ -520,7 +571,8 @@ curl http://localhost:8000/health
 - [ ] 教师可维护 KB；学生界面无写控件，API 写操作 403  
 - [ ] 学生提问有引用或明确的无依据/弱依据提示  
 - [ ] 学生可生成测验、作答、看到判分结果  
-- [ ] 教师可预览并导出提问 /（可选）回答摘要 / 测验为 xlsx 与 csv  
+- [ ] 教师可预览并导出提问（可选）/ 测验为 xlsx 与 csv；**不**导出回答摘要或完整对话；默认勾选测验  
+- [ ] 启用鉴权时，学生 A 不能用学生 B 的 `session_id`+secret 读写 B 的会话（403）  
 - [ ] 学生无法访问导出与用户管理  
 - [ ] 中英切换后主要文案同步更新  
 
@@ -543,13 +595,14 @@ curl http://localhost:8000/health
 | **M2** Docker 可交付 + 多课程隔离 | Compose 上线；每门课独立 `course_id` | ⚠️ Docker / 持久化 ✅；**多课程仍待做**（现仅 `default`） |
 | **M3** 开课加固 | HTTPS、去硬编码密钥、限流、越权验收 | ⚠️ 限流/鉴权/去硬编码 Key ✅；公网 HTTPS 手册与生产 CORS 收紧仍待完善 |
 
-### 9.2 当前版本（V2.0 已交付）
+### 9.2 当前版本（V2.2 已交付）
 
 - 师生角色与登录 / 学生注册码（演示约定见 §3.0）  
 - 课程共享知识库（单课 `default`）  
 - 学生 RAG 问答（§5.5 全套优化）+ 会话临时上传  
+- **会话归属隔离**：启用鉴权时仅 owner 可访问会话；前端对话列表按用户名分区  
 - 测验生成与判分（Bloom + 干扰项筛选）  
-- 教师导出（预览 + CSV/XLSX，`openpyxl`）  
+- 教师导出（预览 + CSV/XLSX；**仅提问 / 测验**；默认勾选测验；`openpyxl`）  
 - HKU / ECE 品牌壳与中英 i18n  
 - Docker / Compose 一键部署  
 - 离线评测工具 `tools/rag_eval.py`  
@@ -559,9 +612,10 @@ curl http://localhost:8000/health
 1. 一门课一份共享 KB，教师写、学生读，**不按学生复制整库**。  
 2. 界面**默认英文**，支持中英切换。  
 3. 学生**允许**会话临时上传（不入课程 KB）。  
-4. 导出：筛选 → **预览** → CSV/Excel；回答摘要可选；测验字段必达；Excel 使用 `openpyxl`。  
-5. 正式使用路径以 **Docker** 为准。  
-6. 多课程隔离为明确目标（原定 M2）；**实现上尚未完成**，导出请求里的 `course_ids` 暂忽略。  
+4. 导出：筛选 → **预览** → CSV/Excel；**仅**学生提问与测验成绩（默认勾选测验；不含完整对话 / 回答摘要）；Excel 使用 `openpyxl`。  
+5. 助手页会话按用户隔离；教师进助手页也只看自己的会话；学生数据仅经导出中心主动获取。  
+6. 正式使用路径以 **Docker** 为准。  
+7. 多课程隔离为明确目标（原定 M2）；**实现上尚未完成**，导出请求里的 `course_ids` 暂忽略。  
 
 ### 9.4 下一阶段（建议优先级）
 
@@ -588,10 +642,14 @@ curl http://localhost:8000/health
 | RAG | Retrieval-Augmented Generation，检索增强生成 |
 | RRF | Reciprocal Rank Fusion，多路检索融合 |
 | CRAG 门控 | 按检索质量决定 grounded / weak / none 路由 |
+| 充分性判断 | weak 且贴近门槛时，用 LLM 判断证据是否够支撑该题；够则仍走课件 RAG |
+| 通识回答 | 不用课件片段组织结论，仅用大模型通用知识，并明示「不代表课程材料」 |
+| 引用覆盖率 | 事实句中带有效 `[n]` 的比例；过低则修订或拦截答案 |
+| 父子块 | 子块用于检索，命中后提示词可展开所属整页/幻灯片 |
 | HyDE | 先让 LLM 写假想答案再作稠密检索，缓解问-答词面差 |
 | Contextual Retrieval | 为 chunk 加文档/位置语境头，仅用于检索 |
 | 注册码 | 学生自助注册口令；演示常用 `SOLO2026` |
-| owner | 会话上的学生归因元数据，用于导出 |
+| owner | 会话归属元数据（user_id 等）；用于访问控制与导出归因 |
 
 ---
 
@@ -612,10 +670,16 @@ curl http://localhost:8000/health
 | `RAG_MAX_FILES` / `RAG_MAX_FILE_MB` | 上传限制 |
 | `RAG_MAX_TOP_K` / `RAG_MAX_QUESTION_CHARS` | 检索与问题长度 |
 | `RAG_RATE_LIMIT_*` | 限流 |
-| `MS_EMBED_ID` | Embedding 模型（默认 bge-m3） |
+| `MS_EMBED_ID` | Embedding 模型（本机常用 e5-small；部署可 bge-m3） |
+| `RAG_EMBED_MODEL_PATH` | 本地嵌入权重目录（与 `MS_EMBED_ID` 一并切换） |
+| `RAG_EMBED_BATCH_SIZE` | 编码批大小（8GB 机建议 2） |
 | `RAG_ENABLE_REWRITE` / `HYDE` / `RERANK` / `CORRECTIVE` | 检索质量开关 |
-| `RAG_RERANK_MODEL` | 重排模型 |
+| `RAG_RERANK_MODEL` | 重排模型（本机 MiniLM / 部署 bge-reranker） |
+| `RAG_RERANK_*` / `RAG_KB_*` | 重排概率门控 / 余弦回退门控阈值 |
+| `RAG_ENABLE_SUFFICIENCY_JUDGE` | 边界弱证据是否做充分性判断 |
+| `RAG_MIN_CITATION_COVERAGE` | 句级引用覆盖率下限 |
 | `RAG_CONTEXTUAL_HEADERS` | 分块上下文头 |
+| `RAG_CHUNK_*` / `RAG_PDF_OCR*` / `RAG_PARENT_MAX_CHARS` | 分块、PDF OCR、父子块 |
 | `RAG_ENABLE_LOCAL_LLM` | 是否加载本地 LLM（Docker 默认关） |
 | `RAG_CLEAR_CACHE_ON_SHUTDOWN` | 关机是否清空向量缓存（Docker 默认保留） |
 
@@ -627,7 +691,7 @@ curl http://localhost:8000/health
 |---|---|---|---|
 | **教师** | `admin` + 所配密码登录教师端（§3.0） | 管 KB、发注册码、定期导出 | 不必替学生日常提问；勿把演示密码用于公网 |
 | **学生** | 落地页选 Student → 用注册码注册/登录 | 提问、临时上传、做测验 | 不要改课程资料库 |
-| **研发/运维** | 配 `.env`（含 Key 与账号）+ `docker compose up` | 备份 `.data`+`.uploads`；按附录 C 调模型 | 不要多 worker；勿把真实 Key 写入 PRD/Git |
+| **研发/运维** | 本机：§7.1 conda + uvicorn；正式：§7.2 Docker | 备份 `.data`+`.uploads`；按附录 C 调模型 | 不要多 worker；勿把真实 Key 写入 PRD/Git |
 
 ---
 
@@ -635,20 +699,29 @@ curl http://localhost:8000/health
 
 与 [`RAG_Optimization_Report.md`](RAG_Optimization_Report.md) §6–§7 对齐，便于联调与开课切换：
 
-| 变量 | 课程服务器（推荐） | 本机低配回退 | 含义 |
+| 变量 | 课程服务器（推荐） | 本机低配（当前实测） | 含义 |
 |---|---|---|---|
-| `MS_EMBED_ID` | `BAAI/bge-m3` | `BAAI/bge-small-zh-v1.5` | 嵌入模型 |
-| `RAG_ENABLE_RERANK` | `1` | `0` | 是否重排 |
-| `RAG_RERANK_MODEL` | `BAAI/bge-reranker-v2-m3` | （关闭或本地 MiniLM 路径） | 重排模型 |
+| `MS_EMBED_ID` | `BAAI/bge-m3` | `intfloat/multilingual-e5-small` | 嵌入模型 |
+| `RAG_EMBED_MODEL_PATH` | （可空，走 Hub） | `…/.models/multilingual-e5-small` | 本地嵌入权重 |
+| `RAG_EMBED_BATCH_SIZE` | `4`～`32` | `2` | 编码批大小 |
+| `RAG_ENABLE_RERANK` | `1` | `1` | 是否重排 |
+| `RAG_RERANK_MODEL` | `BAAI/bge-reranker-v2-m3` | `…/.models/ms-marco-MiniLM-L-6-v2` | 重排模型 |
+| `RAG_RERANK_STRONG_SCORE` 等 | 部署后重标 | `0.80` / `0.80` / `0.60` | 重排门控（见优化报告） |
 | `RAG_ENABLE_REWRITE` | `1` | `1`（可关省 API） | 多查询改写 |
 | `RAG_ENABLE_HYDE` | `1` | `1`（可关省 API） | HyDE |
 | `RAG_ENABLE_HYBRID` | `1` | `1` | 稠密+BM25 |
 | `RAG_CONTEXTUAL_HEADERS` | `1` | `1` | 语境头 |
 | `RAG_ENABLE_CORRECTIVE` | `1` | `1` | 单次纠错重查 |
+| `RAG_ENABLE_SUFFICIENCY_JUDGE` | `1` | `1` | 边界充分性判断 |
+| `RAG_PDF_OCR` | `1` | `1` | PDF 图片页 OCR |
 
-其它可调：`RAG_HYBRID_CANDIDATES`(36)、`RAG_DENSE_PER_QUERY`(12)、`RAG_BM25_TOP`(20)、`RAG_RRF_K`(60)、`RAG_RERANK_MIN_SCORE` / `SINGLE` / `STRONG`、`RAG_KB_MIN_SCORE`（余弦回退）、`RAG_EVIDENCE_KEEP_RATIO`(0.25)。
+其它可调：`RAG_HYBRID_CANDIDATES`(36)、`RAG_DENSE_PER_QUERY`(12)、`RAG_BM25_TOP`(20)、`RAG_RRF_K`(60)、`RAG_KB_*`（余弦回退，中文原问跳过英文 MiniLM 时启用）、`RAG_EVIDENCE_KEEP_RATIO`(0.25)、`RAG_MIN_CITATION_COVERAGE`(0.95)。
 
-离线回归示例：`python tools/rag_eval.py`（评测集见 `tools/eval_set*.json`，报告见 `docs/rag_eval_*`）。
+分块与解析（`CACHE_VERSION=rag_cache_v6`）：`RAG_CHUNK_TOKENS`(480)、`RAG_CHUNK_OVERLAP_RATIO`(0.15)、`RAG_MIN_CHUNK_CHARS`(120)、`RAG_PARENT_MAX_CHARS`(2400)、`RAG_PROMPT_CHUNK_CHAR_LIMIT`(2400)、`RAG_PDF_OCR_MIN_CHARS`(50) 等。改分块参数后执行 `python tools/rebuild_vector_cache.py --prune --docs <KB目录>`；仅换嵌入模型时解析/OCR 缓存可复用。检索片段数由服务端 `RAG_MAX_TOP_K`(5) 决定，前端不再提供选择框。
+
+离线回归 / 门控标定示例：
+`python tools/rag_eval.py --docs <KB目录> --eval tools/eval_set_6081.json --grounding-only --target-grounded-precision 0.95`
+（评测集见 `tools/eval_set*.json`；本机 e5+MiniLM 报告见 `eval_6081_e5_rerank.json`）。
 
 ---
 

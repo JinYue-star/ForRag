@@ -16,10 +16,8 @@
             "lang.toggle": "CN",
             "role.teacher": "Teacher",
             "role.student": "Student",
-            "topbar.home": "Home",
 
             "landing.title": "HKU Teacher-student Co-learning (SOLO) Bot",
-            "landing.subtitle": "A course-based learning assistant. Teachers manage the shared course materials and export learning data; students ask questions grounded in the course knowledge base and practise with generated quizzes.",
             "landing.teacher.name": "Teacher",
             "landing.teacher.desc": "Upload course materials and questions, manage the shared knowledge base, and export student questions and quiz data.",
             "landing.student.name": "Student",
@@ -30,6 +28,8 @@
             "nav.kb": "Knowledge Base",
             "nav.quiz": "Quiz",
             "nav.export": "Export",
+            "nav.back": "Back",
+            "nav.back.aria": "Back one level",
 
             "assistant.title": "AI Assistant",
             "assistant.subtitle": "Retrieval-augmented answers from the course knowledge base and this session's files.",
@@ -66,7 +66,7 @@
             "teacher.card.students": "Students",
             "teacher.card.students.desc": "Create student accounts or share the registration code.",
             "teacher.card.export": "Export",
-            "teacher.card.export.desc": "Export student questions and quiz data as CSV or Excel.",
+            "teacher.card.export.desc": "Export student questions and quiz scores.",
             "teacher.open": "Open",
             "teacher.regcode.label": "Registration code",
             "teacher.regcode.rotate": "Regenerate",
@@ -80,7 +80,7 @@
             "common.name": "Name",
 
             "export.title": "Export",
-            "export.subtitle": "Filter, preview, then download as CSV or Excel.",
+            "export.subtitle": "Filter and download student questions and quiz scores.",
             "export.filters": "Filters",
             "export.range": "Time range",
             "export.range.all": "All time",
@@ -95,7 +95,6 @@
             "export.mod.quiz": "Quiz",
             "export.preview": "Preview",
             "export.previewTitle": "Preview",
-            "export.format": "Format",
             "export.download": "Export",
             "export.pickModule": "Select at least one module.",
             "export.moreRows": "…and {n} more rows will be included in the file."
@@ -106,10 +105,8 @@
             "lang.toggle": "EN",
             "role.teacher": "教师",
             "role.student": "学生",
-            "topbar.home": "首页",
 
             "landing.title": "港大师生共学 (SOLO) 机器人",
-            "landing.subtitle": "面向课程的学习助手。教师维护共享课程资料并导出学习数据；学生基于课程知识库提问，并生成测验进行巩固。",
             "landing.teacher.name": "教师",
             "landing.teacher.desc": "上传课件与题目，管理共享知识库，并导出学生提问与测验数据。",
             "landing.student.name": "学生",
@@ -120,6 +117,8 @@
             "nav.kb": "知识库",
             "nav.quiz": "测验",
             "nav.export": "导出",
+            "nav.back": "返回",
+            "nav.back.aria": "返回上一级",
 
             "assistant.title": "AI 助手",
             "assistant.subtitle": "基于课程知识库与本会话文件的检索增强问答。",
@@ -156,7 +155,7 @@
             "teacher.card.students": "学生管理",
             "teacher.card.students.desc": "创建学生账号或分享注册码。",
             "teacher.card.export": "导出",
-            "teacher.card.export.desc": "将学生提问与测验数据导出为 CSV 或 Excel。",
+            "teacher.card.export.desc": "导出学生提问与测验成绩。",
             "teacher.open": "打开",
             "teacher.regcode.label": "注册码",
             "teacher.regcode.rotate": "重新生成",
@@ -170,7 +169,7 @@
             "common.name": "姓名",
 
             "export.title": "导出",
-            "export.subtitle": "筛选、预览，然后导出为 CSV 或 Excel。",
+            "export.subtitle": "筛选并下载学生提问与测验成绩。",
             "export.filters": "筛选条件",
             "export.range": "时间范围",
             "export.range.all": "全部时间",
@@ -185,7 +184,6 @@
             "export.mod.quiz": "测验",
             "export.preview": "预览",
             "export.previewTitle": "预览",
-            "export.format": "格式",
             "export.download": "导出",
             "export.pickModule": "请至少选择一个模块。",
             "export.moreRows": "……文件中还将包含另外 {n} 行。"
@@ -210,6 +208,14 @@
         return key;
     }
 
+    function text(en, zh, vars) {
+        var value = getLang() === "zh" ? zh : en;
+        Object.keys(vars || {}).forEach(function (key) {
+            value = value.replace(new RegExp("\\{" + key + "\\}", "g"), String(vars[key]));
+        });
+        return value;
+    }
+
     // Apply translations to any element carrying data-i18n* attributes.
     function applyTranslations(root) {
         var scope = root || document;
@@ -225,15 +231,60 @@
         scope.querySelectorAll("[data-i18n-aria-label]").forEach(function (el) {
             el.setAttribute("aria-label", t(el.getAttribute("data-i18n-aria-label")));
         });
+        scope.querySelectorAll("[data-en][data-zh]").forEach(function (el) {
+            el.textContent = text(el.getAttribute("data-en"), el.getAttribute("data-zh"));
+        });
+        ["placeholder", "title", "aria-label", "alt"].forEach(function (attr) {
+            scope.querySelectorAll("[data-" + attr + "-en][data-" + attr + "-zh]").forEach(function (el) {
+                el.setAttribute(attr, text(
+                    el.getAttribute("data-" + attr + "-en"),
+                    el.getAttribute("data-" + attr + "-zh")
+                ));
+            });
+        });
+        var title = document.querySelector("title[data-en][data-zh]");
+        if (title) document.title = text(title.getAttribute("data-en"), title.getAttribute("data-zh"));
+        document.querySelectorAll("meta[data-content-en][data-content-zh]").forEach(function (el) {
+            el.setAttribute("content", text(el.getAttribute("data-content-en"), el.getAttribute("data-content-zh")));
+        });
         document.documentElement.setAttribute("lang", getLang() === "zh" ? "zh-CN" : "en");
     }
 
-    function roleFromBody() {
-        var attr = document.body.getAttribute("data-hku-role");
-        if (attr === "teacher" || attr === "student") return attr;
-        var stored = null;
-        try { stored = localStorage.getItem("hku_role"); } catch (e) {}
-        return stored === "teacher" || stored === "student" ? stored : "";
+    function currentPage() {
+        var path = (window.location.pathname.split("/").pop() || "").toLowerCase();
+        return path || "index.html";
+    }
+
+    function isTeacherRole() {
+        try {
+            if ((localStorage.getItem("hku_role") || "").trim() === "teacher") return true;
+        } catch (e) {}
+        return document.body.getAttribute("data-hku-role") === "teacher";
+    }
+
+    // Hierarchical parent for “back one level” (not browser history).
+    function parentPage() {
+        var page = currentPage();
+        var params = new URLSearchParams(window.location.search || "");
+        switch (page) {
+            case "landing.html":
+                return null;
+            case "login.html":
+                return "landing.html";
+            case "teacher.html":
+                return "landing.html";
+            case "export.html":
+                return "teacher.html";
+            case "kb.html":
+                return isTeacherRole() ? "teacher.html" : "index.html";
+            case "quiz.html":
+                if (params.get("quiz_id") || params.get("mode") === "class") return "kb.html";
+                return "index.html";
+            case "index.html":
+                return isTeacherRole() ? "teacher.html" : "landing.html";
+            default:
+                return "landing.html";
+        }
     }
 
     function buildTopbar() {
@@ -248,11 +299,15 @@
         var hku = document.createElement("img");
         hku.className = "hku-topbar__logo hku-topbar__logo--hku";
         hku.src = "assets/hku-logo.png";
-        hku.alt = "The University of Hong Kong";
+        hku.alt = text("The University of Hong Kong", "香港大学");
+        hku.setAttribute("data-alt-en", "The University of Hong Kong");
+        hku.setAttribute("data-alt-zh", "香港大学");
         var ece = document.createElement("img");
         ece.className = "hku-topbar__logo hku-topbar__logo--ece";
         ece.src = "assets/ece-logo.png";
-        ece.alt = "Department of Electrical & Computer Engineering";
+        ece.alt = text("Department of Electrical & Computer Engineering", "电机电子工程系");
+        ece.setAttribute("data-alt-en", "Department of Electrical & Computer Engineering");
+        ece.setAttribute("data-alt-zh", "电机电子工程系");
         logos.appendChild(hku);
         logos.appendChild(ece);
 
@@ -263,21 +318,29 @@
         bar.appendChild(logos);
         bar.appendChild(spacer);
 
-        var role = roleFromBody();
-        if (role === "teacher" || role === "student") {
-            // Role badge intentionally omitted (display-only, not interactive).
-            var home = document.createElement("a");
-            home.className = "hku-topbar__link";
-            home.href = "landing.html";
-            home.setAttribute("data-i18n", "topbar.home");
-            home.textContent = t("topbar.home");
-            bar.appendChild(home);
+        var up = parentPage();
+        if (up) {
+            var back = document.createElement("button");
+            back.type = "button";
+            back.className = "hku-lang-toggle";
+            back.setAttribute("data-i18n", "nav.back");
+            back.setAttribute("data-i18n-aria-label", "nav.back.aria");
+            back.setAttribute("data-i18n-title", "nav.back.aria");
+            back.setAttribute("aria-label", t("nav.back.aria"));
+            back.setAttribute("title", t("nav.back.aria"));
+            back.textContent = t("nav.back");
+            back.addEventListener("click", function () {
+                window.location.href = up;
+            });
+            bar.appendChild(back);
         }
 
         var toggle = document.createElement("button");
         toggle.type = "button";
         toggle.className = "hku-lang-toggle";
-        toggle.setAttribute("aria-label", "Switch language");
+        toggle.setAttribute("aria-label", text("Switch language", "切换语言"));
+        toggle.setAttribute("data-aria-label-en", "Switch language");
+        toggle.setAttribute("data-aria-label-zh", "切换语言");
         toggle.setAttribute("data-i18n", "lang.toggle");
         toggle.textContent = t("lang.toggle");
         toggle.addEventListener("click", function () {
@@ -309,6 +372,7 @@
     // Expose a tiny API for page scripts (dynamic strings).
     window.HKU = {
         t: t,
+        text: text,
         lang: getLang,
         setLang: function (l) { setLang(l); applyTranslations(document); },
         apply: applyTranslations

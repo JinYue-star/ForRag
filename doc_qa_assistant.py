@@ -98,12 +98,29 @@ class TextChunk:
     kb_attachment_id: str = ""  # 知识库附件 id
     session_file_id: str = ""  # 会话上传文件 id（chromadb）
     context_header: str = ""  # Contextual Retrieval：块所在文档/位置的语境前缀（仅用于检索，不进 prompt）
+    parent_id: str = ""  # 父级单元（页/幻灯片/工作表）标识，同页子块共享
+    parent_text: str = ""  # 父级单元全文；命中子块后展开给 LLM 作为证据，子块=父级时为空
 
 
 def _clean_text(s: str) -> str:
     s = s.replace("\x00", " ")
     s = re.sub(r"\s+", " ", s).strip()
     return s
+
+
+def normalize_block_text(s: str) -> str:
+    """规范空白但保留段落与行边界，供分块时寻找自然断点。
+
+    `_clean_text` 会把换行折叠成空格，那样 `_find_split` 的段落/行分支永不命中，
+    分块只能退化到句子或空格边界。
+    """
+    if not s:
+        return ""
+    s = s.replace("\x00", " ").replace("\r\n", "\n").replace("\r", "\n")
+    s = re.sub(r"[ \t\u00a0\u3000\f\v]+", " ", s)
+    s = re.sub(r" *\n *", "\n", s)
+    s = re.sub(r"\n{3,}", "\n\n", s)
+    return s.strip()
 
 
 # 结构/版面感知分块：优先在自然边界（段落 > 句子 > 词）切开，而非在 max_chars 处硬切，
@@ -141,6 +158,138 @@ def _find_split(text: str, start: int, hard_end: int) -> int:
     return hard_end
 
 
+def _env_int(name: str, default: int, minimum: int = 1) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return max(minimum, int(float(raw)))
+    except ValueError:
+        return default
+
+
+def _env_float(name: str, default: float, minimum: float, maximum: float) -> float:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return max(minimum, min(maximum, float(raw)))
+    except ValueError:
+        return default
+
+
+# 分块以 token 为口径：嵌入模型、重排器与提示词预算都按 token 计费，按字符计长会让
+# 英文课件的块只有中文块的四分之一信息量（900 字符英文约 220 token，中文约 800 token）。
+CHUNK_TOKENS = _env_int("RAG_CHUNK_TOKENS", 480, minimum=64)
+CHUNK_OVERLAP_RATIO = _env_float("RAG_CHUNK_OVERLAP_RATIO", 0.15, 0.0, 0.5)
+# 低于该长度的块信息量太低（页眉、章节标题、单行幻灯片标题），并入相邻块。
+MIN_CHUNK_CHARS = _env_int("RAG_MIN_CHUNK_CHARS", 120, minimum=0)
+# 父级单元（整页/整张幻灯片）超过该长度就不再随子块缓存，避免提示词被单页表格挤爆。
+PARENT_MAX_CHARS = _env_int("RAG_PARENT_MAX_CHARS", 2400, minimum=0)
+
+# 单一配置源：所有解析器都从这里取分块参数，勿在调用点写死数字。
+# max_tokens 缺省沿用 CHUNK_TOKENS；表格类内容行与行相对独立，块可以大一些。
+CHUNK_CONFIG: dict[str, dict[str, float]] = {
+    "_default": {"max_tokens": CHUNK_TOKENS, "overlap_ratio": CHUNK_OVERLAP_RATIO},
+    ".xlsx": {"max_tokens": _env_int("RAG_CHUNK_TOKENS_TABULAR", 640, minimum=64)},
+    ".csv": {"max_tokens": _env_int("RAG_CHUNK_TOKENS_TABULAR", 640, minimum=64)},
+}
+CACHE_VERSION = "rag_cache_v6"  # v6: PDF 图片页 OCR 兜底（v5: token 口径分块 + 短块合并去重 + 父子块）
+
+# 讲义常把整页导出为图片（扫描件、手写公式页、截图排版），文字层为空。
+# 这类页在检索里等于不存在，因此文字过少时渲染成位图交给 OCR。
+PDF_OCR_MIN_CHARS = _env_int("RAG_PDF_OCR_MIN_CHARS", 50, minimum=0)
+PDF_OCR_DPI = _env_int("RAG_PDF_OCR_DPI", 180, minimum=72)
+# OCR 每页约数秒，且只在首次建索引时发生（结果随向量缓存复用）；上限防止超大扫描件把上传卡死。
+PDF_OCR_MAX_PAGES = _env_int("RAG_PDF_OCR_MAX_PAGES", 400, minimum=0)
+
+# token 估算：CJK 基本一字一 token，拉丁文本约 4 字符一 token（BERT/XLM-R 量级）。
+# 估算而非真调 tokenizer，是为了让分块结果与"嵌入模型是否已加载/能否联网"无关，
+# 保证 chunk_id 与向量缓存 key 稳定可复现。需要精确计数时设 RAG_CHUNK_TOKENIZER。
+_CJK_RE = re.compile(r"[\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef\uac00-\ud7af]")
+_LATIN_CHARS_PER_TOKEN = 4.0
+_tokenizer_cache: dict[str, Any] = {}
+
+
+def _chunk_tokenizer():
+    """可选的精确 tokenizer（RAG_CHUNK_TOKENIZER=模型名或本地目录）；不可用时返回 None。"""
+    ref = os.environ.get("RAG_CHUNK_TOKENIZER", "").strip()
+    if not ref:
+        return None
+    if ref in _tokenizer_cache:
+        return _tokenizer_cache[ref]
+    try:
+        from transformers import AutoTokenizer
+
+        _tokenizer_cache[ref] = AutoTokenizer.from_pretrained(ref)
+    except Exception as e:  # 缺依赖、权重拉不下来时静默回退到估算
+        print(f"[分块] tokenizer {ref} 不可用，改用估算计数: {e!r}", file=sys.stderr)
+        _tokenizer_cache[ref] = None
+    return _tokenizer_cache[ref]
+
+
+def count_tokens(text: str) -> float:
+    if not text:
+        return 0.0
+    tok = _chunk_tokenizer()
+    if tok is not None:
+        try:
+            return float(len(tok.encode(text, add_special_tokens=False)))
+        except Exception:
+            pass
+    cjk = len(_CJK_RE.findall(text))
+    return cjk + max(0, len(text) - cjk) / _LATIN_CHARS_PER_TOKEN
+
+
+def token_budget_to_chars(text: str, max_tokens: int) -> int:
+    """把 token 预算折算成本段文本的字符预算（按整段实际 token 密度换算）。"""
+    if not text:
+        return max_tokens
+    density = count_tokens(text) / len(text)
+    if density <= 0:
+        density = 1.0 / _LATIN_CHARS_PER_TOKEN
+    return max(64, int(max_tokens / density))
+
+
+def chunk_params(ext: str) -> tuple[int, float]:
+    """返回该扩展名的 (max_tokens, overlap_ratio)。"""
+    default = CHUNK_CONFIG["_default"]
+    conf = CHUNK_CONFIG.get((ext or "").lower(), {})
+    max_tokens = int(conf.get("max_tokens", default["max_tokens"]))
+    overlap_ratio = float(conf.get("overlap_ratio", default["overlap_ratio"]))
+    return max_tokens, overlap_ratio
+
+
+def chunk_unit_text(
+    text: str,
+    source: str,
+    page_label: str,
+    meta: str,
+    ext: str,
+) -> List[TextChunk]:
+    """把一个"父级单元"（一页 / 一张幻灯片 / 一个工作表）切成子块。
+
+    子块记录所属父级全文，检索命中子块后可在提示词里展开父级（parent-child retrieval）。
+    """
+    unit = normalize_block_text(text)
+    if not unit:
+        return []
+    max_tokens, overlap_ratio = chunk_params(ext)
+    max_chars = token_budget_to_chars(unit, max_tokens)
+    overlap = int(max_chars * overlap_ratio)
+    pieces = chunk_by_chars(
+        unit,
+        source=source,
+        page_label=page_label,
+        meta=meta,
+        max_chars=max_chars,
+        overlap=overlap,
+    )
+    for piece in pieces:
+        piece.parent_text = unit
+    return pieces
+
+
 def chunk_by_chars(
     text: str,
     source: str,
@@ -149,9 +298,10 @@ def chunk_by_chars(
     max_chars: int,
     overlap: int,
 ) -> List[TextChunk]:
-    text = _clean_text(text)
+    text = normalize_block_text(text)
     if not text:
         return []
+    overlap = max(0, min(overlap, max_chars - 1))
     chunks: List[TextChunk] = []
     start = 0
     n = len(text)
@@ -166,30 +316,9 @@ def chunk_by_chars(
             chunks.append(TextChunk(text=piece, source=source, page_label=page_label, meta=meta))
         if end >= n:
             break
-        start = end - overlap
-        if start < 0:
-            start = 0
+        # 重叠回退后仍必须向前推进，否则重叠大于实际块长时会死循环。
+        start = max(end - overlap, start + 1)
     return chunks
-
-
-CHUNK_CONFIG = {
-    ".pdf": {"max_chars": 900, "overlap": 120},
-    ".docx": {"max_chars": 900, "overlap": 100},
-    ".xlsx": {"max_chars": 1200, "overlap": 150},
-    ".pptx": {"max_chars": 900, "overlap": 100},
-    ".csv": {"max_chars": 1200, "overlap": 150},
-    ".txt": {"max_chars": 900, "overlap": 80},
-    ".md": {"max_chars": 900, "overlap": 80},
-    ".png": {"max_chars": 900, "overlap": 80},
-    ".jpg": {"max_chars": 900, "overlap": 80},
-    ".jpeg": {"max_chars": 900, "overlap": 80},
-    ".webp": {"max_chars": 900, "overlap": 80},
-    ".bmp": {"max_chars": 900, "overlap": 80},
-    ".gif": {"max_chars": 900, "overlap": 80},
-    ".tif": {"max_chars": 900, "overlap": 80},
-    ".tiff": {"max_chars": 900, "overlap": 80},
-}
-CACHE_VERSION = "rag_cache_v4"  # v4: 边界感知分块（段落/句子/词），触发向量缓存重建
 
 # Contextual Retrieval（Anthropic, 2024）：给每个块拼一段"它在文档中的语境"再嵌入+建 BM25。
 # 这里用零成本的确定性上下文头（文件名/位置/说明），显著改善术语错配的召回；
@@ -239,6 +368,93 @@ def _chunk_identity(chunk: TextChunk) -> str:
     return _sha1_text(json.dumps(base, ensure_ascii=False, sort_keys=True))
 
 
+_PAGE_LABEL_RE = re.compile(r"^第(\d+)(页|张幻灯片)$")
+
+
+def _merge_page_labels(labels: Sequence[str]) -> str:
+    """合并相邻单元后给出如实的位置说明，如「第16-17张幻灯片」。"""
+    uniq: List[str] = []
+    for label in labels:
+        if label and label not in uniq:
+            uniq.append(label)
+    if len(uniq) <= 1:
+        return uniq[0] if uniq else ""
+    parsed = [_PAGE_LABEL_RE.match(label) for label in uniq]
+    units = {m.group(2) for m in parsed if m}
+    if all(parsed) and len(units) == 1:
+        numbers = sorted(int(m.group(1)) for m in parsed if m)
+        return f"第{numbers[0]}-{numbers[-1]}{units.pop()}"
+    return "、".join(uniq[:3])
+
+
+def _merge_short_chunks(chunks: Sequence[TextChunk], ext: str) -> List[TextChunk]:
+    """把过短的块并入相邻块：先在同一页内合并，再把整页级短块并入相邻页。
+
+    页眉、章节标题页、只有一行标题的幻灯片单独成块时，既占检索命中位又占引用位，
+    却几乎不含可作答的信息。跨页合并受 token 预算约束，并如实标成「第15-16张幻灯片」。
+    """
+    if MIN_CHUNK_CHARS <= 0:
+        return list(chunks)
+    max_tokens, _overlap_ratio = chunk_params(ext)
+
+    merged: List[TextChunk] = []
+    for chunk in chunks:
+        prev = merged[-1] if merged else None
+        same_unit = (
+            prev is not None
+            and prev.page_label == chunk.page_label
+            and prev.meta == chunk.meta
+            and prev.source == chunk.source
+        )
+        short = len(chunk.text) < MIN_CHUNK_CHARS
+        prev_short = prev is not None and len(prev.text) < MIN_CHUNK_CHARS
+        if same_unit and (short or prev_short):
+            prev.text = f"{prev.text}\n{chunk.text}".strip()
+            continue
+        merged.append(
+            TextChunk(
+                text=chunk.text,
+                source=chunk.source,
+                page_label=chunk.page_label,
+                meta=chunk.meta,
+                parent_text=chunk.parent_text,
+            )
+        )
+
+    out: List[TextChunk] = []
+    labels: List[List[str]] = []
+    for chunk in merged:
+        prev = out[-1] if out else None
+        if prev is not None and prev.meta == chunk.meta and prev.source == chunk.source:
+            either_short = (
+                len(chunk.text) < MIN_CHUNK_CHARS or len(prev.text) < MIN_CHUNK_CHARS
+            )
+            combined = f"{prev.text}\n{chunk.text}".strip()
+            if either_short and count_tokens(combined) <= max_tokens:
+                prev.text = combined
+                labels[-1].append(chunk.page_label)
+                prev.page_label = _merge_page_labels(labels[-1])
+                # 跨页合并后原父级页已被拼进正文，无需再单独展开。
+                prev.parent_text = ""
+                continue
+        out.append(chunk)
+        labels.append([chunk.page_label])
+    return out
+
+
+def _dedupe_chunks(chunks: Sequence[TextChunk]) -> List[TextChunk]:
+    """同一文档内正文完全相同的块只保留首次出现的位置。"""
+    seen: set[str] = set()
+    out: List[TextChunk] = []
+    for chunk in chunks:
+        key = re.sub(r"\s+", " ", chunk.text).strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(chunk)
+    return out
+
+
 def _finalize_chunks(chunks: Sequence[TextChunk], path: Path) -> List[TextChunk]:
     out: List[TextChunk] = []
     doc_path = _normalized_path(path)
@@ -250,6 +466,13 @@ def _finalize_chunks(chunks: Sequence[TextChunk], path: Path) -> List[TextChunk]
             meta=chunk.meta,
             doc_path=doc_path,
         )
+        parent_text = (chunk.parent_text or "").strip()
+        # 父级与子块等长说明该页只有一个块，无需重复缓存；过长的父级不进提示词预算。
+        if parent_text and parent_text != item.text and len(parent_text) <= PARENT_MAX_CHARS:
+            item.parent_text = parent_text
+            item.parent_id = _sha1_text(f"{doc_path}\n{item.page_label}\n{parent_text}")
+        else:
+            item.parent_id = _sha1_text(f"{doc_path}\n{item.page_label}")
         item.context_header = _build_context_header(chunk.source, chunk.page_label, chunk.meta)
         item.chunk_id = _chunk_identity(item)
         out.append(item)
@@ -268,6 +491,8 @@ def _chunk_to_dict(chunk: TextChunk) -> dict:
         "kb_attachment_id": getattr(chunk, "kb_attachment_id", "") or "",
         "session_file_id": getattr(chunk, "session_file_id", "") or "",
         "context_header": getattr(chunk, "context_header", "") or "",
+        "parent_id": getattr(chunk, "parent_id", "") or "",
+        "parent_text": getattr(chunk, "parent_text", "") or "",
     }
 
 
@@ -283,10 +508,34 @@ def _chunk_from_dict(data: dict) -> TextChunk:
         kb_attachment_id=data.get("kb_attachment_id") or "",
         session_file_id=data.get("session_file_id") or "",
         context_header=data.get("context_header") or "",
+        parent_id=data.get("parent_id") or "",
+        parent_text=data.get("parent_text") or "",
     )
 
 
 # ------------- 各格式解析 -------------
+
+
+def _pdf_ocr_enabled() -> bool:
+    return os.environ.get("RAG_PDF_OCR", "1").strip().lower() not in {"0", "false", "no"}
+
+
+def _ocr_pdf_page(page: Any) -> str:
+    """把 PDF 页渲染成位图后 OCR；任何失败都返回空串，不影响其余页入库。"""
+    tmp_path: Optional[str] = None
+    try:
+        ocr = _get_rapid_ocr()
+        pix = page.get_pixmap(dpi=PDF_OCR_DPI)
+        fd, tmp_path = tempfile.mkstemp(suffix=".png")
+        os.close(fd)
+        Path(tmp_path).write_bytes(pix.tobytes("png"))
+        lines = _text_lines_from_rapidocr_output(ocr(tmp_path))
+    except Exception:
+        return ""
+    finally:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
+    return "\n".join(lines).strip()
 
 
 def parse_pdf(path: Path) -> List[TextChunk]:
@@ -295,20 +544,27 @@ def parse_pdf(path: Path) -> List[TextChunk]:
     out: List[TextChunk] = []
     doc = fitz.open(path)
     name = path.name
+    ocr_budget = PDF_OCR_MAX_PAGES if _pdf_ocr_enabled() else 0
     try:
         for i in range(len(doc)):
             page = doc.load_page(i)
             text = page.get_text("text") or ""
+            meta = "PDF"
+            if len(text.strip()) < PDF_OCR_MIN_CHARS and ocr_budget > 0:
+                ocr_budget -= 1
+                recognized = _ocr_pdf_page(page)
+                if len(recognized) > len(text.strip()):
+                    text = recognized
+                    meta = "PDF 图片页 OCR"
             page_no = i + 1
             label = f"第{page_no}页"
             out.extend(
-                chunk_by_chars(
+                chunk_unit_text(
                     text,
                     source=name,
                     page_label=label,
-                    meta="PDF",
-                    max_chars=900,
-                    overlap=120,
+                    meta=meta,
+                    ext=".pdf",
                 )
             )
     finally:
@@ -323,10 +579,10 @@ def parse_docx(path: Path) -> List[TextChunk]:
     name = path.name
     paras: List[str] = []
     for p in doc.paragraphs:
-        t = _clean_text(p.text)
+        t = normalize_block_text(p.text)
         if t:
             paras.append(t)
-    full = "\n".join(paras)
+    full = "\n\n".join(paras)
     # Word 无稳定物理页码，按字数估算「约第 N 页」（按约 1800 字/页）
     chars_per_page = 1800
     out: List[TextChunk] = []
@@ -335,25 +591,23 @@ def parse_docx(path: Path) -> List[TextChunk]:
         est_page = pos // chars_per_page + 1
         label = f"约第{est_page}页(估算)"
         out.extend(
-            chunk_by_chars(
+            chunk_unit_text(
                 para,
                 source=name,
                 page_label=label,
                 meta="Word(按字数估算页码)",
-                max_chars=900,
-                overlap=100,
+                ext=".docx",
             )
         )
         pos += len(para) + 1
     if not out and full:
         out.extend(
-            chunk_by_chars(
+            chunk_unit_text(
                 full,
                 source=name,
                 page_label="全文",
                 meta="Word",
-                max_chars=900,
-                overlap=100,
+                ext=".docx",
             )
         )
     return out
@@ -377,13 +631,12 @@ def parse_xlsx(path: Path) -> List[TextChunk]:
             sheet_text = "\n".join(rows)
             label = f"工作表「{sheet.title}」"
             out.extend(
-                chunk_by_chars(
+                chunk_unit_text(
                     sheet_text,
                     source=name,
                     page_label=label,
                     meta="Excel(位置为工作表+行)",
-                    max_chars=1200,
-                    overlap=150,
+                    ext=".xlsx",
                 )
             )
     finally:
@@ -401,17 +654,16 @@ def parse_pptx(path: Path) -> List[TextChunk]:
         parts: List[str] = []
         for shape in slide.shapes:
             if hasattr(shape, "text") and shape.text:
-                parts.append(_clean_text(shape.text))
-        text = "\n".join(parts)
+                parts.append(normalize_block_text(shape.text))
+        text = "\n".join(part for part in parts if part)
         label = f"第{si}张幻灯片"
         out.extend(
-            chunk_by_chars(
+            chunk_unit_text(
                 text,
                 source=name,
                 page_label=label,
                 meta="PPT",
-                max_chars=900,
-                overlap=100,
+                ext=".pptx",
             )
         )
     return out
@@ -429,13 +681,12 @@ def parse_csv(path: Path) -> List[TextChunk]:
     for i, row in df.iterrows():
         lines.append(f"行{int(i)+2}: " + " | ".join(str(x) for x in row.values))  # +2: 表头占1，pandas 0-based
     text = "\n".join(lines)
-    return chunk_by_chars(
+    return chunk_unit_text(
         text,
         source=name,
         page_label="CSV 行号见各行前缀",
         meta="CSV",
-        max_chars=1200,
-        overlap=150,
+        ext=".csv",
     )
 
 
@@ -463,13 +714,12 @@ def parse_txt(path: Path) -> List[TextChunk]:
             est = base_line // lines_per_page + 1
             label = f"约第{est}页(按行估算, 行{base_line+1}-{i+1})"
             out.extend(
-                chunk_by_chars(
+                chunk_unit_text(
                     chunk_text,
                     source=name,
                     page_label=label,
                     meta="文本",
-                    max_chars=900,
-                    overlap=80,
+                    ext=".txt",
                 )
             )
             buf = []
@@ -479,24 +729,22 @@ def parse_txt(path: Path) -> List[TextChunk]:
         chunk_text = "\n".join(buf)
         label = f"约第{est}页(按行估算, 行{base_line+1}-{len(lines)})"
         out.extend(
-            chunk_by_chars(
+            chunk_unit_text(
                 chunk_text,
                 source=name,
                 page_label=label,
                 meta="文本",
-                max_chars=900,
-                overlap=80,
+                ext=".txt",
             )
         )
     if not out and text.strip():
         out.extend(
-            chunk_by_chars(
+            chunk_unit_text(
                 text.strip(),
                 source=name,
                 page_label="全文",
                 meta="文本",
-                max_chars=900,
-                overlap=80,
+                ext=".txt",
             )
         )
     return out
@@ -536,14 +784,27 @@ def _get_rapid_ocr() -> Any:
     return _rapid_ocr_engine
 
 
+def _is_number_seq(obj: object) -> bool:
+    return isinstance(obj, (list, tuple)) and bool(obj) and all(
+        isinstance(x, (int, float)) for x in obj
+    )
+
+
 def _text_lines_from_rapidocr_output(ocr_out: object) -> list[str]:
-    """从 RapidOCR 返回值中取出文本行（兼容 (result, 耗时) 等结构）。"""
+    """从 RapidOCR 返回值中取出文本行。
+
+    不同版本返回结构不同：(rows, 耗时) 的耗时可能是单个数字，也可能是各阶段耗时列表；
+    新版本还可能返回带 .txts 属性的结果对象。
+    """
     if ocr_out is None:
         return []
+    txts = getattr(ocr_out, "txts", None)
+    if txts is not None:
+        return [str(t).strip() for t in txts if str(t).strip()]
     payload: object = ocr_out
     if isinstance(ocr_out, (list, tuple)) and len(ocr_out) == 2:
         a, b = ocr_out[0], ocr_out[1]
-        if isinstance(b, (int, float)):
+        if isinstance(b, (int, float)) or _is_number_seq(b) or b is None:
             payload = a
     rows = payload
     if not isinstance(rows, (list, tuple)):
@@ -577,13 +838,12 @@ def _parse_image_placeholder_chunks(name: str, detail: str) -> List[TextChunk]:
         "请在本环境执行：python -m pip install -r requirements.txt\n"
         "若使用 conda：先 conda activate <你的环境名> 再安装并启动服务。）"
     )
-    return chunk_by_chars(
+    return chunk_unit_text(
         text,
         source=name,
         page_label="图片",
         meta="图像(无OCR)",
-        max_chars=900,
-        overlap=80,
+        ext=".png",
     )
 
 
@@ -629,13 +889,12 @@ def parse_image(path: Path) -> List[TextChunk]:
     if not text:
         text = "（图片中未识别到文字内容）"
 
-    return chunk_by_chars(
+    return chunk_unit_text(
         text,
         source=name,
         page_label="图片",
         meta="图像 OCR",
-        max_chars=900,
-        overlap=80,
+        ext=path.suffix.lower(),
     )
 
 
@@ -660,8 +919,12 @@ def parse_document(path: Path) -> List[TextChunk]:
     fn = PARSERS.get(ext)
     if not fn:
         raise ValueError(f"不支持的扩展名 {ext}")
-    chunks = _finalize_chunks(fn(p), p)
-    print(f"[解析] {p.name} → {len(chunks)} 个文本块")
+    raw = fn(p)
+    cleaned = _dedupe_chunks(_merge_short_chunks(raw, ext))
+    chunks = _finalize_chunks(cleaned, p)
+    dropped = len(raw) - len(chunks)
+    suffix = f"（合并/去重 {dropped} 个短块或重复块）" if dropped > 0 else ""
+    print(f"[解析] {p.name} → {len(chunks)} 个文本块{suffix}")
     return chunks
 
 
@@ -697,7 +960,7 @@ def _cache_root() -> Path:
 
 def invalidate_caches_for_file(path: Path, embed_model_id: str) -> None:
     """
-    删除指定文件对应的单文档向量缓存，并移除引用该文件路径的整库 bundle 缓存。
+    删除指定文件对应的解析缓存与单文档向量缓存，并移除引用该文件路径的整库 bundle 缓存。
     必须在物理文件仍存在时调用（单文档缓存 key 依赖文件指纹）。
     """
     p = Path(path).expanduser().resolve()
@@ -706,6 +969,7 @@ def invalidate_caches_for_file(path: Path, embed_model_id: str) -> None:
     norm = _normalized_path(p)
     doc = _doc_cache_paths(p, embed_model_id)
     shutil.rmtree(doc["root"], ignore_errors=True)
+    shutil.rmtree(_parse_cache_paths(p)["root"], ignore_errors=True)
 
     bundles_dir = _cache_root() / "bundles"
     if not bundles_dir.is_dir():
@@ -760,6 +1024,55 @@ def _doc_cache_paths(path: Path, embed_model_id: str) -> dict:
         "chunks": root / "chunks.jsonl",
         "embeddings": root / "embeddings.npy",
     }
+
+
+def _parse_cache_paths(path: Path) -> dict:
+    """解析结果缓存：只依赖分块版本与文件指纹，**不含嵌入模型**。
+
+    解析是这里最贵的一步（图片页 OCR 每页数秒），换嵌入模型或做检索 A/B 时不应重跑。
+    """
+    key = _sha1_text(
+        json.dumps(
+            {
+                "version": CACHE_VERSION,
+                "file": _normalized_path(path),
+                "fingerprint": _file_fingerprint(path),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    root = _cache_root() / "parsed" / key
+    return {"root": root, "manifest": root / "manifest.json", "chunks": root / "chunks.jsonl"}
+
+
+def parse_document_cached(path: Path) -> List[TextChunk]:
+    """带缓存的解析；缓存损坏时静默重解析。"""
+    files = _parse_cache_paths(path)
+    if files["manifest"].is_file() and files["chunks"].is_file():
+        try:
+            return _read_chunks(files["chunks"])
+        except (OSError, json.JSONDecodeError, KeyError):
+            shutil.rmtree(files["root"], ignore_errors=True)
+    chunks = parse_document(path)
+    try:
+        _write_chunks(files["chunks"], chunks)
+        files["manifest"].write_text(
+            json.dumps(
+                {
+                    "version": CACHE_VERSION,
+                    "file_path": _normalized_path(path),
+                    "file_fingerprint": _file_fingerprint(path),
+                    "chunk_count": len(chunks),
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+    except OSError:
+        shutil.rmtree(files["root"], ignore_errors=True)
+    return chunks
 
 
 def _bundle_cache_paths(paths: Sequence[Path], embed_model_id: str, bundle_extra: str = "") -> dict:
@@ -852,14 +1165,25 @@ def chunk_embed_text(chunk: TextChunk) -> str:
     return f"{header}\n{body}" if header else body
 
 
+def _embed_batch_size() -> int:
+    """编码批大小；8GB CPU 机上默认 4，避免 sentence-transformers 默认 32 把内存打爆。"""
+    return _env_int("RAG_EMBED_BATCH_SIZE", 4, minimum=1)
+
+
 def _encode_chunks(st, chunks: Sequence[TextChunk]) -> np.ndarray:
     passage_prefix = getattr(st, "_rag_passage_prefix", "") or ""
     texts = [passage_prefix + chunk_embed_text(c) for c in chunks]
-    _log_step(f"[嵌入] (2/2) 编码 {len(texts)} 条文本块 …")
+    batch = _embed_batch_size()
+    _log_step(f"[嵌入] (2/2) 编码 {len(texts)} 条文本块（batch={batch}）…")
     if not texts:
         dim = int(st.get_sentence_embedding_dimension())
         return np.zeros((0, dim), dtype=np.float32)
-    emb = st.encode(list(texts), show_progress_bar=True, normalize_embeddings=True)
+    emb = st.encode(
+        list(texts),
+        batch_size=batch,
+        show_progress_bar=True,
+        normalize_embeddings=True,
+    )
     out = np.asarray(emb, dtype=np.float32)
     if out.ndim == 1:
         out = out.reshape(1, -1)
@@ -983,7 +1307,7 @@ def build_or_load_index(
             doc_chunks, doc_emb = cached_doc
             _log_step(f"[缓存] 命中文档缓存：{p.name}（{len(doc_chunks)} 块）")
         else:
-            doc_chunks = parse_document(p)
+            doc_chunks = parse_document_cached(p)
             doc_emb = _encode_chunks(st, doc_chunks)
             _save_doc_cache(p, embed_model_id, doc_chunks, doc_emb)
             changed_count += 1

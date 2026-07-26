@@ -1,14 +1,22 @@
 [
   {
     "question": "What is the main topic of the course material?",
-    "ground_truth": ""
+    "ground_truth": "",
+    "expected_grounding": "grounded"
   },
   {
     "question": "Explain the key concept introduced in the first lecture.",
-    "ground_truth": ""
+    "ground_truth": "",
+    "expected_grounding": "grounded"
   },
   {
     "question": "List the assessment components and their weights.",
-    "ground_truth": ""
+    "ground_truth": "",
+    "expected_grounding": "grounded"
+  },
+  {
+    "question": "What is the current weather in London?",
+    "ground_truth": "",
+    "expected_grounding": "general"
   }
 ]
