@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="Figure 5.2 RRF">
+<rect width="1920" height="1080" fill="#ffffff"/>
+<text x="960.0" y="64.0" font-size="30" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Reciprocal Rank Fusion (RRF)</text>
+<text x="960.0" y="98.0" font-size="17" font-weight="400" fill="#64748b" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">RRF(c) = Σ 1 / (k + rankᵢ(c) + 1),  k = 60</text>
+<rect x="104.0" y="196.0" width="440.0" height="100.0" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="324.0" y="240.0" font-size="20" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Dense list (FAISS)</text>
+<text x="324.0" y="264.9" font-size="17" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">semantic similarity</text>
+<rect x="1376.0" y="196.0" width="440.0" height="100.0" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="1596.0" y="240.0" font-size="20" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Lexical list (BM25)</text>
+<text x="1596.0" y="264.9" font-size="17" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">exact terms / numbers</text>
+<rect x="104.0" y="316.0" width="440.0" height="90.0" rx="10" ry="10" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.8"/>
+<text x="324.0" y="367.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">1. Overview slide</text>
+<rect x="104.0" y="424.0" width="440.0" height="90.0" rx="10" ry="10" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.8"/>
+<text x="324.0" y="475.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">2. Related formula</text>
+<rect x="104.0" y="532.0" width="440.0" height="90.0" rx="10" ry="10" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.8"/>
+<text x="324.0" y="583.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">3. Nearby example</text>
+<rect x="104.0" y="640.0" width="440.0" height="90.0" rx="10" ry="10" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.8"/>
+<text x="324.0" y="691.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">4. Target % passage</text>
+<rect x="1376.0" y="316.0" width="440.0" height="90.0" rx="10" ry="10" fill="#f0fdf4" stroke="#86efac" stroke-width="1.8"/>
+<text x="1596.0" y="367.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">1. Target % passage</text>
+<rect x="1376.0" y="424.0" width="440.0" height="90.0" rx="10" ry="10" fill="#f0fdf4" stroke="#86efac" stroke-width="1.8"/>
+<text x="1596.0" y="475.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">2. Table of values</text>
+<rect x="1376.0" y="532.0" width="440.0" height="90.0" rx="10" ry="10" fill="#f0fdf4" stroke="#86efac" stroke-width="1.8"/>
+<text x="1596.0" y="583.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">3. Caption line</text>
+<rect x="1376.0" y="640.0" width="440.0" height="90.0" rx="10" ry="10" fill="#f0fdf4" stroke="#86efac" stroke-width="1.8"/>
+<text x="1596.0" y="691.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">4. Other term hit</text>
+<rect x="740.0" y="433.0" width="440.0" height="180.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="960.0" y="502.7" font-size="22" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">RRF fusion</text>
+<text x="960.0" y="529.3" font-size="18" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Pool ≤ 36 candidates</text>
+<text x="960.0" y="557.3" font-size="18" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">No score calibration</text>
+<line x1="550.0" y1="469.0" x2="724.6" y2="469.0" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="734.00,469.00 723.00,475.05 723.00,462.95" fill="#64748b"/>
+<line x1="1370.0" y1="469.0" x2="1195.3" y2="469.0" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="1186.00,469.00 1197.00,462.95 1197.00,475.05" fill="#64748b"/>
+<rect x="570.0" y="750.0" width="780.0" height="130.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="960.0" y="794.7" font-size="22" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Fused top result</text>
+<text x="960.0" y="821.3" font-size="18" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Target % passage promoted</text>
+<text x="960.0" y="849.3" font-size="18" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Dense rank 4 + lexical rank 1</text>
+<line x1="960.0" y1="619.0" x2="960.0" y2="734.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="960.00,744.00 953.95,733.00 966.05,733.00" fill="#64748b"/>
+<text x="960.0" y="1016.0" font-size="17" font-weight="400" fill="#475569" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">BM25 recovers literal percentages and identifiers; fusion promotes them without weights.</text>
+</svg>

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="图 7.1 同步问答生命周期">
+<rect width="1920" height="1080" fill="#ffffff"/>
+<text x="960.0" y="64.0" font-size="30" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">同步问答请求生命周期</text>
+<rect x="64.0" y="133.0" width="238.9" height="76.0" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="183.4" y="176.2" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">前端</text>
+<line x1="183.4" y1="221.0" x2="183.4" y2="924.0" stroke="#e2e8f0" stroke-width="1.4"/>
+<rect x="322.9" y="133.0" width="238.9" height="76.0" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="442.3" y="176.2" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">API</text>
+<line x1="442.3" y1="221.0" x2="442.3" y2="924.0" stroke="#e2e8f0" stroke-width="1.4"/>
+<rect x="581.7" y="133.0" width="238.9" height="76.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="701.1" y="176.2" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">编排器</text>
+<line x1="701.1" y1="221.0" x2="701.1" y2="924.0" stroke="#e2e8f0" stroke-width="1.4"/>
+<rect x="840.6" y="133.0" width="238.9" height="76.0" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="960.0" y="176.2" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">文档索引</text>
+<line x1="960.0" y1="221.0" x2="960.0" y2="924.0" stroke="#e2e8f0" stroke-width="1.4"/>
+<rect x="1099.4" y="133.0" width="238.9" height="76.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="1218.9" y="176.2" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">检索管线</text>
+<line x1="1218.9" y1="221.0" x2="1218.9" y2="924.0" stroke="#e2e8f0" stroke-width="1.4"/>
+<rect x="1358.3" y="133.0" width="238.9" height="76.0" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="1477.7" y="176.2" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">大模型</text>
+<line x1="1477.7" y1="221.0" x2="1477.7" y2="924.0" stroke="#e2e8f0" stroke-width="1.4"/>
+<rect x="1617.1" y="133.0" width="238.9" height="76.0" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="1736.6" y="176.2" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">会话库</text>
+<line x1="1736.6" y1="221.0" x2="1736.6" y2="924.0" stroke="#e2e8f0" stroke-width="1.4"/>
+<line x1="183.4" y1="276.0" x2="432.9" y2="276.0" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="442.29,276.00 431.29,282.05 431.29,269.95" fill="#64748b"/>
+<text x="312.9" y="264.0" font-size="15" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">1. 提交问题（鉴权）</text>
+<line x1="442.3" y1="355.2" x2="691.8" y2="355.2" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="701.14,355.25 690.14,361.30 690.14,349.20" fill="#64748b"/>
+<text x="571.7" y="343.2" font-size="15" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">2. 会话锁</text>
+<line x1="701.1" y1="434.5" x2="950.7" y2="434.5" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="960.00,434.50 949.00,440.55 949.00,428.45" fill="#64748b"/>
+<text x="830.6" y="422.5" font-size="15" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">3. 构建/加载索引</text>
+<line x1="701.1" y1="513.8" x2="1209.5" y2="513.8" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="1218.86,513.75 1207.86,519.80 1207.86,507.70" fill="#64748b"/>
+<text x="960.0" y="501.8" font-size="15" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">4. 混合检索 + 重排</text>
+<line x1="1218.9" y1="593.0" x2="710.5" y2="593.0" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="701.14,593.00 712.14,586.95 712.14,599.05" fill="#64748b"/>
+<text x="960.0" y="581.0" font-size="15" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">5. 门控 + 证据筛选</text>
+<line x1="701.1" y1="672.2" x2="1468.4" y2="672.2" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="1477.71,672.25 1466.71,678.30 1466.71,666.20" fill="#64748b"/>
+<text x="1089.4" y="660.2" font-size="15" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">6. 调用大模型</text>
+<line x1="1477.7" y1="751.5" x2="710.5" y2="751.5" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="701.14,751.50 712.14,745.45 712.14,757.55" fill="#64748b"/>
+<text x="1089.4" y="739.5" font-size="15" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">7. 引用 / 覆盖率</text>
+<line x1="701.1" y1="830.8" x2="1727.2" y2="830.8" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="1736.57,830.75 1725.57,836.80 1725.57,824.70" fill="#64748b"/>
+<text x="1218.9" y="818.8" font-size="15" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">8. 消息落库</text>
+<line x1="442.3" y1="910.0" x2="192.8" y2="910.0" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="183.43,910.00 194.43,903.95 194.43,916.05" fill="#64748b"/>
+<text x="312.9" y="898.0" font-size="15" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">9. 返回回答</text>
+<text x="960.0" y="988.0" font-size="17" font-weight="400" fill="#475569" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">异步路径共用同一 worker；客户端轮询任务 ID。</text>
+<text x="960.0" y="1016.0" font-size="16" font-weight="400" fill="#64748b" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">落库元数据：路由、依据档、充分性、引用覆盖率。</text>
+</svg>

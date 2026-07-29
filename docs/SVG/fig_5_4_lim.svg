@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="Figure 5.4 Lost-in-the-Middle">
+<rect width="1920" height="1080" fill="#ffffff"/>
+<text x="960.0" y="64.0" font-size="30" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Lost-in-the-Middle Evidence Re-ordering</text>
+<text x="360.0" y="154.0" font-size="20" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Before (score order)</text>
+<text x="1560.0" y="154.0" font-size="20" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">After (edges-first)</text>
+<rect x="160.0" y="206.0" width="400.0" height="128.8" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="360.0" y="276.7" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">#1 strongest</text>
+<rect x="160.0" y="354.8" width="400.0" height="128.8" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="360.0" y="425.5" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">#2</text>
+<rect x="160.0" y="503.6" width="400.0" height="128.8" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="360.0" y="574.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">#3</text>
+<rect x="160.0" y="652.4" width="400.0" height="128.8" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="360.0" y="723.1" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">#4</text>
+<rect x="160.0" y="801.2" width="400.0" height="128.8" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="360.0" y="871.9" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">#5 weakest</text>
+<rect x="1360.0" y="206.0" width="400.0" height="128.8" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="1560.0" y="276.7" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">#1 strongest</text>
+<rect x="1360.0" y="354.8" width="400.0" height="128.8" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="1560.0" y="425.5" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">#3</text>
+<rect x="1360.0" y="503.6" width="400.0" height="128.8" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="1560.0" y="574.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">#5 weakest</text>
+<rect x="1360.0" y="652.4" width="400.0" height="128.8" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="1560.0" y="723.1" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">#4</text>
+<rect x="1360.0" y="801.2" width="400.0" height="128.8" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="1560.0" y="871.9" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">#2</text>
+<rect x="810.0" y="483.0" width="300.0" height="120.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="960.0" y="525.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Re-order</text>
+<text x="960.0" y="548.2" font-size="15" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Strong evidence</text>
+<text x="960.0" y="572.2" font-size="15" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">at prompt edges</text>
+<line x1="566.0" y1="543.0" x2="794.6" y2="543.0" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="804.00,543.00 793.00,549.05 793.00,536.95" fill="#64748b"/>
+<line x1="1116.0" y1="543.0" x2="1344.7" y2="543.0" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="1354.00,543.00 1343.00,549.05 1343.00,536.95" fill="#64748b"/>
+<text x="960.0" y="988.0" font-size="17" font-weight="400" fill="#475569" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Models attend more to context edges; mid slots get weaker evidence after filtering.</text>
+<text x="960.0" y="1016.0" font-size="16" font-weight="400" fill="#64748b" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Child chunks may expand to parent pages before prompting.</text>
+</svg>

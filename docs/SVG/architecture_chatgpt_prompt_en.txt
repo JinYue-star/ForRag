@@ -1,0 +1,61 @@
+You are an information-architecture visualization expert. Using the specification below for 「HKU Teacher-student Co-learning (SOLO) Bot System Architecture」, produce one **16:9 landscape system-architecture vector diagram**.
+
+## Hard requirements
+1. **Output only one complete SVG** (starts with <svg, ends with </svg>). No explanations outside the SVG.
+2. viewBox must be `0 0 1920 1080` (16:9); `width="1920" height="1080"` is fine.
+3. Pure vector: rectangles, rounded rectangles, text, thin lines. No bitmaps. No emoji.
+4. Style: flat, professional, light background; left layer labels + right module cards.
+5. Primary-path modules: stronger stroke or light blue fill; others: light gray stroke.
+6. English text; font stack like "Segoe UI", "Helvetica Neue", sans-serif.
+7. **No codenames, filenames, paths, or API routes. No subtitle.** Role descriptions only.
+8. **Do not invent** modules beyond the spec (especially: document vectors do not live in the session store).
+
+## Title
+- HKU Teacher-student Co-learning (SOLO) Bot System Architecture
+- No subtitle.
+
+## Layer specification (must include all; layout may flex, meaning must not)
+
+### Layer 1 · Frontend
+- Login / Teacher Console: Teacher & student entry; Account login & registration; User & registration-code admin
+- AI Assistant [primary path]: Private sessions per user; Upload files and ask questions; Answers with source citations
+- Course Knowledge Base: Categories and notes; Upload course materials; Publish class exercises
+- Quiz / Export: Online quiz & grading; Export questions & scores; No full chat transcripts
+
+### Layer 2 · API Services
+- Auth & Admin: Login / register auth; Teacher user management; Registration code control
+- Sessions & Files [primary path]: Create & manage sessions; Upload / delete attachments; Chat message storage
+- Knowledge Base & Q&A: KB read / write APIs; Sync & async Q&A; Selectable search scope
+- Quiz & Export: Generate & grade quizzes; Publish class exercises; Export scores / questions
+
+### Layer 3 · Core Business
+- Q&A Orchestration [primary path]: Collect available materials; Schedule retrieve & generate; Concurrency & job control
+- Document Processing: Parse slides & attachments; Smart text chunking; Build vector indexes
+- Retrieval Augmentation: Dense + keyword search; Fusion and re-ranking; Corrective re-query if needed
+- Generation & Exercises: Grounded answer generation; Citations & quality gates; Quiz create, grade, export
+
+### Layer 4 · Data & Storage
+- Session Store: Sessions & chat history; Quiz items & results; Not for document vectors
+- Business Store: Users & login tokens; KB categories & notes; Class exercise list
+- File Storage: Session attachments; Course source files; Note-related files
+- Vector Index [primary path]: Course content embeddings; Powers semantic search; Rebuilds when materials change
+
+### Layer 5 · Models & External
+- Text Embedding [primary path]: Turn text into vectors; Bilingual support; Runs locally
+- Re-ranking: Refine retrieved passages; Improve relevance; Runs locally
+- Large Language Model: Generate answers & explanations; Rewrite queries / create quizzes; Cloud API
+- Deployment Notes: Single-process service; Browser access; UI never talks to DB directly
+
+### Layer 6 · Main Pipeline
+Steps: Upload materials → Parse & index → Retrieve relevant content → LLM generates answer → Save answer & citations → Create quiz / exercise → Grade & export scores
+
+## Legend
+- Blue accent = primary path (assistant Q&A · retrieval index · embedding)
+- Top to bottom: UI → API → Business → Storage → Models → Pipeline
+
+## Layout hints
+- Title only at the top (no subtitle); then six horizontal bands L1→L6.
+- L1–L5: four equal-width cards per layer; L6: a 7-step flow with arrows.
+- Left ~120px layer-id column; one legend line at the bottom.
+
+Now output the SVG only.

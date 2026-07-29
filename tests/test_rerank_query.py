@@ -21,8 +21,12 @@ def test_chinese_without_latin_fallback() -> None:
     assert rp._pick_rerank_query(q, [q, "采样率过低"]) == q
 
 
-def test_english_only_reranker_detection() -> None:
-    assert rp._english_only_reranker() is True  # 本机默认 ms-marco MiniLM
+def test_english_only_reranker_detection(monkeypatch) -> None:
+    # 判定只看模型标识，不依赖本机 .env 选了哪个重排器。
+    monkeypatch.setattr(rp, "RERANK_MODEL", ".models/ms-marco-MiniLM-L-6-v2")
+    assert rp._english_only_reranker() is True
+    monkeypatch.setattr(rp, "RERANK_MODEL", "BAAI/bge-reranker-v2-m3")
+    assert rp._english_only_reranker() is False
 
 
 def test_scores_from_rerank_respects_last_flag(monkeypatch) -> None:

@@ -1,0 +1,170 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="HKU Teacher-student Co-learning (SOLO) Bot System Architecture">
+<defs>
+<style type="text/css"><![CDATA[
+  text { font-family: 'Segoe UI', 'Helvetica Neue', 'Microsoft YaHei', 'PingFang SC', sans-serif; }
+]]></style>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+<path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+</marker>
+</defs>
+<rect width="1920" height="1080" fill="#f8fafc"/>
+<rect x="0" y="0" width="1920" height="4" fill="#2563eb"/>
+<text x="36" y="58" font-size="22" font-weight="700" fill="#0f172a">HKU Teacher-student Co-learning (SOLO) Bot System Architecture</text>
+<rect x="36" y="80.0" width="1848" height="149.7" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="36" y="80.0" width="118" height="149.7" rx="12" fill="#f1f5f9" stroke="#e2e8f0"/>
+<text x="95.0" y="144.8" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">L1</text>
+<text x="95.0" y="164.8" text-anchor="middle" font-size="11" fill="#475569">Frontend</text>
+<rect x="170.0" y="94.0" width="419.5" height="121.7" rx="10" ry="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="184.0" y="122.0" font-size="15" font-weight="700" fill="#0f172a">Login / Teacher Console</text>
+<text x="184.0" y="146.0" font-size="12.5" fill="#334155">· Teacher &amp; student entry</text>
+<text x="184.0" y="165.0" font-size="12.5" fill="#334155">· Account login &amp; registration</text>
+<text x="184.0" y="184.0" font-size="12.5" fill="#334155">· User &amp; registration-code admin</text>
+<rect x="601.5" y="94.0" width="419.5" height="121.7" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.0"/>
+<text x="615.5" y="122.0" font-size="15" font-weight="700" fill="#0f172a">AI Assistant</text>
+<text x="615.5" y="146.0" font-size="12.5" fill="#334155">· Private sessions per user</text>
+<text x="615.5" y="165.0" font-size="12.5" fill="#334155">· Upload files and ask questions</text>
+<text x="615.5" y="184.0" font-size="12.5" fill="#334155">· Answers with source citations</text>
+<rect x="1033.0" y="94.0" width="419.5" height="121.7" rx="10" ry="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="1047.0" y="122.0" font-size="15" font-weight="700" fill="#0f172a">Course Knowledge Base</text>
+<text x="1047.0" y="146.0" font-size="12.5" fill="#334155">· Categories and notes</text>
+<text x="1047.0" y="165.0" font-size="12.5" fill="#334155">· Upload course materials</text>
+<text x="1047.0" y="184.0" font-size="12.5" fill="#334155">· Publish class exercises</text>
+<rect x="1464.5" y="94.0" width="419.5" height="121.7" rx="10" ry="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="1478.5" y="122.0" font-size="15" font-weight="700" fill="#0f172a">Quiz / Export</text>
+<text x="1478.5" y="146.0" font-size="12.5" fill="#334155">· Online quiz &amp; grading</text>
+<text x="1478.5" y="165.0" font-size="12.5" fill="#334155">· Export questions &amp; scores</text>
+<text x="1478.5" y="184.0" font-size="12.5" fill="#334155">· No full chat transcripts</text>
+<rect x="36" y="239.7" width="1848" height="149.7" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="36" y="239.7" width="118" height="149.7" rx="12" fill="#f1f5f9" stroke="#e2e8f0"/>
+<text x="95.0" y="304.5" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">L2</text>
+<text x="95.0" y="324.5" text-anchor="middle" font-size="11" fill="#475569">API</text>
+<rect x="170.0" y="253.7" width="419.5" height="121.7" rx="10" ry="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="184.0" y="281.7" font-size="15" font-weight="700" fill="#0f172a">Auth &amp; Admin</text>
+<text x="184.0" y="305.7" font-size="12.5" fill="#334155">· Login / register auth</text>
+<text x="184.0" y="324.7" font-size="12.5" fill="#334155">· Teacher user management</text>
+<text x="184.0" y="343.7" font-size="12.5" fill="#334155">· Registration code control</text>
+<rect x="601.5" y="253.7" width="419.5" height="121.7" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.0"/>
+<text x="615.5" y="281.7" font-size="15" font-weight="700" fill="#0f172a">Sessions &amp; Files</text>
+<text x="615.5" y="305.7" font-size="12.5" fill="#334155">· Create &amp; manage sessions</text>
+<text x="615.5" y="324.7" font-size="12.5" fill="#334155">· Upload / delete attachments</text>
+<text x="615.5" y="343.7" font-size="12.5" fill="#334155">· Chat message storage</text>
+<rect x="1033.0" y="253.7" width="419.5" height="121.7" rx="10" ry="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="1047.0" y="281.7" font-size="15" font-weight="700" fill="#0f172a">Knowledge Base &amp; Q&amp;A</text>
+<text x="1047.0" y="305.7" font-size="12.5" fill="#334155">· KB read / write APIs</text>
+<text x="1047.0" y="324.7" font-size="12.5" fill="#334155">· Sync &amp; async Q&amp;A</text>
+<text x="1047.0" y="343.7" font-size="12.5" fill="#334155">· Selectable search scope</text>
+<rect x="1464.5" y="253.7" width="419.5" height="121.7" rx="10" ry="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="1478.5" y="281.7" font-size="15" font-weight="700" fill="#0f172a">Quiz &amp; Export</text>
+<text x="1478.5" y="305.7" font-size="12.5" fill="#334155">· Generate &amp; grade quizzes</text>
+<text x="1478.5" y="324.7" font-size="12.5" fill="#334155">· Publish class exercises</text>
+<text x="1478.5" y="343.7" font-size="12.5" fill="#334155">· Export scores / questions</text>
+<rect x="36" y="399.3" width="1848" height="149.7" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="36" y="399.3" width="118" height="149.7" rx="12" fill="#f1f5f9" stroke="#e2e8f0"/>
+<text x="95.0" y="464.2" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">L3</text>
+<text x="95.0" y="484.2" text-anchor="middle" font-size="11" fill="#475569">Business</text>
+<rect x="170.0" y="413.3" width="419.5" height="121.7" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.0"/>
+<text x="184.0" y="441.3" font-size="15" font-weight="700" fill="#0f172a">Q&amp;A Orchestration</text>
+<text x="184.0" y="465.3" font-size="12.5" fill="#334155">· Collect available materials</text>
+<text x="184.0" y="484.3" font-size="12.5" fill="#334155">· Schedule retrieve &amp; generate</text>
+<text x="184.0" y="503.3" font-size="12.5" fill="#334155">· Concurrency &amp; job control</text>
+<rect x="601.5" y="413.3" width="419.5" height="121.7" rx="10" ry="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="615.5" y="441.3" font-size="15" font-weight="700" fill="#0f172a">Document Processing</text>
+<text x="615.5" y="465.3" font-size="12.5" fill="#334155">· Parse slides &amp; attachments</text>
+<text x="615.5" y="484.3" font-size="12.5" fill="#334155">· Smart text chunking</text>
+<text x="615.5" y="503.3" font-size="12.5" fill="#334155">· Build vector indexes</text>
+<rect x="1033.0" y="413.3" width="419.5" height="121.7" rx="10" ry="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="1047.0" y="441.3" font-size="15" font-weight="700" fill="#0f172a">Retrieval Augmentation</text>
+<text x="1047.0" y="465.3" font-size="12.5" fill="#334155">· Dense + keyword search</text>
+<text x="1047.0" y="484.3" font-size="12.5" fill="#334155">· Fusion and re-ranking</text>
+<text x="1047.0" y="503.3" font-size="12.5" fill="#334155">· Corrective re-query if needed</text>
+<rect x="1464.5" y="413.3" width="419.5" height="121.7" rx="10" ry="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="1478.5" y="441.3" font-size="15" font-weight="700" fill="#0f172a">Generation &amp; Exercises</text>
+<text x="1478.5" y="465.3" font-size="12.5" fill="#334155">· Grounded answer generation</text>
+<text x="1478.5" y="484.3" font-size="12.5" fill="#334155">· Citations &amp; quality gates</text>
+<text x="1478.5" y="503.3" font-size="12.5" fill="#334155">· Quiz create, grade, export</text>
+<rect x="36" y="559.0" width="1848" height="149.7" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="36" y="559.0" width="118" height="149.7" rx="12" fill="#f1f5f9" stroke="#e2e8f0"/>
+<text x="95.0" y="623.8" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">L4</text>
+<text x="95.0" y="643.8" text-anchor="middle" font-size="11" fill="#475569">Storage</text>
+<rect x="170.0" y="573.0" width="419.5" height="121.7" rx="10" ry="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="184.0" y="601.0" font-size="15" font-weight="700" fill="#0f172a">Session Store</text>
+<text x="184.0" y="625.0" font-size="12.5" fill="#334155">· Sessions &amp; chat history</text>
+<text x="184.0" y="644.0" font-size="12.5" fill="#334155">· Quiz items &amp; results</text>
+<text x="184.0" y="663.0" font-size="12.5" fill="#334155">· Not for document vectors</text>
+<rect x="601.5" y="573.0" width="419.5" height="121.7" rx="10" ry="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="615.5" y="601.0" font-size="15" font-weight="700" fill="#0f172a">Business Store</text>
+<text x="615.5" y="625.0" font-size="12.5" fill="#334155">· Users &amp; login tokens</text>
+<text x="615.5" y="644.0" font-size="12.5" fill="#334155">· KB categories &amp; notes</text>
+<text x="615.5" y="663.0" font-size="12.5" fill="#334155">· Class exercise list</text>
+<rect x="1033.0" y="573.0" width="419.5" height="121.7" rx="10" ry="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="1047.0" y="601.0" font-size="15" font-weight="700" fill="#0f172a">File Storage</text>
+<text x="1047.0" y="625.0" font-size="12.5" fill="#334155">· Session attachments</text>
+<text x="1047.0" y="644.0" font-size="12.5" fill="#334155">· Course source files</text>
+<text x="1047.0" y="663.0" font-size="12.5" fill="#334155">· Note-related files</text>
+<rect x="1464.5" y="573.0" width="419.5" height="121.7" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.0"/>
+<text x="1478.5" y="601.0" font-size="15" font-weight="700" fill="#0f172a">Vector Index</text>
+<text x="1478.5" y="625.0" font-size="12.5" fill="#334155">· Course content embeddings</text>
+<text x="1478.5" y="644.0" font-size="12.5" fill="#334155">· Powers semantic search</text>
+<text x="1478.5" y="663.0" font-size="12.5" fill="#334155">· Rebuilds when materials change</text>
+<rect x="36" y="718.7" width="1848" height="149.7" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="36" y="718.7" width="118" height="149.7" rx="12" fill="#f1f5f9" stroke="#e2e8f0"/>
+<text x="95.0" y="783.5" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">L5</text>
+<text x="95.0" y="803.5" text-anchor="middle" font-size="11" fill="#475569">Models</text>
+<rect x="170.0" y="732.7" width="419.5" height="121.7" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.0"/>
+<text x="184.0" y="760.7" font-size="15" font-weight="700" fill="#0f172a">Text Embedding</text>
+<text x="184.0" y="784.7" font-size="12.5" fill="#334155">· Turn text into vectors</text>
+<text x="184.0" y="803.7" font-size="12.5" fill="#334155">· Bilingual support</text>
+<text x="184.0" y="822.7" font-size="12.5" fill="#334155">· Runs locally</text>
+<rect x="601.5" y="732.7" width="419.5" height="121.7" rx="10" ry="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="615.5" y="760.7" font-size="15" font-weight="700" fill="#0f172a">Re-ranking</text>
+<text x="615.5" y="784.7" font-size="12.5" fill="#334155">· Refine retrieved passages</text>
+<text x="615.5" y="803.7" font-size="12.5" fill="#334155">· Improve relevance</text>
+<text x="615.5" y="822.7" font-size="12.5" fill="#334155">· Runs locally</text>
+<rect x="1033.0" y="732.7" width="419.5" height="121.7" rx="10" ry="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="1047.0" y="760.7" font-size="15" font-weight="700" fill="#0f172a">Large Language Model</text>
+<text x="1047.0" y="784.7" font-size="12.5" fill="#334155">· Generate answers &amp; explanations</text>
+<text x="1047.0" y="803.7" font-size="12.5" fill="#334155">· Rewrite queries / create quizzes</text>
+<text x="1047.0" y="822.7" font-size="12.5" fill="#334155">· Cloud API</text>
+<rect x="1464.5" y="732.7" width="419.5" height="121.7" rx="10" ry="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>
+<text x="1478.5" y="760.7" font-size="15" font-weight="700" fill="#0f172a">Deployment Notes</text>
+<text x="1478.5" y="784.7" font-size="12.5" fill="#334155">· Single-process service</text>
+<text x="1478.5" y="803.7" font-size="12.5" fill="#334155">· Browser access</text>
+<text x="1478.5" y="822.7" font-size="12.5" fill="#334155">· UI never talks to DB directly</text>
+<rect x="36" y="878.3" width="1848" height="149.7" rx="12" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+<rect x="36" y="878.3" width="118" height="149.7" rx="12" fill="#f1f5f9" stroke="#e2e8f0"/>
+<text x="95.0" y="943.2" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">L6</text>
+<text x="95.0" y="963.2" text-anchor="middle" font-size="11" fill="#475569">Pipeline</text>
+<rect x="170.0" y="892.3" width="210.6" height="121.7" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="180.0" y="914.3" font-size="12" font-weight="700" fill="#2563eb">01</text>
+<text x="180.0" y="938.3" font-size="13" fill="#0f172a">Upload materials</text>
+<rect x="420.6" y="892.3" width="210.6" height="121.7" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="430.6" y="914.3" font-size="12" font-weight="700" fill="#2563eb">02</text>
+<text x="430.6" y="938.3" font-size="13" fill="#0f172a">Parse &amp; index</text>
+<rect x="671.1" y="892.3" width="210.6" height="121.7" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="681.1" y="914.3" font-size="12" font-weight="700" fill="#2563eb">03</text>
+<text x="681.1" y="938.3" font-size="13" fill="#0f172a">Retrieve relevant</text>
+<text x="681.1" y="956.3" font-size="13" fill="#0f172a">content</text>
+<rect x="921.7" y="892.3" width="210.6" height="121.7" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="931.7" y="914.3" font-size="12" font-weight="700" fill="#2563eb">04</text>
+<text x="931.7" y="938.3" font-size="13" fill="#0f172a">LLM generates</text>
+<text x="931.7" y="956.3" font-size="13" fill="#0f172a">answer</text>
+<rect x="1172.3" y="892.3" width="210.6" height="121.7" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="1182.3" y="914.3" font-size="12" font-weight="700" fill="#2563eb">05</text>
+<text x="1182.3" y="938.3" font-size="13" fill="#0f172a">Save answer &amp;</text>
+<text x="1182.3" y="956.3" font-size="13" fill="#0f172a">citations</text>
+<rect x="1422.9" y="892.3" width="210.6" height="121.7" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="1432.9" y="914.3" font-size="12" font-weight="700" fill="#2563eb">06</text>
+<text x="1432.9" y="938.3" font-size="13" fill="#0f172a">Create quiz /</text>
+<text x="1432.9" y="956.3" font-size="13" fill="#0f172a">exercise</text>
+<rect x="1673.4" y="892.3" width="210.6" height="121.7" rx="8" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.2"/>
+<text x="1683.4" y="914.3" font-size="12" font-weight="700" fill="#2563eb">07</text>
+<text x="1683.4" y="938.3" font-size="13" fill="#0f172a">Grade &amp; export</text>
+<text x="1683.4" y="956.3" font-size="13" fill="#0f172a">scores</text>
+<line x1="384.6" y1="953.2" x2="416.6" y2="953.2" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
+<line x1="635.1" y1="953.2" x2="667.1" y2="953.2" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
+<line x1="885.7" y1="953.2" x2="917.7" y2="953.2" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
+<line x1="1136.3" y1="953.2" x2="1168.3" y2="953.2" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
+<line x1="1386.9" y1="953.2" x2="1418.9" y2="953.2" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
+<line x1="1637.4" y1="953.2" x2="1669.4" y2="953.2" stroke="#64748b" stroke-width="1.8" marker-end="url(#arrow)"/>
+<text x="36" y="1056" font-size="12" fill="#64748b">Blue accent = primary path (assistant Q&amp;A · retrieval index · embedding) · Top to bottom: UI → API → Business → Storage → Models → Pipeline</text>
+</svg>

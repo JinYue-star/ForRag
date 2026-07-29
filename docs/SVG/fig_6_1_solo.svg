@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="Figure 6.1 SOLO loop">
+<rect width="1920" height="1080" fill="#ffffff"/>
+<text x="960.0" y="64.0" font-size="30" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">SOLO-Informed Practice and Feedback Loop</text>
+<rect x="114.0" y="226.0" width="440.0" height="160.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="334.0" y="299.7" font-size="22" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">1. Course materials</text>
+<text x="334.0" y="326.3" font-size="18" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Shared knowledge base</text>
+<rect x="740.0" y="226.0" width="440.0" height="160.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="960.0" y="299.7" font-size="22" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">2. Grounded Q&amp;A</text>
+<text x="960.0" y="326.3" font-size="18" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Cited answers</text>
+<rect x="1366.0" y="226.0" width="440.0" height="160.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="1586.0" y="299.7" font-size="22" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">3. Layered quiz</text>
+<text x="1586.0" y="326.3" font-size="18" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">SOLO distribution</text>
+<rect x="1366.0" y="546.0" width="440.0" height="160.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="1586.0" y="619.7" font-size="22" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">4. Auto grading</text>
+<text x="1586.0" y="646.3" font-size="18" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Explanations</text>
+<rect x="740.0" y="546.0" width="440.0" height="160.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="960.0" y="619.7" font-size="22" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">5. Teacher export</text>
+<text x="960.0" y="646.3" font-size="18" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Common difficulties</text>
+<line x1="560.0" y1="306.0" x2="724.6" y2="306.0" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="734.00,306.00 723.00,312.05 723.00,299.95" fill="#64748b"/>
+<line x1="1186.0" y1="306.0" x2="1350.7" y2="306.0" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="1360.00,306.00 1349.00,312.05 1349.00,299.95" fill="#64748b"/>
+<line x1="1586.0" y1="392.0" x2="1586.0" y2="530.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="1586.00,540.00 1579.95,529.00 1592.05,529.00" fill="#64748b"/>
+<line x1="1360.0" y1="626.0" x2="1195.3" y2="626.0" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="1186.00,626.00 1197.00,619.95 1197.00,632.05" fill="#64748b"/>
+<line x1="960.0" y1="714.0" x2="960.0" y2="766.0" stroke="#94a3b8" stroke-width="2.0"/>
+<line x1="960.0" y1="766.0" x2="334.0" y2="766.0" stroke="#94a3b8" stroke-width="2.0" stroke-dasharray="8 6"/>
+<line x1="334.0" y1="766.0" x2="334.0" y2="403.4" stroke="#94a3b8" stroke-width="2.0" stroke-dasharray="8 6"/>
+<polygon points="334.00,394.00 340.05,405.00 327.95,405.00" fill="#94a3b8"/>
+<text x="647.0" y="752.0" font-size="18" font-weight="400" fill="#64748b" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">teaching feedback</text>
+<text x="960.0" y="988.0" font-size="17" font-weight="400" fill="#475569" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Material comprehension → question practice → response evaluation → teacher feedback</text>
+<text x="960.0" y="1016.0" font-size="16" font-weight="400" fill="#64748b" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">One inbound arrow per step; auto grading is fed only by the layered quiz.</text>
+</svg>

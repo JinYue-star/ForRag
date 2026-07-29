@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="图 5.3 三档依据门控">
+<rect width="1920" height="1080" fill="#ffffff"/>
+<text x="960.0" y="64.0" font-size="30" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">三档依据门控</text>
+<rect x="680.0" y="133.0" width="560.0" height="96.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="960.0" y="188.0" font-size="20" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">检索得分前两名  s₁ 、 s₂</text>
+<rect x="600.0" y="281.0" width="720.0" height="110.0" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="960.0" y="330.1" font-size="19" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">按分数尺度选择阈值</text>
+<text x="960.0" y="354.1" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">重排体制 或 余弦体制</text>
+<line x1="960.0" y1="235.0" x2="960.0" y2="265.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="960.00,275.00 953.95,264.00 966.05,264.00" fill="#64748b"/>
+<rect x="252.0" y="466.0" width="440.0" height="180.0" rx="10" ry="10" fill="#fef2f2" stroke="#ef4444" stroke-width="1.8"/>
+<text x="472.0" y="524.0" font-size="20" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">none 无据</text>
+<text x="472.0" y="548.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">证据过弱</text>
+<text x="472.0" y="574.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">→ 通识回答</text>
+<text x="472.0" y="600.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">标注非课程结论</text>
+<rect x="740.0" y="466.0" width="440.0" height="180.0" rx="10" ry="10" fill="#fff7ed" stroke="#f59e0b" stroke-width="1.8"/>
+<text x="960.0" y="524.0" font-size="20" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">weak 偏弱</text>
+<text x="960.0" y="548.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">部分支持</text>
+<text x="960.0" y="574.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">→ 通识回答</text>
+<text x="960.0" y="600.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">标注非课程结论</text>
+<rect x="1228.0" y="466.0" width="440.0" height="180.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="1448.0" y="524.0" font-size="20" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">grounded 有据</text>
+<text x="1448.0" y="548.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">课程可支撑</text>
+<text x="1448.0" y="574.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">→ 约束大模型</text>
+<text x="1448.0" y="600.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">带引用</text>
+<line x1="960.0" y1="397.0" x2="960.0" y2="428.5" stroke="#64748b" stroke-width="2.0"/>
+<line x1="472.0" y1="428.5" x2="1448.0" y2="428.5" stroke="#64748b" stroke-width="2.0"/>
+<line x1="472.0" y1="428.5" x2="472.0" y2="450.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="472.00,460.00 465.95,449.00 478.05,449.00" fill="#64748b"/>
+<line x1="960.0" y1="428.5" x2="960.0" y2="450.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="960.00,460.00 953.95,449.00 966.05,449.00" fill="#64748b"/>
+<line x1="1448.0" y1="428.5" x2="1448.0" y2="450.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="1448.00,460.00 1441.95,449.00 1454.05,449.00" fill="#64748b"/>
+<rect x="64.0" y="682.0" width="1792.0" height="270.0" rx="12" ry="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.8"/>
+<text x="960.0" y="789.0" font-size="20" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">判定重点</text>
+<text x="960.0" y="825.0" font-size="17" font-weight="400" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">更看重两条支撑段落，而不是单条虚高的首位命中。</text>
+<text x="960.0" y="853.0" font-size="17" font-weight="400" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">另设更高的单条强阈值，保留“一条决定性证据”的合理情形。</text>
+<text x="960.0" y="1016.0" font-size="17" font-weight="400" fill="#475569" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">安全方向：证据不足 → 通识回答并明确标注。</text>
+</svg>

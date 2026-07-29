@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="Figure 5.3 Grounding gate">
+<rect width="1920" height="1080" fill="#ffffff"/>
+<text x="960.0" y="64.0" font-size="30" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Three-Band Grounding Gate</text>
+<rect x="680.0" y="133.0" width="560.0" height="96.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="960.0" y="188.0" font-size="20" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Top-2 retrieval scores  s₁ , s₂</text>
+<rect x="600.0" y="281.0" width="720.0" height="110.0" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="960.0" y="330.1" font-size="19" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Apply scale-specific thresholds</text>
+<text x="960.0" y="354.1" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Re-rank regime or cosine regime</text>
+<line x1="960.0" y1="235.0" x2="960.0" y2="265.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="960.00,275.00 953.95,264.00 966.05,264.00" fill="#64748b"/>
+<rect x="252.0" y="466.0" width="440.0" height="180.0" rx="10" ry="10" fill="#fef2f2" stroke="#ef4444" stroke-width="1.8"/>
+<text x="472.0" y="524.0" font-size="20" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">none</text>
+<text x="472.0" y="548.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Evidence too weak</text>
+<text x="472.0" y="574.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">→ general answer</text>
+<text x="472.0" y="600.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">labelled non-course</text>
+<rect x="740.0" y="466.0" width="440.0" height="180.0" rx="10" ry="10" fill="#fff7ed" stroke="#f59e0b" stroke-width="1.8"/>
+<text x="960.0" y="524.0" font-size="20" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">weak</text>
+<text x="960.0" y="548.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Partial support</text>
+<text x="960.0" y="574.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">→ general answer</text>
+<text x="960.0" y="600.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">labelled non-course</text>
+<rect x="1228.0" y="466.0" width="440.0" height="180.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="1448.0" y="524.0" font-size="20" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">grounded</text>
+<text x="1448.0" y="548.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Course-supported</text>
+<text x="1448.0" y="574.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">→ constrained LLM</text>
+<text x="1448.0" y="600.6" font-size="16" font-weight="400" fill="#334155" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">with citations</text>
+<line x1="960.0" y1="397.0" x2="960.0" y2="428.5" stroke="#64748b" stroke-width="2.0"/>
+<line x1="472.0" y1="428.5" x2="1448.0" y2="428.5" stroke="#64748b" stroke-width="2.0"/>
+<line x1="472.0" y1="428.5" x2="472.0" y2="450.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="472.00,460.00 465.95,449.00 478.05,449.00" fill="#64748b"/>
+<line x1="960.0" y1="428.5" x2="960.0" y2="450.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="960.00,460.00 953.95,449.00 966.05,449.00" fill="#64748b"/>
+<line x1="1448.0" y1="428.5" x2="1448.0" y2="450.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="1448.00,460.00 1441.95,449.00 1454.05,449.00" fill="#64748b"/>
+<rect x="64.0" y="682.0" width="1792.0" height="270.0" rx="12" ry="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.8"/>
+<text x="960.0" y="789.0" font-size="20" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Decision emphasis</text>
+<text x="960.0" y="825.0" font-size="17" font-weight="400" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Prefer two supporting passages over a single high top hit.</text>
+<text x="960.0" y="853.0" font-size="17" font-weight="400" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">A higher single-hit threshold still allows one decisive passage.</text>
+<text x="960.0" y="1016.0" font-size="17" font-weight="400" fill="#475569" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Fail-safe direction: insufficient evidence → labelled general answer.</text>
+</svg>

@@ -172,10 +172,10 @@ try:
 except Exception:
     traceback.print_exc()
 
-# 默认多语种嵌入模型 BAAI/bge-m3：多语种标杆、8192 长上下文，适配英文/双语课程。
+# 未设置 MS_EMBED_ID 时的代码回退：BAAI/bge-m3（多语种、8192 长上下文，约 2.3GB）。
+# 当前仓库实际运行配置见 .env.example：intfloat/multilingual-e5-small（本机 .models/ 已缓存）。
 # 换模型会自动以新 embed_model_id 重建向量缓存（无需手动清理）。
-# 备选：intfloat/multilingual-e5-large（同级、带 e5 前缀）、多语种小模型 BAAI/bge-small-zh-v1.5（离线/低配）。
-# 注意：bge-m3 约 0.5B 参数、需约 2.3GB 内存；低内存/CPU 机器建议改用小模型。
+# 备选：intfloat/multilingual-e5-large；勿对英文课件默认用中文单语 bge-small-zh-v1.5。
 SERVER_EMBED_MODEL = os.environ.get("MS_EMBED_ID", "BAAI/bge-m3")
 SERVER_MODEL_ID = os.environ.get("MS_MODEL_ID", "Qwen/Qwen2.5-3B-Instruct")
 SERVER_LLM_HUB = _normalize_llm_hub(os.environ.get("LLM_HUB", "auto"))

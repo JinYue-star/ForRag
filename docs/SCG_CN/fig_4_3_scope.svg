@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="图 4.3 检索范围选择">
+<rect width="1920" height="1080" fill="#ffffff"/>
+<text x="960.0" y="64.0" font-size="30" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">检索范围选择</text>
+<rect x="760.0" y="141.0" width="400.0" height="90.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="960.0" y="192.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">学生提问</text>
+<rect x="252.0" y="326.0" width="440.0" height="120.0" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="472.0" y="380.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">仅会话文件</text>
+<text x="472.0" y="403.2" font-size="15" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">临时上传</text>
+<rect x="740.0" y="326.0" width="440.0" height="120.0" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="960.0" y="380.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">仅知识库</text>
+<text x="960.0" y="403.2" font-size="15" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">共享课程材料</text>
+<rect x="1228.0" y="326.0" width="440.0" height="120.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="1448.0" y="380.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">并集（默认）</text>
+<text x="1448.0" y="403.2" font-size="15" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">知识库 + 会话文件</text>
+<line x1="960.0" y1="237.0" x2="960.0" y2="278.5" stroke="#64748b" stroke-width="2.0"/>
+<line x1="472.0" y1="278.5" x2="1448.0" y2="278.5" stroke="#64748b" stroke-width="2.0"/>
+<line x1="472.0" y1="278.5" x2="472.0" y2="310.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="472.00,320.00 465.95,309.00 478.05,309.00" fill="#64748b"/>
+<line x1="960.0" y1="278.5" x2="960.0" y2="310.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="960.00,320.00 953.95,309.00 966.05,309.00" fill="#64748b"/>
+<line x1="1448.0" y1="278.5" x2="1448.0" y2="310.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="1448.00,320.00 1441.95,309.00 1454.05,309.00" fill="#64748b"/>
+<rect x="600.0" y="571.0" width="720.0" height="110.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="960.0" y="620.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">本次提问的索引包</text>
+<text x="960.0" y="643.2" font-size="15" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">解析切块 → 嵌入 → FAISS</text>
+<line x1="472.0" y1="452.0" x2="472.0" y2="508.5" stroke="#64748b" stroke-width="2.0"/>
+<line x1="960.0" y1="452.0" x2="960.0" y2="508.5" stroke="#64748b" stroke-width="2.0"/>
+<line x1="1448.0" y1="452.0" x2="1448.0" y2="508.5" stroke="#64748b" stroke-width="2.0"/>
+<line x1="472.0" y1="508.5" x2="1448.0" y2="508.5" stroke="#64748b" stroke-width="2.0"/>
+<line x1="960.0" y1="508.5" x2="960.0" y2="555.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="960.00,565.00 953.95,554.00 966.05,554.00" fill="#64748b"/>
+<rect x="690.0" y="778.5" width="540.0" height="95.0" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="960.0" y="832.3" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">混合检索 + 有据回答</text>
+<line x1="960.0" y1="687.0" x2="960.0" y2="763.1" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="960.00,772.50 953.95,761.50 966.05,761.50" fill="#64748b"/>
+<text x="960.0" y="1016.0" font-size="17" font-weight="400" fill="#475569" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">分类筛选可进一步缩小知识库贡献范围。</text>
+</svg>

@@ -3,7 +3,8 @@
 > **用途**：当前仓库的结构化架构真相源，供人读、IDE 预览，以及后续导出 PNG/SVG/交互图。  
 > **产品名**：HKU Teacher-student Co-learning (SOLO) Bot · **工程代号**：ForRAG  
 > **形态**：单进程 FastAPI + 静态前端 + 本地 FAISS/Embedding + 外部千问 API  
-> **版本**：与代码对齐 · 2026-07-15  
+> **版本**：与代码 / `.env.example` / 本机模型缓存对齐 · 2026-07-28  
+> **运行配置（当前实际）**：嵌入 `intfloat/multilingual-e5-small` · 重排 `BAAI/bge-reranker-v2-m3`（低配可 MiniLM）· 生成 DashScope `qwen-plus` · 本地 LLM 关闭  
 > **关联**：[`ForRAG_PRD.md`](ForRAG_PRD.md) §5 · [`RAG_Optimization_Report.md`](RAG_Optimization_Report.md) · [`DEPLOY.md`](../DEPLOY.md)
 
 ---
@@ -59,7 +60,7 @@ nodes:
     name: FastAPI App
     layer: application
     path: rag_api/main.py
-    depends_on: [mw, routes_v1, routes_auth, routes_export, settings]
+    depends_on: [mw, routes_v1, routes_auth, routes_export, routes_exercises, settings]
   - id: mw
     name: Middleware
     layer: application
@@ -80,6 +81,12 @@ nodes:
     layer: application
     path: rag_api/export_routes.py
     depends_on: [export_svc, auth]
+  - id: routes_exercises
+    name: Exercise / Public Quiz Routes
+    layer: application
+    path: rag_api/exercise_routes.py
+    depends_on: [exercise_svc, exercise_store, chroma, auth]
+    notes: "/api/v1/kb/exercises · /api/v1/quiz/{id}"
   - id: session_qa
     name: Session QA Orchestrator
     layer: application
@@ -95,6 +102,11 @@ nodes:
     layer: application
     path: rag_api/export_service.py
     depends_on: [chroma]
+  - id: exercise_svc
+    name: Exercise Service
+    layer: application
+    path: rag_api/exercise_service.py
+    depends_on: [exercise_store, qa_llm, kb]
   - id: settings
     name: Settings / Env
     layer: application
@@ -136,6 +148,13 @@ nodes:
     path: [kb_store.py, rag_api/kb_files.py]
     store: sqlite+fs
     data_path: [.data/kb.sqlite, .uploads/kb/]
+  - id: exercise_store
+    name: Exercise Store
+    layer: infrastructure
+    path: exercise_store.py
+    store: sqlite
+    data_path: .data/kb.sqlite
+    notes: class_exercises 表（与 KB 同库）
   - id: chroma
     name: Chroma Store
     layer: infrastructure
@@ -155,22 +174,26 @@ nodes:
     store: filesystem
 
   # —— External ——
+  # runtime_profile = 当前 .env.example / 本机实际；code_fallback = 未设环境变量时 settings / rag_pipeline 默认值
   - id: llm
     name: DashScope Qwen API
     layer: external
-    default_model: qwen-plus
+    runtime_model: qwen-plus
+    local_llm: disabled  # RAG_ENABLE_LOCAL_LLM=0
     env: [DASHSCOPE_API_KEY, QWEN_API_MODEL, QWEN_API_BASE]
   - id: embed
     name: Local Embedding
     layer: external
-    default_model: intfloat/multilingual-e5-small
+    runtime_model: intfloat/multilingual-e5-small  # MS_EMBED_ID；本机 .models/multilingual-e5-small
+    code_fallback: BAAI/bge-m3  # settings.SERVER_EMBED_MODEL 未设 env 时
     alt_models: [BAAI/bge-m3]
     runtime: sentence-transformers
   - id: rerank
     name: Cross-Encoder Reranker
     layer: external
-    default_model: ms-marco-MiniLM-L-6-v2
-    alt_models: [BAAI/bge-reranker-v2-m3]
+    runtime_model: BAAI/bge-reranker-v2-m3  # RAG_RERANK_MODEL；本机 .models/bge-reranker-v2-m3
+    low_ram_alt: ms-marco-MiniLM-L-6-v2  # 本机亦有缓存；8GB CPU 可选
+    code_fallback: BAAI/bge-reranker-v2-m3
     used_by: [pipeline]
 
   # —— Tools ——
@@ -196,6 +219,10 @@ edges:
   - {from: routes_v1, to: kb, via: "KB CRUD"}
   - {from: routes_auth, to: auth_store, via: "users/tokens"}
   - {from: routes_export, to: export_svc, via: "preview/download"}
+  - {from: routes_exercises, to: exercise_svc, via: "import / generate / publish"}
+  - {from: routes_exercises, to: exercise_store, via: "class_exercises"}
+  - {from: routes_exercises, to: chroma, via: "quiz_batches payload"}
+  - {from: exercise_svc, to: qa_llm, via: "AI 出题"}
 ```
 
 ---
@@ -226,10 +253,10 @@ flowchart TB
     uploads["uploads<br/>.uploads"]
   end
 
-  subgraph external["External / Local models"]
-    llm["llm · DashScope Qwen"]
-    embed["embed · e5-small / bge-m3"]
-    rerank["rerank · MiniLM / bge-reranker"]
+  subgraph external["External / Local models · 当前实际"]
+    llm["llm · DashScope qwen-plus<br/>本地 LLM 关"]
+    embed["embed · multilingual-e5-small<br/>（无 env 回退 bge-m3）"]
+    rerank["rerank · bge-reranker-v2-m3<br/>（低配可 MiniLM）"]
   end
 
   Browser -->|"HTTP Bearer + Session-Secret"| fe
@@ -260,9 +287,11 @@ flowchart TB
     routes_v1["routes_v1 · routes.py"]
     routes_auth["routes_auth · auth_routes.py"]
     routes_export["routes_export · export_routes.py"]
+    routes_exercises["routes_exercises · exercise_routes.py"]
     session_qa["session_qa · session_qa.py"]
     qa_llm["qa_llm · qa_llm.py"]
     export_svc["export_svc · export_service.py"]
+    exercise_svc["exercise_svc · exercise_service.py"]
     auth["auth · auth.py"]
     settings["settings · settings.py"]
     schemas["schemas · schemas.py"]
@@ -270,11 +299,14 @@ flowchart TB
     api --> routes_v1
     api --> routes_auth
     api --> routes_export
+    api --> routes_exercises
     routes_v1 --> session_qa
     routes_v1 --> qa_llm
     routes_export --> export_svc
+    routes_exercises --> exercise_svc
     routes_auth --> auth
     session_qa --> qa_llm
+    exercise_svc --> qa_llm
   end
 
   subgraph domain["Domain"]
@@ -289,14 +321,16 @@ flowchart TB
   subgraph infrastructure["Infrastructure"]
     auth_store["auth_store.py"]
     kb["kb_store.py + kb_files.py"]
+    exercise_store["exercise_store.py"]
     chroma["chroma_store.py"]
     faiss["FAISS cache"]
     uploads[".uploads FS"]
   end
 
-  subgraph external["External"]
-    llm["DashScope Qwen"]
-    embed["sentence-transformers"]
+  subgraph external["External · 当前实际"]
+    llm["DashScope qwen-plus"]
+    embed["e5-small · sentence-transformers"]
+    rerank["bge-reranker-v2-m3"]
   end
 
   fe -->|"/api/v1"| api
@@ -305,12 +339,16 @@ flowchart TB
   routes_v1 --> chroma
   routes_v1 --> kb
   routes_v1 --> uploads
+  routes_exercises --> exercise_store
+  routes_exercises --> chroma
   export_svc --> chroma
   session_qa --> chroma
+  exercise_svc --> exercise_store
   doc --> faiss
   doc --> embed
   qa_llm --> llm
   pipeline --> llm
+  pipeline --> rerank
 ```
 
 ### 2.1 目录 ↔ 组件速查
@@ -355,7 +393,7 @@ flowchart LR
   subgraph ingest["Ingest"]
     U["Upload / KB write"] --> P["doc.parse_*"]
     P --> C["token chunk + parent-child<br/>+ PDF OCR · cache v6"]
-    C --> E["embed · e5-small / bge-m3"]
+    C --> E["embed · multilingual-e5-small<br/>（运行时 MS_EMBED_ID）"]
     E --> F["FAISS + parsed/docs cache"]
   end
 
@@ -366,14 +404,14 @@ flowchart LR
     HY --> BM["BM25"]
     DN --> RRF["RRF fusion"]
     BM --> RRF
-    RRF --> RR["Cross-encoder rerank"]
+    RRF --> RR["Cross-encoder rerank<br/>bge-reranker-v2-m3"]
     RR --> COR["Corrective re-query ≤1"]
   end
 
   subgraph generate["Generate · qa_llm.run_qa_pipeline"]
     COR --> CRAG["CRAG gate + sufficiency<br/>none / weak / grounded"]
     CRAG --> LIM["Lost-in-the-Middle"]
-    LIM --> GEN["invoke_llm · Qwen<br/>RAG or general"]
+    LIM --> GEN["invoke_llm · qwen-plus<br/>RAG or general"]
     GEN --> CIT["sentence [n] + coverage<br/>+ source footer"]
     CIT --> MSG["chroma.message_add"]
   end
@@ -458,8 +496,9 @@ flowchart LR
 |---|---|---|---|
 | 用户 / 令牌 / 注册码 | SQLite | `.data/auth.sqlite` | `auth_store` ← auth routes |
 | KB 元数据 | SQLite | `.data/kb.sqlite` | `kb_store` ← v1 routes |
+| 课堂练习 | SQLite（同 kb 库） | `.data/kb.sqlite` · `class_exercises` | `exercise_store` ← exercise routes |
 | 原文件 | FS | `.uploads/` | routes / `kb_files` |
-| 会话 · 消息 · 测验 | ChromaDB | `.data/chroma/` | `chroma_store` |
+| 会话 · 消息 · 测验 payload | ChromaDB | `.data/chroma/` | `chroma_store` |
 | 向量索引 | FAISS | `.data/vector_cache/` | `doc_qa_assistant` |
 
 备份 / 迁移须同时保留 **`.data`** 与 **`.uploads`**。
@@ -484,8 +523,10 @@ flowchart LR
   teacher -.->|"/api/v1/admin/*"| routes_auth
   export -.->|"/api/v1/admin/export/*<br/>无对话正文"| routes_export
   kb -.->|"/api/v1/kb/*"| routes_v1
+  kb -.->|"/api/v1/kb/exercises"| routes_exercises
   index -.->|"sessions/* · verify_session_access"| routes_v1
-  quiz -.->|"quiz generate / grade"| routes_v1
+  quiz -.->|"session quiz generate/grade"| routes_v1
+  quiz -.->|"公开 /api/v1/quiz/{id}"| routes_exercises
 ```
 
 | 页面 | 主要脚本 | 后端焦点 |
@@ -493,9 +534,9 @@ flowchart LR
 | `landing.html` | `brand.js` | 静态 |
 | `login.html` | `auth.js` | `routes_auth` |
 | `teacher.html` | `auth.js` | admin users + reg code |
-| `kb.html` | `kb.js` | KB CRUD（教师写 / 学生读） |
+| `kb.html` | `kb.js` | KB CRUD（`routes_v1`）+ 课堂练习（`routes_exercises`） |
 | `index.html` | `app.js` | session · upload · QA（owner 隔离；侧栏按用户名分区） |
-| `quiz.html` | `app.js` | quiz generate / grade |
+| `quiz.html` | `app.js` | 会话 quiz（`routes_v1`）· 公开 `quiz_id`（`router_quiz_public`） |
 | `export.html` | — | `routes_export`（提问 / 测验；默认测验） |
 
 ---
@@ -506,8 +547,9 @@ flowchart LR
 允许方向（上层 → 下层）：
 
   fe  →  api/routes
-  routes  →  session_qa / qa_llm / stores / doc（invalidate）
+  routes  →  session_qa / qa_llm / stores / doc（invalidate）/ exercise_svc
   session_qa  →  doc + pipeline + qa_llm + chroma
+  exercise_svc  →  exercise_store + qa_llm + kb
   pipeline  →  doc.search + inject invoke_llm
   qa_llm  →  llm + pipeline.build_citations
   stores  →  （叶节点，不回调 routes）
@@ -529,8 +571,9 @@ flowchart LR
 | 前端 | 原生 HTML/CSS/JS（无 Node 构建） |
 | 元数据 | SQLite ×2 · ChromaDB |
 | 向量 | FAISS 磁盘缓存 |
-| 嵌入 / 重排 | sentence-transformers · CrossEncoder |
-| 生成 | OpenAI SDK → DashScope 兼容接口 |
+| 嵌入（当前） | `intfloat/multilingual-e5-small`（`.env.example` / 本机 `.models/`）；未设 env 时代码回退 `BAAI/bge-m3` |
+| 重排（当前） | `BAAI/bge-reranker-v2-m3`；8GB CPU 可选 `ms-marco-MiniLM-L-6-v2` |
+| 生成 | OpenAI SDK → DashScope `qwen-plus`；`RAG_ENABLE_LOCAL_LLM=0` |
 | 解析 | PyMuPDF · python-docx · openpyxl · python-pptx · RapidOCR |
 | 部署 | Docker Compose 单服务 `solo-bot` |
 | 评测 | `tools/rag_eval.py` + pytest |

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="图 4.4 师生流程">
+<rect width="1920" height="1080" fill="#ffffff"/>
+<text x="960.0" y="64.0" font-size="30" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">教师与学生流程</text>
+<rect x="200.0" y="181.0" width="400.0" height="210.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="400.0" y="247.1" font-size="26" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">教师</text>
+<text x="400.0" y="277.0" font-size="20" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">整理课程材料</text>
+<text x="400.0" y="309.0" font-size="20" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">发布课堂练习</text>
+<text x="400.0" y="341.0" font-size="20" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">导出成绩</text>
+<rect x="700.0" y="181.0" width="520.0" height="210.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="960.0" y="264.4" font-size="24" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">共享课程知识库</text>
+<text x="960.0" y="292.6" font-size="19" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">分类 · 笔记 · 附件</text>
+<text x="960.0" y="322.6" font-size="19" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">一门课一个知识库</text>
+<rect x="1320.0" y="181.0" width="400.0" height="210.0" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="2.2"/>
+<text x="1520.0" y="247.1" font-size="26" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">学生</text>
+<text x="1520.0" y="277.0" font-size="20" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">提问</text>
+<text x="1520.0" y="309.0" font-size="20" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">参加测验</text>
+<text x="1520.0" y="341.0" font-size="20" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">个人会话隔离</text>
+<rect x="200.0" y="750.0" width="400.0" height="180.0" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="400.0" y="818.4" font-size="24" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">导出边界</text>
+<text x="400.0" y="846.6" font-size="19" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">仅提问与成绩</text>
+<text x="400.0" y="876.6" font-size="19" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">不含对话正文</text>
+<rect x="1320.0" y="750.0" width="400.0" height="180.0" rx="10" ry="10" fill="#f8fafc" stroke="#475569" stroke-width="1.8"/>
+<text x="1520.0" y="818.4" font-size="24" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">会话上传</text>
+<text x="1520.0" y="846.6" font-size="19" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">临时文件</text>
+<text x="1520.0" y="876.6" font-size="19" font-weight="400" fill="#334155" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">不进入共享知识库</text>
+<line x1="606.0" y1="286.0" x2="684.6" y2="286.0" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="694.00,286.00 683.00,292.05 683.00,279.95" fill="#64748b"/>
+<text x="650.0" y="268.0" font-size="18" font-weight="400" fill="#64748b" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">写入</text>
+<line x1="1226.0" y1="286.0" x2="1304.7" y2="286.0" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="1314.00,286.00 1303.00,292.05 1303.00,279.95" fill="#64748b"/>
+<text x="1270.0" y="268.0" font-size="18" font-weight="400" fill="#64748b" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">读取</text>
+<line x1="400.0" y1="397.0" x2="400.0" y2="734.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="400.00,744.00 393.95,733.00 406.05,733.00" fill="#64748b"/>
+<text x="414.0" y="576.5" font-size="18" font-weight="400" fill="#64748b" text-anchor="start" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">成绩</text>
+<line x1="1520.0" y1="397.0" x2="1520.0" y2="734.6" stroke="#64748b" stroke-width="2.0"/>
+<polygon points="1520.00,744.00 1513.95,733.00 1526.05,733.00" fill="#64748b"/>
+<text x="1534.0" y="576.5" font-size="18" font-weight="400" fill="#64748b" text-anchor="start" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">私有</text>
+<text x="960.0" y="1016.0" font-size="17" font-weight="400" fill="#475569" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">教师写知识库，学生读知识库；会话附件不进入共享语料。</text>
+</svg>

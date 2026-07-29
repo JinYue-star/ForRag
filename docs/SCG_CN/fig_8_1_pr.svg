@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="图 8.1 门控标定">
+<rect width="1920" height="1080" fill="#ffffff"/>
+<text x="960.0" y="64.0" font-size="30" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">依据门控标定（余弦体制，65 题）</text>
+<rect x="264.0" y="178.0" width="1472.0" height="734.0" rx="6" ry="6" fill="#ffffff" stroke="#94a3b8" stroke-width="1.8"/>
+<text x="1000.0" y="946.0" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">有据召回率</text>
+<text x="208.0" y="545.0" font-size="17" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">有据</text>
+<text x="208.0" y="567.0" font-size="17" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">精确率</text>
+<line x1="264.0" y1="912.0" x2="264.0" y2="178.0" stroke="#e2e8f0" stroke-width="1.2"/>
+<text x="264.0" y="932.0" font-size="15" font-weight="400" fill="#64748b" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">0.70</text>
+<line x1="264.0" y1="912.0" x2="1736.0" y2="912.0" stroke="#e2e8f0" stroke-width="1.2"/>
+<text x="250.0" y="917.0" font-size="15" font-weight="400" fill="#64748b" text-anchor="end" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">0.70</text>
+<line x1="754.7" y1="912.0" x2="754.7" y2="178.0" stroke="#e2e8f0" stroke-width="1.2"/>
+<text x="754.7" y="932.0" font-size="15" font-weight="400" fill="#64748b" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">0.80</text>
+<line x1="264.0" y1="667.3" x2="1736.0" y2="667.3" stroke="#e2e8f0" stroke-width="1.2"/>
+<text x="250.0" y="672.3" font-size="15" font-weight="400" fill="#64748b" text-anchor="end" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">0.80</text>
+<line x1="1245.3" y1="912.0" x2="1245.3" y2="178.0" stroke="#e2e8f0" stroke-width="1.2"/>
+<text x="1245.3" y="932.0" font-size="15" font-weight="400" fill="#64748b" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">0.90</text>
+<line x1="264.0" y1="422.7" x2="1736.0" y2="422.7" stroke="#e2e8f0" stroke-width="1.2"/>
+<text x="250.0" y="427.7" font-size="15" font-weight="400" fill="#64748b" text-anchor="end" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">0.90</text>
+<line x1="1736.0" y1="912.0" x2="1736.0" y2="178.0" stroke="#e2e8f0" stroke-width="1.2"/>
+<text x="1736.0" y="932.0" font-size="15" font-weight="400" fill="#64748b" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">1.00</text>
+<line x1="264.0" y1="178.0" x2="1736.0" y2="178.0" stroke="#e2e8f0" stroke-width="1.2"/>
+<text x="250.0" y="183.0" font-size="15" font-weight="400" fill="#64748b" text-anchor="end" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">1.00</text>
+<polyline points="1736.0,410.4 529.0,178.0 1647.7,222.0" fill="none" stroke="#cbd5e1" stroke-width="2.5"/>
+<circle cx="1736.0" cy="410.4" r="11" fill="#94a3b8" stroke="#0f172a" stroke-width="1.5"/>
+<text x="1754.0" y="418.4" font-size="17" font-weight="700" fill="#94a3b8" text-anchor="start" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">原始设置</text>
+<text x="1754.0" y="440.4" font-size="15" font-weight="400" fill="#334155" text-anchor="start" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">P=0.905, R=1.000</text>
+<text x="1754.0" y="460.4" font-size="14" font-weight="400" fill="#64748b" text-anchor="start" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">0.50 / 0.60 / 0.35</text>
+<circle cx="529.0" cy="178.0" r="11" fill="#f59e0b" stroke="#0f172a" stroke-width="1.5"/>
+<text x="547.0" y="206.0" font-size="17" font-weight="700" fill="#f59e0b" text-anchor="start" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">仅提高首位阈值</text>
+<text x="547.0" y="228.0" font-size="15" font-weight="400" fill="#334155" text-anchor="start" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">P=1.000, R=0.754</text>
+<text x="547.0" y="248.0" font-size="14" font-weight="400" fill="#64748b" text-anchor="start" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">0.69 / 0.72 / 0.35</text>
+<circle cx="1647.7" cy="222.0" r="11" fill="#2563eb" stroke="#0f172a" stroke-width="1.5"/>
+<text x="1629.7" y="186.0" font-size="17" font-weight="700" fill="#2563eb" text-anchor="end" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">选定设置</text>
+<text x="1629.7" y="208.0" font-size="15" font-weight="400" fill="#334155" text-anchor="end" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">P=0.982, R=0.982</text>
+<text x="1629.7" y="230.0" font-size="14" font-weight="400" fill="#64748b" text-anchor="end" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">0.62 / 0.75 / 0.62</text>
+<text x="960.0" y="1016.0" font-size="17" font-weight="400" fill="#475569" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Segoe UI, sans-serif">仅抬高首位阈值会牺牲召回；选定规则同时改善精确率与召回率的前沿。</text>
+</svg>

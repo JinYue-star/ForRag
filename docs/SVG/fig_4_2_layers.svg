@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-label="Figure 4.2 Layered component view">
+<rect width="1920" height="1080" fill="#ffffff"/>
+<text x="960.0" y="64.0" font-size="30" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Layered Component View</text>
+<text x="960.0" y="98.0" font-size="17" font-weight="400" fill="#64748b" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Dependencies permitted only downward</text>
+<rect x="64.0" y="126.0" width="1792.0" height="169.5" rx="12" ry="12" fill="#eff6ff" stroke="#cbd5e1" stroke-width="1.6"/>
+<rect x="64.0" y="126.0" width="180.0" height="169.5" rx="12" ry="12" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.4"/>
+<text x="154.0" y="217.8" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Presentation</text>
+<rect x="417.0" y="154.0" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="567.0" y="216.0" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Login / Teacher console</text>
+<rect x="745.0" y="154.0" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="895.0" y="216.0" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">AI assistant</text>
+<rect x="1073.0" y="154.0" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="1223.0" y="216.0" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Knowledge base</text>
+<rect x="1401.0" y="154.0" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="1551.0" y="216.0" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Quiz / Export</text>
+<rect x="64.0" y="347.5" width="1792.0" height="169.5" rx="12" ry="12" fill="#f0fdf4" stroke="#cbd5e1" stroke-width="1.6"/>
+<rect x="64.0" y="347.5" width="180.0" height="169.5" rx="12" ry="12" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.4"/>
+<text x="154.0" y="439.2" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Application</text>
+<rect x="417.0" y="375.5" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="567.0" y="437.5" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Auth &amp; admin routes</text>
+<rect x="745.0" y="375.5" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="895.0" y="437.5" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Session / file / QA APIs</text>
+<rect x="1073.0" y="375.5" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="1223.0" y="437.5" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Exercise &amp; export</text>
+<rect x="1401.0" y="375.5" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="1551.0" y="437.5" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Orchestration</text>
+<rect x="64.0" y="569.0" width="1792.0" height="169.5" rx="12" ry="12" fill="#fff7ed" stroke="#cbd5e1" stroke-width="1.6"/>
+<rect x="64.0" y="569.0" width="180.0" height="169.5" rx="12" ry="12" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.4"/>
+<text x="154.0" y="660.8" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Domain</text>
+<rect x="417.0" y="597.0" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="567.0" y="659.0" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Document processing</text>
+<rect x="745.0" y="597.0" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="895.0" y="659.0" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Hybrid retrieval</text>
+<rect x="1073.0" y="597.0" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="1223.0" y="659.0" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Grounded generation</text>
+<rect x="1401.0" y="597.0" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="1551.0" y="659.0" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Quiz &amp; grading</text>
+<rect x="64.0" y="790.5" width="1792.0" height="169.5" rx="12" ry="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.6"/>
+<rect x="64.0" y="790.5" width="180.0" height="169.5" rx="12" ry="12" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.4"/>
+<text x="154.0" y="882.2" font-size="18" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">Infrastructure</text>
+<rect x="417.0" y="818.5" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="567.0" y="880.5" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">SQLite (auth + KB)</text>
+<rect x="745.0" y="818.5" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="895.0" y="880.5" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">ChromaDB (sessions)</text>
+<rect x="1073.0" y="818.5" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="1223.0" y="880.5" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">FAISS vector cache</text>
+<rect x="1401.0" y="818.5" width="300.0" height="113.5" rx="10" ry="10" fill="#ffffff" stroke="#64748b" stroke-width="1.8"/>
+<text x="1551.0" y="880.5" font-size="15" font-weight="700" fill="#0f172a" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">File storage</text>
+<line x1="960.0" y1="301.5" x2="960.0" y2="332.1" stroke="#64748b" stroke-width="2.2"/>
+<polygon points="960.00,341.50 953.95,330.50 966.05,330.50" fill="#64748b"/>
+<line x1="960.0" y1="523.0" x2="960.0" y2="553.6" stroke="#64748b" stroke-width="2.2"/>
+<polygon points="960.00,563.00 953.95,552.00 966.05,552.00" fill="#64748b"/>
+<line x1="960.0" y1="744.5" x2="960.0" y2="775.1" stroke="#64748b" stroke-width="2.2"/>
+<polygon points="960.00,784.50 953.95,773.50 966.05,773.50" fill="#64748b"/>
+<text x="960.0" y="1016.0" font-size="17" font-weight="400" fill="#475569" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, Arial, sans-serif">ChromaDB stores sessions/messages/quizzes — not document vectors. Vectors live in FAISS.</text>
+</svg>
