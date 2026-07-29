@@ -233,7 +233,7 @@ def build():
         ("03", "Background Review", "RAG and related methods"),
         ("04", "System & Pipeline", "Technical implementation"),
         ("05", "Benchmark", "ELEC6081 evaluation set"),
-        ("06", "Results", "Gate & re-ranking evidence"),
+        ("06", "Results", "Gate & re-ranking on ELEC6081"),
         ("07", "Visual Results", "Architecture figures"),
         ("08", "Conclusions & Future", "Takeaways and limits"),
     ]
@@ -326,7 +326,7 @@ def build():
         ("Missing provenance", "Fluent answers without file/page evidence are hard to trust in teaching."),
         ("Incomplete learning loop", "QA alone does not provide practice, grading, and teacher feedback."),
         ("Messy real corpora", "PDFs, slides, tables, OCR pages, and bilingual terms often break naive pipelines."),
-    )
+    ]
     for i, (t, b) in enumerate(problems):
         top = Inches(1.25 + i * 1.35)
         num = s.shapes.add_shape(MSO_SHAPE.OVAL, Inches(0.55), top + Inches(0.15), Inches(0.55), Inches(0.55))
@@ -692,10 +692,10 @@ def build():
     s = new_slide(prs)
     add_title_bar(s, "Conclusions")
     points = [
-        ("Product", "A deployable teacher–student co-learning bot over one shared course KB."),
-        ("Method", "Hybrid retrieval + calibrated three-band gate + citation coverage repair."),
-        ("Pedagogy", "SOLO-informed practice and an export path that preserves privacy boundaries."),
-        ("Evidence", "On ELEC6081: gate P/R ≈ 0.982; re-ranking lifts context precision by +0.233."),
+        ("Product", "A working teacher–student co-learning bot over one shared course KB (single-course scope)."),
+        ("Method", "Hybrid retrieval + CRAG-inspired three-band gate (corpus-calibrated) + citation coverage repair."),
+        ("Pedagogy", "SOLO-informed practice; export limited to questions and scores (no full transcripts)."),
+        ("Evidence", "ELEC6081: gate P/R = 0.982 (65-q, cosine); context_precision +0.233 after re-rank (10-q probe)."),
     ]
     for i, (t, b) in enumerate(points):
         top = Inches(1.25 + i * 1.3)
@@ -802,3 +802,4 @@ def build():
 
 
 if __name__ == "__main__":
+    build()
